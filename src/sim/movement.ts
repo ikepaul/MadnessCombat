@@ -13,7 +13,7 @@ export const DIVE_TIME = PRONE.downTime * 2; // the forward dive is a longer dro
 
 /** Combat walk whenever an enemy is in the room or the player is armed (invented rule, PLAN.md M1). */
 export function inCombat(world: World, a: Actor): boolean {
-  return a.pose.held !== null || world.actors.some((o) => o !== a && o.kind !== 'hero' && alive(o));
+  return a.hands.some((h) => h !== null) || world.actors.some((o) => o !== a && o.kind !== 'hero' && alive(o));
 }
 
 export function stepLocomotion(world: World, a: Actor, cmd: PlayerCommand, dt: number): void {
@@ -25,6 +25,7 @@ export function stepLocomotion(world: World, a: Actor, cmd: PlayerCommand, dt: n
   if (len > 1) { ix /= len; iz /= len; }
   let speed = inCombat(world, a) ? MOVE.combatWalkSpeed : MOVE.walkSpeed;
   if (a.holding) speed *= TUNING.grab.carrySpeed;
+  speed *= a.walkFactor ?? 1;
   const wantX = ix * speed, wantZ = iz * speed * MOVE.depthFactor;
 
   updateFacing(a, cmd, ix);

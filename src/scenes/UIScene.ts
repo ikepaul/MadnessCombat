@@ -5,6 +5,7 @@ import { project } from '../render/camera';
 import { drawDebugGrid, rulerLabels } from '../render/debugOverlay';
 import { type Actor, stateLabel } from '../sim/actor';
 import { BODY, HEAD } from '../sim/hurtbox';
+import { isWeapon, WEAPONS } from '../data/weapons';
 import { SETTINGS } from '../settings';
 import type { GameScene } from './GameScene';
 
@@ -20,6 +21,8 @@ export class UIScene extends Phaser.Scene {
   private pipRows: { lastHp: number; lost: number; healed: number }[] = [];
   /** Co-op row labels ("P1 · you", "P2"). */
   private pipLabels: Phaser.GameObjects.Text[] = [];
+  /** Ammo for this laptop's player: one line per gun hand (M5). */
+  private ammo!: Phaser.GameObjects.Text;
   private counter!: Phaser.GameObjects.Text;
   private lastKills = 0;
   /** Kill counter pop: frames left of the 1.3 -> 1.0 scale (design/art-direction.md). */
@@ -43,6 +46,7 @@ export class UIScene extends Phaser.Scene {
     this.info = this.add.text(16, 12, '', box);
     this.labText = this.add.text(16, 1080 - 48, '', { ...box, wordWrap: { width: 1880 } }).setVisible(!!game.lab).setOrigin(0, 1).setY(1080 - 16);
     this.pipRows = [];
+    this.ammo = this.add.text(28, 0, '', { fontFamily: 'Inter', fontSize: '22px', color: '#ffffff', stroke: INK, strokeThickness: 5, fontStyle: 'bold', lineSpacing: 4 }).setOrigin(0, 1);
     this.pipLabels = [0, 1].map(() => this.add.text(0, 0, '', { fontFamily: 'Inter', fontSize: '20px', color: '#ffffff', stroke: INK, strokeThickness: 4, fontStyle: 'bold' }).setOrigin(0, 0.5));
     // world-kill-counter: big number bottom-right, appears at the first kill
     this.counter = this.add.text(1920 - 48, 1080 - 36, '', {
@@ -66,6 +70,7 @@ export class UIScene extends Phaser.Scene {
     const game = this.scene.get('game') as GameScene;
     const p = game.world.player;
     this.drawPips(game, delta / 1000);
+    this.drawAmmo(game);
     this.drawCounter(game);
     if (game.lab) {
       const b = p?.body;
@@ -110,6 +115,18 @@ export class UIScene extends Phaser.Scene {
   }
 
   /** Hit pips for the player's 3 hits (design/art-direction.md, UI), bottom-left. */
+  /** "LMB  SMG  23 +1" per gun hand of the local player, above the life pips. */
+  private drawAmmo(game: GameScene): void {
+    const p = game.world.players[game.localPlayer];
+    const rows = game.world.players.length;
+    const lines = (p?.hands ?? []).map((h, i) => {
+      if (!h || !isWeapon(h.item)) return undefined;
+      const state = h.reload > 0 ? 'reloading' : h.ammo === 0 ? (h.clicked ? 'empty: press to throw' : 'empty') : `${h.ammo}`;
+      return `${i === 0 ? 'LMB' : 'RMB'}  ${WEAPONS[h.item].name}  ${state}${h.spare > 0 ? '  +1' : ''}`;
+    }).filter((l): l is string => !!l);
+    this.ammo.setText(lines.join('\n')).setY(1080 - 120 - (rows - 1) * 56 - 30);
+  }
+
   /** One row of life pips per player, bottom-left (P1 lowest). Co-op rows are labelled. */
   private drawPips(game: GameScene, dt: number): void {
     const g = this.pips;

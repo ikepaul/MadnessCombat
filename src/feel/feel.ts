@@ -2,6 +2,7 @@
 // hit-stop, screen shake, chromatic split and kill-cam requests. Plain TS so the numbers can
 // be asserted in tests; the render side (src/render/feelFx.ts) and the audio engine carry them out.
 import { FEEL } from '../data/feel';
+import { WEAPONS } from '../data/weapons';
 import type { HitKind } from '../sim/events';
 import type { World } from '../sim/world';
 
@@ -54,6 +55,8 @@ export class FeelDirector {
         this.sink.killCam();
       }
     });
+    // shake per weapon (design/art-direction.md: pistol 2 px, SMG 1, shotgun 6)
+    world.events.on('shot', (e) => this.sink.shake(WEAPONS[e.weapon].shake, FEEL.shake.decayMin));
     world.events.on('wallHit', (e) => {
       if (e.speed > 2) this.sink.shake(FEEL.shake.wall, FEEL.shake.decayMin + 0.1);
     });

@@ -24,6 +24,8 @@ export interface SoundDef {
 /** `kenney/<prefix><index>.ogg` for each index. */
 const kenney = (prefix: string, ids: (string | number)[]) => ids.map((i) => `kenney/${prefix}${i}.ogg`);
 const FIVE = ['000', '001', '002', '003', '004'];
+/** `gunshots/<name>_<n>.wav` for n = 1..count. */
+const shots = (name: string, count: number) => Array.from({ length: count }, (_, i) => `gunshots/${name}_${i + 1}.wav`);
 
 const def = (recipe: Recipe, bus: Bus, gain = 1, o: Partial<SoundDef> = {}): SoundDef => ({ recipe, bus, variants: 4, limit: 4, gain, reverb: 0.15, ...o });
 
@@ -51,8 +53,23 @@ export const SOUNDS = {
   tick: def('tick', 'ui', 0.6, { variants: 3, limit: 4, reverb: 0, files: kenney('tick_', ['001', '002', '004']) }),
   heal: def('heal', 'ui', 0.6, { variants: 4, reverb: 0, files: kenney('confirmation_', ['001', '002', '003', '004']) }),
   tapeStop: def('tapeStop', 'ui', 0.8, { variants: 1, limit: 1, reverb: 0 }),
-  /** Placeholder until gun casings exist (M5): the synthetic voice-limit test uses it. */
-  casing: def('tick', 'weapons', 0.3, { variants: 3, limit: 6, reverb: 0 }),
+  // guns (M5): range recordings (CC-BY 3.0, see LICENSES.md) cut into single shots by
+  // tools/audio/slice-gunshots.mjs; the suppressed shot and the slide rack stay generated
+  shotPistol: def('gunPistol', 'weapons', 0.9, { variants: 5, reverb: 0.35, files: shots('cz', 5) }),
+  shotDeagle: def('gunHeavy', 'weapons', 1, { variants: 4, reverb: 0.45, files: shots('mosin', 4) }),
+  shotSmg: def('gunSmg', 'weapons', 0.6, { variants: 5, limit: 3, reverb: 0.25, files: shots('cz', 5) }),
+  shotRifle: def('gunRifle', 'weapons', 0.85, { variants: 5, limit: 3, reverb: 0.35, files: shots('sks', 5) }),
+  shotMg: def('gunRifle', 'weapons', 0.8, { variants: 5, limit: 3, reverb: 0.35, files: shots('sks', 5) }),
+  shotShotgun: def('gunShotgun', 'weapons', 1, { variants: 1, reverb: 0.5, files: shots('shotty', 1) }),
+  shotSuppressed: def('gunSuppressed', 'weapons', 0.7, { variants: 4, reverb: 0.1 }),
+  dryFire: def('tick', 'weapons', 0.7, { variants: 1, reverb: 0, files: ['kenney/metalClick.ogg'] }),
+  magOut: def('tick', 'foley', 0.6, { variants: 1, reverb: 0.05, files: ['kenney/metalLatch.ogg'] }),
+  slideRack: def('slideRack', 'foley', 0.7, { variants: 3, reverb: 0.05 }),
+  /** Casings: 6 voices at most (spec). */
+  casing: def('tick', 'weapons', 0.25, { variants: 5, limit: 6, reverb: 0, files: kenney('impactMetal_light_', FIVE) }),
+  hitMetal: def('impact', 'impacts', 0.5, { variants: 5, reverb: 0.2, files: kenney('impactMetal_medium_', FIVE) }),
+  hitWood: def('impact', 'impacts', 0.6, { variants: 5, reverb: 0.2, files: kenney('impactWood_light_', FIVE) }),
+  hitConcrete: def('impact', 'impacts', 0.5, { variants: 5, reverb: 0.2, files: kenney('impactMining_', FIVE) }),
   ambWind: def('windLoop', 'world', 0.5, { variants: 1, limit: 1, reverb: 0, loop: true }),
   ambRoom: def('roomToneLoop', 'world', 0.5, { variants: 1, limit: 1, reverb: 0, loop: true }),
 } satisfies Record<string, SoundDef>;

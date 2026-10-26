@@ -15,6 +15,8 @@ export interface PlayOptions {
   rate?: number;
   /** Extra linear gain. */
   gain?: number;
+  /** Start this many seconds later (a casing lands after the shot). */
+  delay?: number;
 }
 
 interface Live { src: AudioBufferSourceNode; gain: GainNode }
@@ -23,7 +25,7 @@ const dbToGain = (db: number) => 10 ** (db / 20);
 
 /** Recorded sounds bundled by Vite: path under assets/audio/ -> URL. */
 const FILE_URLS: Record<string, string> = Object.fromEntries(
-  Object.entries(import.meta.glob('../../assets/audio/**/*.ogg', { eager: true, query: '?url', import: 'default' }))
+  Object.entries(import.meta.glob('../../assets/audio/**/*.{ogg,wav}', { eager: true, query: '?url', import: 'default' }))
     .map(([path, url]) => [path.replace('../../assets/audio/', ''), url as string]),
 );
 
@@ -174,7 +176,7 @@ export class AudioEngine {
       send.gain.value = def.reverb;
       pan.connect(send).connect(this.reverb);
     }
-    src.start();
+    src.start(o.delay ? now + o.delay : 0);
     this.live.set(v.voiceId, { src, gain });
     src.onended = () => this.live.delete(v.voiceId);
     return v.voiceId;

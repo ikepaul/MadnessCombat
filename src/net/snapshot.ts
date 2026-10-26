@@ -3,7 +3,7 @@
 // every sim event since the last snapshot. The guest's world is a puppet: it never steps,
 // it takes the state and replays the events, so its VFX, decals, corpse baking, sound and
 // feel all run from the same events as on the host. Same Wi-Fi only: no prediction.
-import type { ActorKind, ActorState, MoveState, Pose } from '../sim/actor';
+import type { Actor, ActorKind, ActorState, MoveState, Pose } from '../sim/actor';
 import { createActor } from '../sim/actor';
 import type { CorpseState } from '../sim/actor';
 import type { GameEvents } from '../sim/events';
@@ -28,6 +28,7 @@ export interface ActorSnap {
   bodyHeight: number;
   corpse?: CorpseState['phase'];
   pose: Pose;
+  hands: Actor['hands'];
 }
 
 export interface Snapshot {
@@ -51,7 +52,7 @@ function snapActor(a: World['actors'][number]): ActorSnap {
     id: a.id, kind: a.kind, playerIndex: a.playerIndex, enemy: !!a.ai,
     pos: [a.pos.x, a.pos.y, a.pos.z], facing: a.facing, state: a.state, stateT: a.stateT,
     hp: a.hp, maxHp: a.maxHp, revive: a.revive, entering: a.entering,
-    bodyState: a.body.state, bodyHeight: a.body.height, corpse: a.corpse?.phase, pose: a.pose,
+    bodyState: a.body.state, bodyHeight: a.body.height, corpse: a.corpse?.phase, pose: a.pose, hands: a.hands,
   };
 }
 
@@ -114,6 +115,7 @@ export function applySnapshot(world: World, s: Snapshot): void {
     a.body.state = as.bodyState;
     a.body.height = as.bodyHeight;
     a.pose = as.pose;
+    a.hands = as.hands;
     if (as.corpse) a.corpse = { phase: as.corpse, t: 0, raisable: true, gibbed: false, slumped: false };
     else a.corpse = undefined;
     if (as.enemy && !a.ai) a.ai = newAiState(world);

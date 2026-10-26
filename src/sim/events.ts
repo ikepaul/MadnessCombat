@@ -2,6 +2,8 @@
 // calls them directly, so feel code stays out of gameplay code and events can be asserted
 // in tests. Later milestones add their events to GameEvents.
 
+import type { WeaponId } from '../data/weapons';
+
 interface At { actorId: number; x: number; y: number; z: number }
 
 export interface GameEvents {
@@ -29,6 +31,17 @@ export interface GameEvents {
     combo: boolean; chain: number;
   };
   kill: At & { byId: number; kind: HitKind; decap: boolean };
+  /** A gun fired (M5): muzzle/eject on screen, barrel angle, one ray per pellet (tracer end, impact). */
+  shot: At & {
+    hand: 0 | 1; weapon: WeaponId; muzzle: [number, number]; eject: [number, number]; angle: number;
+    rays: import('./guns').ShotRay[]; suppressed: boolean;
+  };
+  /** Trigger pulled on an empty gun (the next press throws it). */
+  dryFire: At & { hand: 0 | 1; weapon: WeaponId };
+  /** Reload started (magazine out) or finished (magazine in). */
+  reload: At & { hand: 0 | 1; phase: 'start' | 'end'; weapon: WeaponId };
+  /** A weapon picked up off the floor. */
+  pickup: At & { itemId: number; hand: 0 | 1; item: string };
   /** Co-op: a hero ran out of lives and lies in a revive circle. */
   playerDown: At;
   /** Co-op: a teammate finished the revive; the hero gets up. */
@@ -58,7 +71,10 @@ export interface GameEvents {
   roomCleared: { kills: number };
 }
 
-export type HitKind = 'light' | 'heavy' | 'uppercut' | 'finisher' | 'sweep' | 'body' | 'head' | 'wall';
+export type HitKind = 'light' | 'heavy' | 'uppercut' | 'finisher' | 'sweep' | 'body' | 'head' | 'wall' | 'bullet' | 'gun';
+
+/** Melee hits (combos chain these). */
+export const MELEE_KINDS: HitKind[] = ['light', 'heavy', 'uppercut', 'finisher'];
 
 type Handler<T> = (payload: T) => void;
 

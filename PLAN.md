@@ -206,22 +206,24 @@ Acceptance tests: two heroes follow their own commands · grunts target the near
 **Read first:** `gun-hitscan-smg`, `gun-pistol-suppressed`, `gun-shotgun`, `gun-auto-rifle`, `gun-dual-wield`, `gun-reload`, `gun-empty-throw`, `gun-pickup-drop`, `research/design-decisions.md` (aim, bullets across depth, ammo).
 
 Build:
-- [ ] Aim rig: the gun hand follows the cursor on a circle around the shoulder (reach 0.36 H pistols, 0.3 H long guns), head tilts toward the aim, the body faces the aim side.
-- [ ] Screen-space hitscan (ground rules).
-- [ ] Weapons data: pistol (semi, ≥ 0.15 s between shots, 8 rounds), suppressed pistol, Desert Eagle (7), SMG (0.1 s auto), rifle (0.1 s, 30), machine gun (0.07 s, 100, slower walk), pump shotgun (5–6 pellet rays ±4°, 0.6 s, 6), sawed-off (2). Rates/mags not measured are invented.
-- [ ] Items: weapons drop from hands/corpses with a bounce and stay. E = pick up. Auto-pickup with empty hands (proposal).
-- [ ] Two hands: LMB/RMB per hand. Dual wield any one-handed pair. Long guns can be dual-wielded with more spread. **Split aim** (Shift): the off-hand locks onto the nearest enemy on the opposite side.
-- [ ] Ammo (decided: throw & scavenge): magazine + max 1 spare, reload 0.6 s pistol / 1.0 s others (invented). Empty trigger → dry click → next press throws the gun. Dropped empty guns stay empty.
-- [ ] Gun damage (decided 2026-10-26): a grunt dies from 1 hit to the head or 2 to the body; the player loses 1 life per bullet like any hit.
-- [ ] Thrown gun: straight screen-space projectile, knockdown on hit, kills grunts on a head hit (invented).
-- [ ] Decal layer per surface rendered to textures, capped at 500 per room.
+- [x] Aim rig: the gun hand follows the cursor on a circle around the shoulder (reach 0.36 H pistols, 0.3 H long guns), head tilts toward the aim, the body faces the aim side.
+- [x] Screen-space hitscan (ground rules).
+- [x] Weapons data: pistol (semi, ≥ 0.15 s between shots, 8 rounds), suppressed pistol, Desert Eagle (7), SMG (0.1 s auto), rifle (0.1 s, 30), machine gun (0.07 s, 100, slower walk), pump shotgun (5–6 pellet rays ±4°, 0.6 s, 6), sawed-off (2). Rates/mags not measured are invented.
+- [x] Items: weapons drop from hands/corpses with a bounce and stay. E = pick up. Auto-pickup with empty hands (proposal).
+- [x] Two hands: LMB/RMB per hand. Dual wield any one-handed pair. Long guns can be dual-wielded with more spread. **Split aim** (Shift): the off-hand locks onto the nearest enemy on the opposite side.
+- [x] Ammo (decided: throw & scavenge): magazine + max 1 spare, reload 0.6 s pistol / 1.0 s others (invented). Empty trigger → dry click → next press throws the gun. Dropped empty guns stay empty.
+- [x] Gun damage (decided 2026-10-26): a grunt dies from 1 hit to the head or 2 to the body; the player loses 1 life per bullet like any hit.
+- [x] Thrown gun: straight screen-space projectile, knockdown on hit, kills grunts on a head hit (invented).
+- [x] Decal layer per surface rendered to textures, capped at 500 per room.
 
 Look & sound:
-- [ ] Weapon drawings for every gun (style frame pistol as the template: slide/receiver + grip under the mitten), correct lengths (pistol 0.25 H, long guns 0.55 H).
-- [ ] 1-frame muzzle flash + room light flash, 1-frame tracer with glow, shotgun pellet streaks, ejected casings that stay (max 6 casing voices), dropped magazines.
-- [ ] Hits: blood mist + wound burst + wall splatter behind the target. Misses: bullet holes (concrete/wood/metal looks).
-- [ ] Recoil kick per weapon (hand + body), shake per weapon (`feel.ts`).
-- [ ] Gun sounds per weapon (mechanical + crack + body + tail through the room reverb), suppressed variant, dry fire, mag out/in, slide rack, pump rack, casings per surface, bullet impacts (flesh, concrete, metal, wood).
+- [x] Weapon drawings for every gun (style frame pistol as the template: slide/receiver + grip under the mitten), correct lengths (pistol 0.25 H, long guns 0.55 H).
+- [x] 1-frame muzzle flash + room light flash, 1-frame tracer with glow, shotgun pellet streaks, ejected casings that stay (max 6 casing voices), dropped magazines.
+- [x] Hits: blood mist + wound burst + wall splatter behind the target. Misses: bullet holes (concrete/wood/metal looks).
+- [x] Recoil kick per weapon (hand + body), shake per weapon (`feel.ts`).
+- [x] Gun sounds per weapon (mechanical + crack + body + tail through the room reverb), suppressed variant, dry fire, mag out/in, slide rack, pump rack, casings per surface, bullet impacts (flesh, concrete, metal, wood).
+
+Done: `src/data/weapons.ts` (8 guns), `src/anim/aim.ts` (one aim rig shared by the painter and the hitscan, so tracers leave the drawn muzzle), `src/sim/hitscan.ts` (screen-space rays vs projected head circles and body capsules, cover only in front of the target, misses travel at the shooter's depth to a wall/floor/ceiling/prop), `src/sim/guns.ts` (fire, dry click → throw, reload, pick-up, split aim), `src/render/weaponPainter.ts` and `gunFx.ts`. Decisions taken here (invented, tunable): bullets do 4 to the head and 2 to the body (grunts have 4 hp), the Desert Eagle 4 on the body; a non-lethal bullet makes the target flinch 0.3 s; bullet kills knock the body back 0.7 H, point-blank shotgun (≤ 1.2 H) like a heavy hit and bursts the head; no friendly fire in co-op; only players pick weapons up (grunts in M7); grabbing needs both hands empty; a long gun held alone takes both hands (support hand on the barrel); the back hand may aim behind the body (split aim), the front hand always aims to the facing side; casings and magazines are render-side debris baked into the decal layer. One screen-space decal layer serves every surface (rooms are fixed screens) instead of one texture per surface. The HUD ammo readout is a text line per gun hand rather than a pip strip. Gunshots are range recordings by Vincent Sevedge (CC-BY 3.0, credited in `assets/CREDITS.md`) cut into single shots by `tools/audio/slice-gunshots.mjs` and kept as WAV (no converter on this machine); the suppressed shot and the slide rack are generated; casings, dry fire, magazine and impact sounds are Kenney recordings. Debug key L drops a random loaded gun at each player's feet (works in co-op and the arena). Labs are checked against the notes' numbers only (no reference frames here).
 
 Acceptance tests: the ray hits the first visually crossed hurtbox at different depths (3 cases) · cover in front blocks, cover behind doesn't · SMG interval 0.1 s · a grunt dies from 1 bullet · empty → click → throw sequence · dual wield fires each hand independently · split-aim picks the correct target.
 Labs: `gun-hitscan-smg`, `gun-pistol-suppressed`, `gun-shotgun`, `gun-auto-rifle`, `gun-dual-wield`, `gun-reload`, `gun-empty-throw`, `gun-pickup-drop`.
@@ -371,6 +373,7 @@ Labs: `world-arena-lock`, `boss-clown` (clip 4), `boss-halo` (clips 6–7), `thr
 Build:
 - [ ] Title screen, stage select, pause menu, settings (volumes, key rebinding, blood toggle, **effect intensity** for shake/flashes/chromatic, reduced-motion preset), end-of-stage body-count comparison.
 - [ ] Checkpoints per room (or whatever the user picks). Restart flow.
+- [ ] Credits screen from `assets/CREDITS.md` (CC-BY credits are required: the gunshot recordings).
 - [ ] Final music integration (all delivered stems, mix pass at −16 LUFS), final SFX mix pass per stage.
 - [ ] Final art pass: consistency of line weights and palettes across all rooms, title/stage cards in our own design.
 - [ ] Performance pass: decal/corpse caps, profiling the heaviest rooms (stage 2 office, stage 3 desert) at 60 fps with full effects.

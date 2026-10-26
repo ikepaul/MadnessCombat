@@ -126,8 +126,13 @@ export class World {
     return this.actors.find((a) => a.id === id);
   }
 
-  hitActor(by: Actor | undefined, target: Actor, kind: HitKind, dirX: number, dirZ: number, at: Vec3): void {
-    applyHit(this, by, target, kind, dirX, dirZ, at);
+  hitActor(by: Actor | undefined, target: Actor, kind: HitKind, dirX: number, dirZ: number, at: Vec3, part: 'head' | 'body' = 'body'): void {
+    applyHit(this, by, target, kind, dirX, dirZ, at, part);
+  }
+
+  /** A bullet hit from `by` (src/sim/guns.ts): weapon damage, flinch or kill, blood. */
+  hitBullet(by: Actor, target: Actor, damage: number, part: 'head' | 'body', dirX: number, pointBlank: boolean, at: Vec3): void {
+    applyHit(this, by, target, 'bullet', dirX, 0, at, part, false, { damage, pointBlank });
   }
 
   spawnItem(kind: ItemKind, skin: ActorKind, pos: Vec3, vel: Vec3, spin: number): Item {

@@ -3,11 +3,13 @@
 // research/mechanics/melee-* and move-knockdown-getup.
 import { aboutFeet, lyingAt, rootToWorld, STANDING } from '../anim/skeleton';
 import { GRAVITY, TUNING } from '../data/tuning';
+import { GUNS, isWeapon } from '../data/weapons';
+import { stepHands } from './guns';
 import { project, unprojectFloor } from '../render/camera';
 import { type Actor, type AttackKind, alive, type Flight } from './actor';
 import { clamp, moveWithCollision, surfaceBelow } from './collision';
 import type { PlayerCommand } from './command';
-import type { HitKind } from './events';
+import { type HitKind, MELEE_KINDS } from './events';
 import { circleHits } from './hurtbox';
 import { dropHeld } from './items';
 import { DIVE_TIME, stepAttackMove, stepLocomotion, sweepTarget } from './movement';
@@ -37,6 +39,12 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
   a.pose.hurt = Math.max(0, a.pose.hurt - dt);
   a.pose.lean *= Math.exp(-8 * dt);
 
+  // a hand holding a gun fires instead of punching (M5): LMB = hand 0, RMB = hand 1
+  if (a.state === 'free' || a.state === 'attack') {
+    cmd = withoutGunPunches(a, cmd);
+    stepHands(world, a, cmd, dt);
+  }
+
   switch (a.state) {
     case 'free': {
       const b = a.body;
@@ -46,7 +54,9 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
       }
       a.queued = undefined;
       if (b.state === 'ground' && !a.holding && cmd.attack) { startAttack(world, a, cmd); break; }
-      if (b.state === 'ground' && (cmd.grab || (a.holding && cmd.attack))) {
+      // grabbing takes both hands (guns stay in them otherwise)
+      const handsFree = !a.hands[0] && !a.hands[1];
+      if (b.state === 'ground' && ((cmd.grab && (handsFree || a.holding)) || (a.holding && cmd.attack))) {
         if (a.holding) startThrow(a, cmd);
         else tryGrab(world, a);
         if (a.state !== 'free') break;
@@ -97,6 +107,17 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
       break;
   }
   a.pose.dead = a.state === 'dead';
+  // the painter reads what each hand holds from the pose
+  a.pose.held = a.hands[0]?.item ?? null;
+  a.pose.heldB = a.hands[1]?.item ?? null;
+}
+
+/** LMB punches only with an empty front hand, RMB only with an empty back hand. */
+function withoutGunPunches(a: Actor, cmd: PlayerCommand): PlayerCommand {
+  const armed = (i: 0 | 1) => { const h = a.hands[i]; return !!h && isWeapon(h.item); };
+  if (cmd.attack === 'light' && armed(0)) return { ...cmd, attack: null };
+  if ((cmd.attack === 'heavy' || cmd.attack === 'uppercut') && armed(1)) return { ...cmd, attack: null };
+  return cmd;
 }
 
 function enter(a: Actor, s: Actor['state']): void {
@@ -217,21 +238,25 @@ function connect(world: World, a: Actor, kind: AttackKind): boolean {
 const DAMAGE: Record<HitKind, number> = {
   light: M.light.damage, heavy: M.heavy.damage, uppercut: M.uppercut.damage, finisher: M.finisher.damage,
   sweep: TUNING.sweep.damage, body: G.damage, head: 0, wall: 99,
+  // guns: the weapon sets bullet damage per hit (src/data/weapons.ts); a thrown gun's body hit
+  bullet: 2, gun: GUNS.throwBody,
 };
 
 /**
  * Resolve a hit on `o`. dirX/dirZ = push direction. Grunts have 4 hp: light hits do 1, heavy
  * ones 2 (decided). The player loses exactly 1 life per hit, whatever hit him. Survivors are
  * stunned by light hits and knocked down by everything heavier. `heavy` = the finisher was RMB.
+ * `bullet` = gun damage for this hit (1 to the head or 2 to the body kills a grunt, decided).
  */
 export function applyHit(
   world: World, by: Actor | undefined, o: Actor, kind: HitKind, dirX: number, dirZ: number,
   at: { x: number; y: number; z: number }, part: 'head' | 'body' = 'body', heavy = false,
+  bullet?: { damage: number; pointBlank: boolean },
 ): void {
   if (o.state === 'getUp' || o.state === 'downed') return; // i-frames (invented); downed heroes are out of the fight
   const corpse = o.state === 'dead';
-  const base = kind === 'finisher' && heavy ? M.finisher.heavyDamage : DAMAGE[kind];
-  const combo = !corpse && base > 0 && o.kind !== 'hero' && chainBonus(world, by, o, kind);
+  const base = bullet ? bullet.damage : kind === 'gun' && part === 'head' ? GUNS.throwHead : kind === 'finisher' && heavy ? M.finisher.heavyDamage : DAMAGE[kind];
+  const combo = !corpse && base > 0 && o.kind !== 'hero' && MELEE_KINDS.includes(kind) && chainBonus(world, by, o, kind);
   const damage = corpse || base <= 0 ? 0 : o.kind === 'hero' ? 1 : base + (combo ? C_.bonus : 0);
   o.hp = Math.max(0, o.hp - damage);
   const killed = !corpse && o.hp <= 0;
@@ -252,9 +277,11 @@ export function applyHit(
     return;
   }
   if (killed) {
-    // melee-decapitation: a killing blow from a heavy attack knocks the head off (decided with the user)
-    const decap = o.kind === 'grunt' && (kind === 'heavy' || kind === 'uppercut' || (kind === 'finisher' && heavy));
-    die(world, o, by, kind, dirX, dirZ, decap);
+    // melee-decapitation: a killing blow from a heavy attack knocks the head off (decided with the
+    // user); so do a point-blank shotgun to the head (gun-shotgun) and a thrown gun to the head
+    const pointBlank = !!bullet?.pointBlank;
+    const decap = o.kind === 'grunt' && (kind === 'heavy' || kind === 'uppercut' || (kind === 'finisher' && heavy) || ((pointBlank || kind === 'gun') && part === 'head'));
+    die(world, o, by, kind, dirX, dirZ, decap, pointBlank ? 'heavy' : kind);
     return;
   }
   // a light hit in the air can't freeze you mid-jump: it knocks you down instead
@@ -265,6 +292,15 @@ export function applyHit(
       o.stateT = 0;
       o.stunFor = o.kind === 'hero' ? H.heroFlinch : H.stun;
       o.pose.lean = -0.35;
+      setClip(o, 'stun');
+      break;
+    case 'bullet':
+      // a bullet that doesn't kill makes the target flinch; point blank knocks it down
+      if (bullet?.pointBlank) { knockDown(world, o, 'heavy', dirX, dirZ); break; }
+      o.state = 'stun';
+      o.stateT = 0;
+      o.stunFor = o.kind === 'hero' ? H.heroFlinch : GUNS.flinch;
+      o.pose.lean = -0.25;
       setClip(o, 'stun');
       break;
     case 'head':
@@ -309,6 +345,7 @@ function launch(kind: HitKind, dirX: number, dirZ: number): Pick<Flight, 'vx' | 
   const n = Math.hypot(dirX, dirZ) || 1, ux = dirX / n, uz = dirZ / n;
   let dist: number = H.knockbackDistance, airtime: number = H.knockbackAirtime, skid: number = H.skid;
   if (kind === 'sweep') { dist = TUNING.sweep.distance; airtime = TUNING.sweep.airtime; skid = H.skid * 0.5; }
+  if (kind === 'bullet') { dist = GUNS.knockback; airtime = GUNS.knockbackAirtime; skid = H.skid * 0.5; }
   if (kind === 'uppercut') {
     const vy = Math.sqrt(2 * GRAVITY * H.uppercutHeight);
     airtime = (2 * vy) / GRAVITY;
@@ -341,14 +378,21 @@ function knockDown(world: World, o: Actor, kind: HitKind, dirX: number, dirZ: nu
   setClip(o, 'knockback');
 }
 
+/** Knocked down or killed: whatever the hands hold flies off and stays on the floor, ammo and all. */
 function dropWeapon(world: World, o: Actor, dirX: number): void {
-  if (!o.pose.held) return;
-  dropHeld(world, o.pose.held, o.pos, Math.sign(dirX) || o.facing);
+  o.hands.forEach((h, i) => {
+    if (!h) return;
+    const dir = (Math.sign(dirX) || o.facing) * (i === 0 ? 1 : 0.6);
+    dropHeld(world, h.item, o.pos, dir, { ammo: h.ammo, spare: h.spare });
+    o.hands[i] = null;
+  });
   o.pose.held = null;
+  o.pose.heldB = null;
   o.pose.aimAt = undefined;
 }
 
-function die(world: World, o: Actor, by: Actor | undefined, kind: HitKind, dirX: number, dirZ: number, decap: boolean): void {
+/** `flight` = the knockback profile when it differs from the hit (a point-blank shotgun kill flies like a heavy hit). */
+function die(world: World, o: Actor, by: Actor | undefined, kind: HitKind, dirX: number, dirZ: number, decap: boolean, flight: HitKind = kind): void {
   dropWeapon(world, o, dirX);
   const wasDown = o.state === 'down' || o.state === 'knockback';
   o.state = 'dead';
@@ -375,7 +419,7 @@ function die(world: World, o: Actor, by: Actor | undefined, kind: HitKind, dirX:
     world.events.emit('corpseSettled', { actorId: o.id, ...o.pos });
     return;
   }
-  if (kind !== 'wall') startFlight(o, kind, dirX, dirZ);
+  if (kind !== 'wall') startFlight(o, flight, dirX, dirZ);
   setClip(o, 'knockback');
 }
 

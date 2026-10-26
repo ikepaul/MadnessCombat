@@ -6,7 +6,8 @@
 export type Recipe =
   | 'whooshLight' | 'whooshHeavy' | 'whooshThrow' | 'impact' | 'crack' | 'thump' | 'bodyFall' | 'wall'
   | 'stepDirt' | 'stepConcrete' | 'land' | 'cloth' | 'dive' | 'door' | 'tick' | 'heal'
-  | 'voxEffort' | 'voxHurt' | 'voxDeath' | 'tapeStop' | 'windLoop' | 'roomToneLoop';
+  | 'voxEffort' | 'voxHurt' | 'voxDeath' | 'tapeStop' | 'windLoop' | 'roomToneLoop'
+  | 'gunPistol' | 'gunHeavy' | 'gunSmg' | 'gunRifle' | 'gunShotgun' | 'gunSuppressed' | 'slideRack';
 
 /** Seeded RNG (mulberry32) so variants are stable between runs. */
 function rng(seed: number): () => number {
@@ -186,6 +187,36 @@ export function render(recipe: Recipe, sr: number, seed: number): Float32Array {
       const a = bandpass(src.d, sr, f1, 4), c = bandpass(src.d, sr, f2, 6);
       for (let i = 0; i < src.n; i++) src.d[i] = a[i] + 0.6 * c[i];
       return normalise(src.d, recipe === 'voxDeath' ? 0.45 : 0.4);
+    }
+    case 'gunPistol': case 'gunHeavy': case 'gunSmg': case 'gunRifle': case 'gunShotgun': {
+      // design/audio-direction.md: mechanical click + transient crack + body (the room reverb adds the tail)
+      const P = {
+        gunPistol: { len: 0.35, crack: 5200, body: 900, low: 85, bodyGain: 0.9, decay: 0.05 },
+        gunHeavy: { len: 0.55, crack: 4200, body: 700, low: 60, bodyGain: 1.2, decay: 0.09 },
+        gunSmg: { len: 0.22, crack: 6000, body: 1100, low: 95, bodyGain: 0.7, decay: 0.03 },
+        gunRifle: { len: 0.45, crack: 7000, body: 1000, low: 75, bodyGain: 1.0, decay: 0.06 },
+        gunShotgun: { len: 0.7, crack: 3800, body: 600, low: 50, bodyGain: 1.5, decay: 0.12 },
+      }[recipe];
+      const b = new Buf(sr, P.len);
+      noise(b, r, () => jitter(P.crack, 0.1), (t) => Math.exp(-t / 0.006), 1, 800); // crack
+      noise(b, r, (t) => P.body * Math.exp(-t * 6) + 200, ad(0.002, P.decay), P.bodyGain); // body
+      tone(b, (t) => P.low * Math.exp(-t * 5) + 30, ad(0.002, P.decay * 1.4), P.bodyGain * 0.8); // low thump
+      noise(b, r, () => 8000, (t) => (t < 0.0015 ? 1 : 0), 0.4, 3000); // mechanical click
+      return normalise(b.d, 0.95);
+    }
+    case 'gunSuppressed': {
+      // dull thump + loud mechanical slide
+      const b = new Buf(sr, 0.22);
+      noise(b, r, () => 900, ad(0.003, 0.025), 0.8, 150);
+      tone(b, (t) => 120 * Math.exp(-t * 10) + 40, ad(0.002, 0.03), 0.6);
+      for (const t0 of [0.012, 0.05]) noise(b, r, () => 7000, (t) => (t < t0 ? 0 : Math.exp(-(t - t0) / 0.005)), 0.7, 2000);
+      return normalise(b.d, 0.7);
+    }
+    case 'slideRack': {
+      // two metal clacks: back, then forward
+      const b = new Buf(sr, 0.25);
+      for (const [t0, g] of [[0, 0.8], [0.11, 1]] as const) noise(b, r, () => 6500, (t) => (t < t0 ? 0 : Math.exp(-(t - t0) / 0.008)), g, 1500);
+      return normalise(b.d, 0.6);
     }
     case 'tapeStop': {
       const b = new Buf(sr, 0.35);
