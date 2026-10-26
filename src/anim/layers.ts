@@ -32,10 +32,12 @@ export function buildSkeleton(a: Actor, time: number): Layered {
   s.footB[0] -= swing;
   s.footF[1] -= (stepping ? Math.max(0, Math.sin(ph)) * 0.035 : 0) + tuck * 0.12;
   s.footB[1] -= (stepping ? Math.max(0, -Math.sin(ph)) * 0.035 : 0) + tuck * 0.08;
-  s.handB[0] -= swing * 0.6 + tuck * 0.03;
-  s.handB[1] += -tuck * 0.12 + (quiet ? 0 : stepping ? Math.cos(ph) * 0.02 : Math.sin(breath + 1) * 0.008);
+  // walking while punching: the feet step, the hands stay on the punch
+  const handSwing = a.state === 'attack' ? 0 : swing;
+  s.handB[0] -= handSwing * 0.6 + tuck * 0.03;
+  s.handB[1] += -tuck * 0.12 + (quiet || a.state === 'attack' ? 0 : stepping ? Math.cos(ph) * 0.02 : Math.sin(breath + 1) * 0.008);
   if (!p.held) {
-    s.handF[0] += swing * 0.6 + tuck * 0.04;
+    s.handF[0] += handSwing * 0.6 + tuck * 0.04;
     s.handF[1] += -tuck * 0.14 + (quiet ? 0 : Math.sin(breath) * 0.008);
   }
   s.body[1] -= bob;

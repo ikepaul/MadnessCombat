@@ -38,24 +38,27 @@ function ticksUntil(world: World, pred: () => boolean, max = 600): number {
 }
 
 describe('walk (move-walk)', () => {
-  it('calm walk is 0.8 H/s with no enemies in the room', () => {
+  // walk speeds were raised above the measured 0.8 / 1.3 H/s (decided with the user)
+  const { walkSpeed, combatWalkSpeed } = TUNING.move;
+
+  it('calm walk speed with no enemies in the room', () => {
     const { world, hero } = setup();
-    run(world, 2, { moveX: 1 });
-    expect(hero.pos.x - -2).toBeCloseTo(1.6, 1);
+    run(world, 1, { moveX: 1 });
+    expect(hero.pos.x - -2).toBeCloseTo(walkSpeed, 1);
   });
 
-  it('combat walk is 1.3 H/s when an enemy is in the room', () => {
+  it('combat walk speed when an enemy is in the room', () => {
     const { world, hero } = setup();
     world.actors.push(createActor('grunt', 3, 10, -1));
-    run(world, 2, { moveX: 1 });
-    expect((hero.pos.x + 2) / 2).toBeGreaterThan(1.3 * 0.95);
-    expect((hero.pos.x + 2) / 2).toBeLessThan(1.3 * 1.05);
+    run(world, 1, { moveX: 1 });
+    expect(hero.pos.x + 2).toBeGreaterThan(combatWalkSpeed * 0.95);
+    expect(hero.pos.x + 2).toBeLessThan(combatWalkSpeed * 1.05);
   });
 
   it('depth moves at 0.6x horizontal speed and stays inside the floor', () => {
     const { world, hero } = setup(EMPTY, 0, 9.0);
     run(world, 1, { moveZ: 1 });
-    expect(hero.pos.z - 9.0).toBeCloseTo(0.8 * 0.6, 2);
+    expect(hero.pos.z - 9.0).toBeCloseTo(walkSpeed * TUNING.move.depthFactor, 2);
     run(world, 20, { moveZ: 1, moveX: 1 });
     expect(hero.pos.z).toBeLessThanOrEqual(EMPTY.zBack);
     expect(hero.pos.x).toBeLessThanOrEqual(EMPTY.halfWidth);
@@ -65,9 +68,10 @@ describe('walk (move-walk)', () => {
     const { world } = setup();
     let steps = 0;
     world.events.on('footstep', () => steps++);
-    run(world, 3, { moveX: 1 }); // 2.4 H = 4 strides = 8 steps
-    expect(steps).toBeGreaterThanOrEqual(7);
-    expect(steps).toBeLessThanOrEqual(8);
+    const strides = 4;
+    run(world, (strides * TUNING.move.strideLength) / walkSpeed, { moveX: 1 }); // 2 steps per stride
+    expect(steps).toBeGreaterThanOrEqual(2 * strides - 1);
+    expect(steps).toBeLessThanOrEqual(2 * strides);
   });
 });
 

@@ -8,10 +8,15 @@ export const TUNING = {
   animKeyHz: 30,
 
   move: {
-    /** move-walk: calm walk 0.8 H/s, measured ep1 f494-f518. */
-    walkSpeed: 0.8,
-    /** move-walk: purposeful/combat walk 1.3 H/s, measured ep1 f554-f584. */
-    combatWalkSpeed: 1.3,
+    /**
+     * Calm walk. move-walk measured 0.8 H/s (ep1 f494-f518); raised for a smoother feel,
+     * decided with the user 2026-10-26. invented
+     */
+    walkSpeed: 1.1,
+    /** Combat walk. move-walk measured 1.3 H/s (ep1 f554-f584); raised like the calm walk. invented */
+    combatWalkSpeed: 1.8,
+    /** You can keep walking while punching or throwing, at this share of the walk speed. invented */
+    attackMoveFactor: 0.7,
     /** invented: depth moves look slower in the show's perspective. */
     depthFactor: 0.6,
     /** Actor footprint radius for prop/wall collision. invented */
@@ -46,12 +51,14 @@ export const TUNING = {
 
   /** Hit points. research/design-decisions.md: grunts die from 1 good hit, the player survives ~3. */
   health: {
-    /** decided: dies from 1 heavy or 2 light hits (invented split, PLAN.md M2). */
-    grunt: 2,
-    /** decided: the player survives about 3 hits. */
+    /** decided with the user (2026-10-26): 4 light or 2 heavy hits (light 1, heavy 2). */
+    grunt: 4,
+    /** decided: 3 lives; every hit the player takes costs exactly 1, whatever hit him. */
     hero: 3,
     /** Lab dummies that survive long enough to show stun -> knockdown -> finisher. invented */
-    tough: 4,
+    tough: 6,
+    /** decided with the user: every kill the player makes heals this much (up to max). */
+    healPerKill: 1,
   },
 
   /** Unarmed attacks. Frame counts are on the 30 fps key grid (the clips in poses.json match). */
@@ -72,7 +79,8 @@ export const TUNING = {
     /** Uppercut: heavy with the cursor aimed steeply up. Hits the chest. invented trigger */
     uppercut: { startup: 6 / 30, active: 3 / 30, recovery: 9 / 30, height: 0.6, damage: 2 },
     /** Downward hit on a downed body (melee-hitstun-finisher). Fist low and further out. invented */
-    finisher: { startup: 6 / 30, active: 3 / 30, recovery: 8 / 30, height: 0.15, damage: 2, reach: 0.5, radius: 0.18 },
+    /** Damage follows the button: LMB finisher 1, RMB finisher 2. */
+    finisher: { startup: 6 / 30, active: 3 / 30, recovery: 8 / 30, height: 0.15, damage: 1, heavyDamage: 2, reach: 0.5, radius: 0.18 },
     /** A punch pressed during a swing is buffered this long (s). invented */
     buffer: 0.2,
     /** Aim this steeply above horizontal (radians) to turn a heavy punch into an uppercut. invented */

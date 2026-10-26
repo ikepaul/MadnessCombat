@@ -135,6 +135,22 @@ function updateFacing(a: Actor, cmd: PlayerCommand, ix: number): void {
   } else if (Math.abs(ix) > 0.1) a.facing = ix > 0 ? 1 : -1;
 }
 
+/**
+ * Walking during a punch or throw (decided with the user): ground only, facing stays locked
+ * to the swing, speed scaled by TUNING.move.attackMoveFactor.
+ */
+export function stepAttackMove(world: World, a: Actor, cmd: PlayerCommand, dt: number): void {
+  let ix = cmd.moveX, iz = cmd.moveZ;
+  const len = Math.hypot(ix, iz);
+  if (len > 1) { ix /= len; iz /= len; }
+  const speed = (inCombat(world, a) ? MOVE.combatWalkSpeed : MOVE.walkSpeed) * MOVE.attackMoveFactor * (a.holding ? TUNING.grab.carrySpeed : 1);
+  a.body.vel = { x: ix * speed, y: 0, z: iz * speed * MOVE.depthFactor };
+  walkHorizontal(world, a, dt);
+  advanceWalkCycle(world, a, Math.hypot(a.body.vel.x, a.body.vel.z) * dt);
+  a.body.groundY = surfaceBelow(world.room, a.pos.x, a.pos.z, a.pos.y);
+  a.pose.walkPhase = len > 0.1 ? a.body.cycle : undefined;
+}
+
 function walkHorizontal(world: World, a: Actor, dt: number): void {
   const p = moveWithCollision(world.room, a.pos.x, a.pos.z, a.body.vel.x * dt, a.body.vel.z * dt, a.pos.y);
   a.pos.x = p.x;

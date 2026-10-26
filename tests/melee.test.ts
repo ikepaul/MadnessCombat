@@ -123,27 +123,87 @@ describe('punch range and depth band (melee-punch-knockback)', () => {
   });
 });
 
-describe('grunt kill rules (decided: 1 heavy or 2 light; player survives 3 hits)', () => {
-  it('one heavy punch kills a grunt', () => {
+describe('health rules (decided: grunts 4 hp, light 1 / heavy 2; player 3 lives, 1 per hit, kills heal)', () => {
+  /** Swing and wait for the swing to end; the dummy stays in reach while stunned. */
+  function swing(world: World, kind: 'light' | 'heavy'): void {
+    press(world, { attack: kind, face: 1 });
+    idle(world, swingTime(kind));
+  }
+
+  it('one heavy punch knocks a grunt down but does not kill', () => {
+    const { world, hero } = setup();
+    const d = dummy(world, hero.pos.x + 0.5);
+    swing(world, 'heavy');
+    expect(d.hp).toBe(2);
+    expect(d.state).toBe('knockback');
+  });
+
+  it('light punches stun; the fourth kills', () => {
+    const { world, hero } = setup();
+    const d = dummy(world, hero.pos.x + 0.5);
+    for (let i = 0; i < 3; i++) {
+      swing(world, 'light');
+      expect(d.state).toBe('stun');
+    }
+    swing(world, 'light');
+    expect(d.state).toBe('dead');
+    expect(d.pose.headless).toBe(false);
+  });
+
+  it('two lights and a heavy kill, and the heavy kill takes the head off', () => {
     const { world, hero } = setup();
     const d = dummy(world, hero.pos.x + 0.5);
     const kills = record(world, 'kill');
-    press(world, { attack: 'heavy', face: 1 });
-    idle(world, swingTime('heavy'));
+    swing(world, 'light');
+    swing(world, 'light');
+    swing(world, 'heavy');
     expect(d.state).toBe('dead');
-    expect(kills.map((k) => k.actorId)).toEqual([d.id]);
+    expect(kills[0]).toMatchObject({ actorId: d.id, kind: 'heavy', decap: true });
   });
 
-  it('one light punch stuns, the second kills', () => {
+  it('every hit costs the player exactly one life, heavy ones too', () => {
     const { world, hero } = setup();
+    world.hitActor(undefined, hero, 'heavy', 1, 0, hero.pos);
+    expect(hero.hp).toBe(2);
+  });
+
+  it('a kill heals the player one life, never above the max', () => {
+    const { world, hero } = setup();
+    hero.hp = 1;
+    const heals = record(world, 'heal');
     const d = dummy(world, hero.pos.x + 0.5);
-    press(world, { attack: 'light', face: 1 });
-    idle(world, attackTiming('light').startup + 2 * FRAME);
-    expect(d.state).toBe('stun');
-    idle(world, swingTime('light'));
-    press(world, { attack: 'light', face: 1 });
-    idle(world, swingTime('light'));
-    expect(d.state).toBe('dead');
+    d.hp = 1;
+    swing(world, 'light');
+    expect(hero.hp).toBe(2);
+    const e = dummy(world, hero.pos.x + 0.5);
+    e.hp = 1;
+    hero.hp = hero.maxHp;
+    swing(world, 'light');
+    expect(e.state).toBe('dead');
+    expect(hero.hp).toBe(hero.maxHp);
+    expect(heals).toHaveLength(1);
+  });
+
+  it('a wall-slam kill by a thrown body heals too', () => {
+    const { world, hero } = setup(EMPTY, 2.6);
+    hero.hp = 1;
+    const a = dummy(world, 3.0);
+    press(world, { grab: true, face: 1 });
+    press(world, { grab: true, aim: project(3.5, 0, Z) });
+    idle(world, 1);
+    expect(a.state).toBe('dead');
+    expect(hero.hp).toBe(2);
+  });
+
+  it('the player can keep walking through a punch', () => {
+    const { world, hero } = setup();
+    const x0 = hero.pos.x;
+    world.command = { ...IDLE_COMMAND, attack: 'light', moveX: 1, face: 1 };
+    world.step();
+    expect(hero.state).toBe('attack');
+    for (let i = 0; i < 12; i++) { world.command = { ...IDLE_COMMAND, moveX: 1 }; world.step(); }
+    expect(hero.state).toBe('attack');
+    expect(hero.pos.x - x0).toBeGreaterThan(13 * world.dt * TUNING.move.walkSpeed * TUNING.move.attackMoveFactor * 0.9);
   });
 
   it('the player goes down on the third hit, not before', () => {
@@ -177,19 +237,23 @@ describe('hit-stun (melee-hitstun-finisher)', () => {
     expect(t).toBeLessThan(TUNING.hit.stun + FRAME);
   });
 
-  it('the finisher kills a downed enemy', () => {
+  it('the finisher hits a downed enemy: LMB for 1, RMB for 2 (a heavy kill takes the head)', () => {
     const { world, hero } = setup();
-    const d = dummy(world, hero.pos.x + 0.5, Z, TUNING.health.tough);
+    const d = dummy(world, hero.pos.x + 0.5);
     press(world, { attack: 'heavy', face: 1 });
     until(world, () => d.state === 'down');
-    expect(d.hp).toBeGreaterThan(0);
+    expect(d.hp).toBe(2);
     // step up to the lying body (no time to walk before he gets up) and punch down at it
     hero.pos.x = d.pos.x - 0.45;
-    const kills = record(world, 'kill');
     press(world, { attack: 'light', face: 1 });
     expect(hero.attack?.kind).toBe('finisher');
     idle(world, swingTime('finisher'));
-    expect(kills.map((k) => k.kind)).toEqual(['finisher']);
+    expect(d.hp).toBe(1);
+    const kills = record(world, 'kill');
+    press(world, { attack: 'heavy', face: 1 });
+    expect(hero.attack?.kind).toBe('finisher');
+    idle(world, swingTime('finisher'));
+    expect(kills).toMatchObject([{ kind: 'finisher', decap: true }]);
     expect(d.state).toBe('dead');
   });
 });
@@ -301,7 +365,8 @@ describe('grab and throw (melee-grab-throw)', () => {
   it('corpses can be grabbed and thrown too, and settle and freeze again', () => {
     const { world, hero } = setup();
     const c = dummy(world, hero.pos.x + 0.5);
-    press(world, { attack: 'heavy', face: 1 });
+    c.hp = 1;
+    press(world, { attack: 'light', face: 1 });
     until(world, () => c.corpse?.phase === 'frozen');
     const thawed = record(world, 'corpseThawed');
     const frozen = record(world, 'corpseFrozen');
@@ -333,11 +398,13 @@ describe('low sweep (melee-low-sweep)', () => {
 });
 
 describe('decapitation (melee-decapitation)', () => {
-  it('a heavy blow to a stunned grunt knocks the head off as an item', () => {
+  it('a killing heavy blow knocks the head off as an item', () => {
     const { world, hero } = setup();
     const d = dummy(world, hero.pos.x + 0.5);
-    press(world, { attack: 'light', face: 1 });
-    idle(world, swingTime('light'));
+    for (let i = 0; i < 2; i++) {
+      press(world, { attack: 'light', face: 1 });
+      idle(world, swingTime('light'));
+    }
     expect(d.state).toBe('stun');
     const kills = record(world, 'kill');
     press(world, { attack: 'heavy', face: 1 });
@@ -353,7 +420,7 @@ describe('decapitation (melee-decapitation)', () => {
 describe('events (PLAN.md M2 hooks)', () => {
   it('a kill emits punch, hit, kill and bodyFall', () => {
     const { world, hero } = setup();
-    dummy(world, hero.pos.x + 0.5);
+    dummy(world, hero.pos.x + 0.5).hp = 2;
     const seen = new Set<string>();
     for (const t of ['punch', 'hit', 'kill', 'bodyFall', 'corpseSettled'] as const) world.events.on(t, () => seen.add(t));
     press(world, { attack: 'heavy', face: 1 });

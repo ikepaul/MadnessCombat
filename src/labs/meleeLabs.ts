@@ -66,7 +66,7 @@ function healPlayer(world: World): void {
   const r = respawner([{ x: 0.2, z: 9.2 }, { x: 1.4, z: 9.6 }, { x: 1.0, z: 8.6 }]);
   registerLab({
     slug: 'melee-punch-knockback',
-    title: `Punch grunts at arm's length (0.5-0.6 H, depth band 0.2 H): heavy kills and throws the body ~1.5 H, 2 lights kill (ep1 0:21-0:43). ${CONTROLS}`,
+    title: `Punch grunts at arm's length (0.5-0.6 H, depth band 0.2 H): grunts have 4 hp: light 1 (stun), heavy 2 (knockdown, ~1.5 H); a heavy kill takes the head; kills heal you (ep1 0:21-0:43). ${CONTROLS}`,
     setup(world) {
       hero(world, -1.4, 9.2);
       r.setup(world);
@@ -112,7 +112,7 @@ function healPlayer(world: World): void {
   const r = respawner([{ x: 0.0, z: 9.2, hp: TUNING.health.tough }, { x: 1.6, z: 9.2, hp: TUNING.health.tough }]);
   registerLab({
     slug: 'melee-hitstun-finisher',
-    title: `Tough dummies (hp ${TUNING.health.tough}): light = 0.7 s stun, heavy = knockdown, punch the downed body = finisher (ep1 f1116-f1200). ${CONTROLS}`,
+    title: `Tough dummies (hp ${TUNING.health.tough}): light = 0.7 s stun, heavy = knockdown, punch the downed body = finisher (LMB 1, RMB 2) (ep1 f1116-f1200). ${CONTROLS}`,
     setup(world) {
       hero(world, -1.2, 9.2);
       r.setup(world);
@@ -155,7 +155,7 @@ function healPlayer(world: World): void {
   const light = attackTiming('light');
   registerLab({
     slug: 'melee-decapitation',
-    title: `Light punch (stun), then a heavy to the head within ${(TUNING.hit.stun + light.recovery).toFixed(1)} s: the head flies off. Grab it (F) and throw it: it staggers, no kill (ep1 0:52, 1:03). ${CONTROLS}`,
+    title: `Kill a grunt with a heavy attack (e.g. light, light, heavy; each light stuns ${(TUNING.hit.stun + light.recovery).toFixed(1)} s): the head flies off. Grab it (F) and throw it: it staggers, no kill (ep1 0:52, 1:03). ${CONTROLS}`,
     setup(world) {
       hero(world, -1.2, 9.2);
       r.setup(world);

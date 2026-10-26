@@ -124,7 +124,7 @@ Build:
 - [x] Actor state machine: idle, walk, jump, prone, attack, stun, knockback, down, get-up, grabbed, dead.
 - [x] Light punch, heavy punch, uppercut (launch ≈ 1 H up). Punch range 0.5–0.6 H, depth band 0.2 H. Exchange rate 2–3 punches/s.
 - [x] Hit-stun 0.7 s. Knockback ≈ 1.5 H over 0.35–0.4 s. Lie 0.2 s. Get-up 0.4 s with i-frames (invented). Knockdown drops the held item.
-- [x] Damage: a grunt dummy dies from 1 heavy or 2 light hits (invented split). Player HP 3 hits (decided).
+- [x] Damage (revised 2026-10-26, see `research/design-decisions.md`): grunts 4 hp, light 1 / heavy 2. Player 3 lives, every hit costs 1, every kill heals 1.
 - [x] Grab (F) at contact range, throw toward the cursor (a thrown body is a projectile that knocks down what it hits and kills on a fast wall impact). Works on corpses too.
 - [x] Low sweep = dive into an adjacent enemy: knockdown + drops their item.
 - [x] Downward hit on downed enemies (finisher).
@@ -137,7 +137,7 @@ Look & sound:
 - [x] Player hurt flash + hit pips in the HUD.
 - [x] Event hooks: `punch`, `hit`, `kill`, `bodyFall`, `throw`, `grab` (sounds in M4).
 
-Done: LMB light jab, RMB heavy cross, RMB with the cursor steeply above the shoulder (> 45°) = uppercut; a punch at a downed body with nobody standing in reach becomes the finisher; punches pressed mid-swing are buffered 0.2 s. Decapitation = a heavy to the head of a stunned grunt (invented trigger); loose heads can be grabbed and thrown (stagger, no kill). Knocked-down enemies lie 0.8 s (invented, gives the finisher a window), the hero 0.2 s (measured). Thrown bodies: 8 H/s toward the floor point under the cursor, knock down what they hit, kill on a wall impact ≥ 4 H/s, take 1 damage themselves. Poses and clips live in `src/data/poses.json` (`src/anim/`), authored in `/?lab=pose-editor` (Ctrl+S writes the file via the dev server). Layers: room → decals (blood) → baked corpses → actors; static layers upload at most once per frame, and layer canvases no longer use `willReadFrequently` (uploading the actor layer cost ~30 ms per frame before; now 0.04 ms). 200 baked corpses: 0.4 ms per frame; re-baking them after a pick-up ≈ 13 ms. The recoil layer comes with guns (M5). Reference frames were not on the machine this was built on, so the replica labs are checked against the notes' numbers only.
+Done: LMB light jab, RMB heavy cross, RMB with the cursor steeply above the shoulder (> 45°) = uppercut; a punch at a downed body with nobody standing in reach becomes the finisher; punches pressed mid-swing are buffered 0.2 s; you keep walking at 70% while punching or throwing (walk speeds raised to 1.1 / 1.8 H/s, decided with the user). Decapitation = a grunt killed by a heavy attack (heavy, uppercut or RMB finisher); a LMB finisher does 1, RMB 2; loose heads can be grabbed and thrown (stagger, no kill). Knocked-down enemies lie 0.8 s (invented, gives the finisher a window), the hero 0.2 s (measured). Thrown bodies: 8 H/s toward the floor point under the cursor, knock down what they hit, kill on a wall impact ≥ 4 H/s, take 1 damage themselves. Poses and clips live in `src/data/poses.json` (`src/anim/`), authored in `/?lab=pose-editor` (Ctrl+S writes the file via the dev server). Layers: room → decals (blood) → baked corpses → actors; static layers upload at most once per frame, and layer canvases no longer use `willReadFrequently` (uploading the actor layer cost ~30 ms per frame before; now 0.04 ms). 200 baked corpses: 0.4 ms per frame; re-baking them after a pick-up ≈ 13 ms. The recoil layer comes with guns (M5). Reference frames were not on the machine this was built on, so the replica labs are checked against the notes' numbers only.
 
 Acceptance tests: punch range/depth band hit and miss cases · knockback distance and airtime · knockdown → controllable ≈ 1.1 s · stun window 0.7 s · grunt kill rules · a thrown body knocks down a second dummy · 200 corpses in a room keep 60 fps (manual check, baked layer).
 Labs: `melee-punch-knockback`, `move-knockdown-getup`, `melee-hitstun-finisher`, `melee-grab-throw`, `melee-low-sweep`, `melee-decapitation`, `pose-editor`.
@@ -170,6 +170,7 @@ Build:
 - [ ] **Music system**: ambient bed + intensity layers (0–3) switched on bar boundaries, stingers, diegetic positioned sources (the stage 1 boombox). Reads `assets/music/cues.json`. Runs with ambience only until the user's tracks arrive.
 - [ ] **Sound sourcing** (ask the user before downloading packs): CC0/royalty-free sets for foley, punches, body falls, grabs/throws, footsteps (dirt, concrete), UI ticks, outdoor and indoor ambiences, door open. Process and normalise per the spec. Log everything in `assets/audio/LICENSES.md`.
 - [ ] Hook all M1–M3 events to sounds: footsteps, land, dive, punch layers (whoosh + impact + thump), heavy hit crack, body fall, grab, throw whoosh, door open, kill counter tick, grunt efforts/hurt/death vocalisations (non-verbal).
+- [ ] **Combos** (decided 2026-10-26, design here): strings of light/heavy hits that kill faster than the base 4 light / 2 heavy, on top of the punch buffer.
 - [ ] Settings stub: master/music/sfx volume and effect intensity (off/reduced/full) for shake, flashes and chromatic (full menu in M13).
 
 Acceptance tests: a kill emits hit-stop 3 / shake 6 / chromatic events · auto-fire hit-stop never exceeds 6 frames per second (synthetic test) · the mixer respects voice limits (synthetic burst of 20 casings → 6 voices) · music layer changes land on bar boundaries (unit test on the scheduler).
@@ -186,6 +187,7 @@ Build:
 - [ ] Items: weapons drop from hands/corpses with a bounce and stay. E = pick up. Auto-pickup with empty hands (proposal).
 - [ ] Two hands: LMB/RMB per hand. Dual wield any one-handed pair. Long guns can be dual-wielded with more spread. **Split aim** (Shift): the off-hand locks onto the nearest enemy on the opposite side.
 - [ ] Ammo (decided: throw & scavenge): magazine + max 1 spare, reload 0.6 s pistol / 1.0 s others (invented). Empty trigger → dry click → next press throws the gun. Dropped empty guns stay empty.
+- [ ] Gun damage (decided 2026-10-26): a grunt dies from 1 hit to the head or 2 to the body; the player loses 1 life per bullet like any hit.
 - [ ] Thrown gun: straight screen-space projectile, knockdown on hit, kills grunts on a head hit (invented).
 - [ ] Decal layer per surface rendered to textures, capped at 500 per room.
 
