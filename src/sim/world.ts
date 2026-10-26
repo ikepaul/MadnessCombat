@@ -49,6 +49,8 @@ export class World {
   /** Seeded RNG so the sim stays reproducible in tests. */
   private seed = 0x2f6b1c3d;
 
+  /** Co-op guest: a puppet of the host's world (never steps; replayed events must not run sim rules). */
+  puppet = false;
   /** PLAN.md M7: grenades the enemies may still lob this encounter (one per wave). */
   enemyGrenades = 1;
 

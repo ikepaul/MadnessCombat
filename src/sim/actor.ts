@@ -78,6 +78,8 @@ export interface Pose {
   telegraph?: number;
   /** Zombie green spreading over the body while it rises, 0..1 (M7). */
   green?: number;
+  /** enemy-behaviours: the last enemy of a wave sweats (M7). */
+  sweat?: boolean;
 }
 
 export type MoveState = 'ground' | 'air' | 'goingProne' | 'diving' | 'prone' | 'standingUp';

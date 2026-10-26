@@ -32,16 +32,29 @@ export interface PaintOptions {
 
 interface Colors { suit: string; suitShade: string; skin: string; skinHi: string; hand: string; shoe: string }
 
-export function actorColors(kind: ActorKind, pal: Palette): Colors {
+export function actorColors(kind: ActorKind, pal: Palette, variant?: Actor['variant'], green = 1): Colors {
   const hero = kind === 'hero', zombie = kind === 'zombie';
+  // a rising zombie turns green over its first second (enemy-zombie)
+  const z = (c: string, zc: string) => (zombie ? (green >= 1 ? zc : mix(c, zc, green)) : c);
+  // style frame M7 sheet: the bodyguard's suit sits between a grunt's and the hero's
+  const guard = variant === 'bodyguard';
   return {
-    suit: hero ? pal.hero : pal.suit,
-    suitShade: hero ? pal.heroShade : pal.suitShade,
-    skin: zombie ? ZOMBIE : pal.skin,
-    skinHi: zombie ? ZOMBIE_HI : pal.skinHi,
-    hand: zombie ? ZOMBIE : pal.hand,
+    suit: hero ? pal.hero : guard ? BODYGUARD_SUIT : pal.suit,
+    suitShade: hero ? pal.heroShade : guard ? BODYGUARD_SHADE : pal.suitShade,
+    skin: z(pal.skin, ZOMBIE),
+    skinHi: z(pal.skinHi, ZOMBIE_HI),
+    hand: z(pal.hand, ZOMBIE),
     shoe: pal.shoe,
   };
+}
+
+const BODYGUARD_SUIT = '#5c5e66', BODYGUARD_SHADE = '#4a4c53';
+
+/** Linear mix of two #rrggbb colours. */
+function mix(a: string, b: string, t: number): string {
+  const p = (c: string, i: number) => parseInt(c.slice(1 + i * 2, 3 + i * 2), 16);
+  const ch = (i: number) => Math.round(p(a, i) + (p(b, i) - p(a, i)) * t).toString(16).padStart(2, '0');
+  return `#${ch(0)}${ch(1)}${ch(2)}`;
 }
 
 /** Canvas transform for a root (same maths as rootToWorld in src/anim/skeleton.ts). */
@@ -65,7 +78,7 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
     shadowY = project(a.pos.x, pose.groundY, a.pos.z)[1];
     s = scaleAt(a.pos.z);
   }
-  const col = actorColors(a.kind, pal);
+  const col = actorColors(a.kind, pal, a.variant, pose.green ?? 1);
   const layered = buildSkeleton(a, time);
   const sk = opts.skeleton ?? layered.skeleton;
   const root = pose.root;
@@ -132,6 +145,13 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
     ctx.beginPath(); ctx.moveTo(0.02, -0.565); ctx.lineTo(0.11, -0.565); ctx.lineTo(0.06, -0.47); ctx.closePath();
     ctx.fillStyle = '#d9d9dc'; ctx.fill(); ctx.lineWidth = 0.008; ctx.stroke();
   }
+  if (a.variant === 'bodyguard') {
+    // style frame M7 sheet: white shirt V and a thin dark tie
+    ctx.beginPath(); ctx.moveTo(0.0, -0.575); ctx.lineTo(0.13, -0.575); ctx.lineTo(0.07, -0.43); ctx.closePath();
+    ctx.fillStyle = '#ececee'; ctx.fill(); ctx.lineWidth = 0.008; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0.055, -0.565); ctx.lineTo(0.085, -0.565); ctx.lineTo(0.075, -0.45); ctx.lineTo(0.065, -0.45); ctx.closePath();
+    ctx.fillStyle = '#2a2b2f'; ctx.fill();
+  }
   if (a.playerIndex === 1) {
     // co-op player 2 (style-frame sheet): a light strap across the body, shoulder to hip
     ctx.save(); bodyPath(ctx); ctx.clip();
@@ -149,7 +169,10 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
     // tilt toward the aim, at most 0.25 rad
     ctx.rotate(sk.head[2] + (aim !== undefined ? Math.max(-0.25, Math.min(0.25, aim * 0.18)) : 0));
     paintHead(ctx, col.skin, col.skinHi, pose.dead);
+    if (a.variant === 'leader' || a.variant === 'bodyguard') paintHeadGear(ctx, a.variant);
     if (opts.blood) for (const [wx, wy] of pose.wounds) if (wy <= -0.6) burst(ctx, wx - 0.01, wy + 0.79, 0.035, BLOOD, 7);
+    // enemy-behaviours: the last one left sweats
+    if (pose.sweat && !pose.dead) sweat(ctx, time);
     ctx.restore();
   }
 
@@ -170,6 +193,8 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
       paintGrenade(ctx, true, Math.floor(time * 8) % 2 === 0);
       ctx.restore();
     }
+    // an unaware guard smoking (melee-stealth-kill): the cigarette, brighter on a drag
+    if (smoking(a)) cigarette(ctx, sk.handF, time);
     if (pose.held) {
       ctx.save();
       ctx.translate(sk.handF[0] + sk.item[0], sk.handF[1] + sk.item[1]);
@@ -178,6 +203,90 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
       ctx.restore();
     }
     hand(ctx, sk.handF, col.hand);
+  }
+  ctx.restore();
+  // PLAN.md M7: the enemy aim telegraph, a dashed red line from the muzzle to the aim point
+  if (pose.telegraph !== undefined && rigF && target && !pose.dead) telegraphLine(ctx, rigF.muzzle, target, pose.telegraph, s, time);
+}
+
+const smoking = (a: Actor) => a.ai?.aware === false && a.ai.idle === 'smoke' && !a.pose.dead && a.state === 'free';
+
+/** Cigarette between the fingers (hand space), ember glowing brighter at the mouth, smoke curling up. */
+function cigarette(ctx: Ctx, handF: readonly [number, number, number], time: number): void {
+  const drag = handF[1] < -0.62;
+  ctx.save();
+  ctx.translate(handF[0] + 0.045, handF[1] - 0.03);
+  ctx.rotate(-0.35);
+  ctx.lineCap = 'butt';
+  ctx.lineWidth = 0.022; ctx.strokeStyle = INK;
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0.08, 0); ctx.stroke();
+  ctx.lineWidth = 0.014; ctx.strokeStyle = '#f4f4f2';
+  ctx.beginPath(); ctx.moveTo(0.002, 0); ctx.lineTo(0.074, 0); ctx.stroke();
+  const glow = drag ? 1 : 0.55 + 0.15 * Math.sin(time * 9);
+  ctx.beginPath(); ctx.arc(0.082, 0, 0.012, 0, Math.PI * 2);
+  ctx.fillStyle = `rgba(255,${Math.round(110 + 60 * glow)},40,1)`; ctx.fill();
+  ctx.beginPath(); ctx.arc(0.082, 0, 0.03 + 0.02 * glow, 0, Math.PI * 2);
+  ctx.fillStyle = `rgba(255,140,50,${0.18 * glow})`; ctx.fill();
+  // three puffs rising off the tip in turn
+  for (let k = 0; k < 3; k++) {
+    const u = ((time / 2.4 + k / 3) % 1);
+    ctx.beginPath();
+    ctx.arc(0.09 + u * 0.06 + Math.sin(u * 6 + k) * 0.02, -u * 0.32, 0.012 + u * 0.035, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(235,235,238,${0.35 * (1 - u)})`; ctx.fill();
+  }
+  ctx.restore();
+}
+
+/** Sweat drops on the back of the head (head space), sliding down in turn. */
+function sweat(ctx: Ctx, time: number): void {
+  for (let k = 0; k < 3; k++) {
+    const u = (time / 1.1 + k / 3) % 1, x = -0.17 + k * 0.05, y = -0.12 + k * 0.04 + u * 0.12;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.beginPath();
+    ctx.moveTo(0, -0.03); ctx.quadraticCurveTo(0.022, 0.005, 0, 0.015); ctx.quadraticCurveTo(-0.022, 0.005, 0, -0.03);
+    ctx.globalAlpha = 1 - u * 0.7;
+    ctx.fillStyle = '#e9f3fb'; ctx.fill(); ctx.lineWidth = 0.007; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.restore();
+  }
+}
+
+/** The aim telegraph: dashes marching toward the target, solid and bright just before the shot. */
+function telegraphLine(ctx: Ctx, from: ScreenPoint, to: ScreenPoint, u: number, s: number, time: number): void {
+  const len = Math.hypot(to[0] - from[0], to[1] - from[1]);
+  if (len < 1) return;
+  const dash = Math.max(6, s * 0.05);
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.setLineDash(u > 0.85 ? [] : [dash, dash * 0.8]);
+  ctx.lineDashOffset = -time * dash * 6;
+  ctx.lineWidth = Math.max(2, s * (0.01 + 0.008 * u));
+  ctx.strokeStyle = `rgba(214,38,32,${0.35 + 0.55 * u})`;
+  ctx.beginPath(); ctx.moveTo(from[0], from[1]); ctx.lineTo(to[0], to[1]); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.beginPath(); ctx.arc(to[0], to[1], Math.max(2, s * 0.012) * (1 + u), 0, Math.PI * 2);
+  ctx.fillStyle = `rgba(214,38,32,${0.4 + 0.5 * u})`; ctx.fill();
+  ctx.restore();
+}
+
+/** M7 head gear (style frame sheet, own designs), head space: squad leader shades, bodyguard earpiece. */
+export function paintHeadGear(ctx: Ctx, kind: 'leader' | 'bodyguard'): void {
+  ctx.save();
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  if (kind === 'leader') {
+    ctx.lineWidth = 0.012; ctx.strokeStyle = INK;
+    ctx.beginPath(); ctx.moveTo(0.02, -0.05); ctx.lineTo(-0.17, -0.07); ctx.stroke();
+    ctx.fillStyle = '#18181b';
+    for (const lx of [0.065, 0.152]) { ctx.beginPath(); ctx.ellipse(lx, -0.045, 0.043, 0.03, 0, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillRect(0.1, -0.055, 0.016, 0.01);
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 0.008;
+    for (const lx of [0.05, 0.137]) { ctx.beginPath(); ctx.moveTo(lx, -0.062); ctx.lineTo(lx + 0.02, -0.062); ctx.stroke(); }
+  } else {
+    ctx.strokeStyle = '#2a2b2f'; ctx.lineWidth = 0.008;
+    ctx.beginPath(); ctx.moveTo(-0.06, 0);
+    for (let k = 1; k <= 8; k++) ctx.lineTo(-0.06 - 0.05 * (k / 8) + (k % 2 ? 0.012 : -0.012), 0.24 * (k / 8));
+    ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(-0.055, -0.005, 0.02, 0.024, 0, 0, Math.PI * 2); ctx.fillStyle = '#2a2b2f'; ctx.fill();
   }
   ctx.restore();
 }

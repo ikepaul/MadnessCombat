@@ -107,6 +107,8 @@ export function alert(world: World, o: Actor, by?: 'sight' | 'sound'): void {
   if (!o.ai || o.ai.aware !== false || !alive(o)) return;
   o.ai.aware = true;
   o.ai.cooldown = Math.max(o.ai.cooldown, 0.4);
+  // head snap toward the noise
+  o.pose.lean = -0.25;
   world.events.emit('alert', { actorId: o.id, ...o.pos });
   // someone who saw the player alerts the guards near him
   if (by === 'sight') for (const n of world.actors) if (n !== o && Math.hypot(n.pos.x - o.pos.x, n.pos.z - o.pos.z) <= S.hearDeath) alert(world, n);
@@ -126,13 +128,13 @@ function quietKill(world: World, byId: number, kind: string): boolean {
 
 /** Hearing: gunshots, explosions and loud deaths (installed once per World). */
 export function installAlertRules(world: World): void {
-  world.events.on('shot', (e) => { if (!e.suppressed) alertAll(world); });
-  world.events.on('explosion', () => alertAll(world));
+  world.events.on('shot', (e) => { if (!e.suppressed && !world.puppet) alertAll(world); });
+  world.events.on('explosion', () => { if (!world.puppet) alertAll(world); });
   world.events.on('kill', (e) => {
-    if (quietKill(world, e.byId, e.kind)) return;
+    if (world.puppet || quietKill(world, e.byId, e.kind)) return;
     for (const o of world.actors) if (Math.hypot(o.pos.x - e.x, o.pos.z - e.z) <= S.hearDeath) alert(world, o, 'sound');
   });
-  world.events.on('land', (e) => dropKill(world, e.actorId));
+  world.events.on('land', (e) => { if (!world.puppet) dropKill(world, e.actorId); });
 }
 
 /** Sight check for an unaware enemy (every tick from its brain). */

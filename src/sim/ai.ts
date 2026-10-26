@@ -116,6 +116,7 @@ function nearestPlayer(world: World, a: Actor): Actor | undefined {
  * given to the able grunts nearest that player.
  */
 export function assignTokens(world: World): void {
+  markFear(world);
   const tokens = world.tokens;
   const standing = world.activePlayers;
   for (const id of [...tokens]) {
@@ -152,6 +153,13 @@ export function assignTokens(world: World): void {
       used++;
     }
   }
+}
+
+/** enemy-behaviours: the last enemy of a wave (everyone else dead, nobody left to come) sweats. */
+function markFear(world: World): void {
+  const foes = world.actors.filter((a) => a.ai && alive(a) && a.kind !== 'zombie' && a.variant !== 'vip');
+  const last = foes.length === 1 && !!world.director?.allSpawned(world);
+  for (const a of foes) a.pose.sweat = last;
 }
 
 function dist(a: Actor, b: Actor): number {

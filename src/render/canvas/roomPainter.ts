@@ -158,6 +158,31 @@ export function paintProp(ctx: Ctx, p: PropDef, pal: Palette): void {
 }
 
 /** Stage 1 landmark (own design): leaning wooden pole, crossbar, two insulators, sagging wire. */
+/**
+ * A table kicked over toward the camera (combat-cover): drawn from its original shape, rotated
+ * about the front bottom edge by tip.t * 90 deg (eased, with a small bounce at the end).
+ */
+function paintTippedTable(ctx: Ctx, t: TableDef, pal: Palette): void {
+  const o = t.tip!, th = 0.06;
+  const u = o.t, e = u < 1 ? u * u * (3 - 2 * u) : 1;
+  const bounce = u >= 1 ? 0 : Math.sin(u * Math.PI) * 0.02;
+  const ang = e * Math.PI / 2 - bounce;
+  const c = Math.cos(ang), sn = Math.sin(ang);
+  // rotate (y, z) about (0, z0) toward the camera
+  const R = (x: number, y: number, z: number) => { const dz = z - o.z0; return P(x, dz * sn + y * c, o.z0 + dz * c - y * sn); };
+  ctx.lineWidth = 5; ctx.strokeStyle = INK; ctx.lineCap = 'round';
+  const legs: [number, number][] = [[t.x0 + 0.08, o.z1 - 0.05], [t.x1 - 0.08, o.z1 - 0.05], [t.x0 + 0.08, o.z0 + 0.05], [t.x1 - 0.08, o.z0 + 0.05]];
+  for (const [x, z] of legs) line(ctx, R(x, o.top - th, z), R(x, 0, z));
+  ctx.lineWidth = 3;
+  // the underside shows while it falls; the top faces the camera once it's over
+  poly(ctx, [R(t.x0, o.top - th, o.z1), R(t.x1, o.top - th, o.z1), R(t.x1, o.top, o.z1), R(t.x0, o.top, o.z1)]);
+  ctx.fillStyle = pal.propShade; ctx.fill(); ctx.stroke();
+  poly(ctx, [R(t.x0, o.top, o.z0), R(t.x1, o.top, o.z0), R(t.x1, o.top - th, o.z0), R(t.x0, o.top - th, o.z0)]);
+  ctx.fillStyle = pal.propShade; ctx.fill(); ctx.stroke();
+  poly(ctx, [R(t.x0, o.top, o.z0), R(t.x1, o.top, o.z0), R(t.x1, o.top, o.z1), R(t.x0, o.top, o.z1)]);
+  ctx.fillStyle = pal.prop; ctx.fill(); ctx.stroke();
+}
+
 function paintPole(ctx: Ctx, p: PoleDef, pal: Palette): void {
   const cx = (p.x0 + p.x1) / 2, cz = (p.z0 + p.z1) / 2, s = scaleAt(cz);
   const lean = (y: number) => cx + Math.sin(p.lean) * y;
@@ -233,6 +258,7 @@ function paintOutdoor(ctx: Ctx, room: RoomDef, pal: Palette): void {
 
 /** Props are depth-sorted with actors, so they're drawn in the dynamic layer, not baked. */
 export function paintTable(ctx: Ctx, t: TableDef, pal: Palette): void {
+  if (t.tip) { paintTippedTable(ctx, t, pal); return; }
   const th = 0.06;
   ctx.lineWidth = 5; ctx.strokeStyle = INK; ctx.lineCap = 'round';
   const legs: [number, number][] = [[t.x0 + 0.08, t.z1 - 0.05], [t.x1 - 0.08, t.z1 - 0.05], [t.x0 + 0.08, t.z0 + 0.05], [t.x1 - 0.08, t.z0 + 0.05]];

@@ -18,6 +18,8 @@ interface Chunk { x: number; y: number; vx: number; vy: number; floor: number; r
 /** Ticks at 60 Hz: 1 frame at 30 fps = 2 ticks. */
 const SMEAR_TICKS = 2;
 const STAR_TICKS = 3;
+/** The alert "!" stays 0.7 s. */
+const MARK_TICKS = 42;
 
 export class Vfx {
   private puffs: Puff[] = [];
@@ -29,9 +31,12 @@ export class Vfx {
   private booms: Boom[] = [];
   private smoke: Smoke[] = [];
   private chunks: Chunk[] = [];
+  /** M7: "!" marks over enemies that just noticed something (ticks left). */
+  private marks: { actorId: number; left: number }[] = [];
 
   /** `blood()` = the current stage shows blood (off for stage 1). */
-  constructor(world: World, private blood: () => boolean) {
+  constructor(private world: World, private blood: () => boolean) {
+    world.events.on('alert', (e) => { this.marks = this.marks.filter((m) => m.actorId !== e.actorId); this.marks.push({ actorId: e.actorId, left: MARK_TICKS }); });
     world.events.on('land', (e) => this.dust(e.x, e.y, e.z, 6 + Math.min(6, e.fallSpeed)));
     world.events.on('dive', (e) => this.dust(e.x, e.y, e.z, 8));
     world.events.on('standUp', (e) => this.dust(e.x, e.y, e.z, 4));
@@ -136,6 +141,8 @@ export class Vfx {
   }
 
   private step(dt: number): void {
+    for (const m of this.marks) m.left--;
+    this.marks = this.marks.filter((m) => m.left > 0);
     for (const p of this.puffs) {
       p.life += dt;
       p.x += p.vx * dt;
@@ -217,6 +224,7 @@ export class Vfx {
     }
     ctx.globalAlpha = 1;
     for (const b of this.booms) this.drawBoom(ctx, b);
+    for (const m of this.marks) this.drawMark(ctx, m);
     for (const b of this.blasts) {
       ctx.save();
       ctx.translate(b.x, b.y);
@@ -286,6 +294,26 @@ export class Vfx {
     ctx.lineWidth = Math.max(2, b.s * 0.012);
     ctx.strokeStyle = INK;
     ctx.stroke();
+    ctx.restore();
+  }
+
+  /** The alert mark (own design): a white "!" with an ink rim that pops in over the head, then fades. */
+  private drawMark(ctx: Ctx, m: { actorId: number; left: number }): void {
+    const a = this.world.actorById(m.actorId);
+    if (!a || a.state === 'dead') return;
+    const [x, y] = project(a.pos.x, a.pos.y + 1.22, a.pos.z), s = scaleAt(a.pos.z);
+    const age = MARK_TICKS - m.left;
+    const pop = age < 4 ? 0.6 + age * 0.17 : age < 8 ? 1.28 - (age - 4) * 0.07 : 1;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(s * pop, s * pop);
+    ctx.globalAlpha = Math.min(1, m.left / 10);
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-0.045, -0.2); ctx.lineTo(0.045, -0.2); ctx.lineTo(0.022, 0.02); ctx.lineTo(-0.022, 0.02); ctx.closePath();
+    ctx.moveTo(0.032, 0.075); ctx.arc(0, 0.075, 0.032, 0, Math.PI * 2);
+    ctx.lineWidth = 0.035; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.fillStyle = '#ffffff'; ctx.fill();
     ctx.restore();
   }
 

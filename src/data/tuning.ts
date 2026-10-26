@@ -62,7 +62,7 @@ export const TUNING = {
     /** move-drop-from-above: landing this close to an unaware enemy goes straight into the kill. invented */
     dropReach: 0.7,
     /** Sight: a player in front within this distance (x) and depth is noticed after `notice` s. invented */
-    sight: 5,
+    sight: 4,
     sightDepth: 1.5,
     notice: 0.3,
     /** A loud death alerts unaware enemies within this distance (H); seeing one alerts others within it. invented */

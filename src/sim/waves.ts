@@ -66,6 +66,13 @@ export class WaveDirector {
     this.wave = startWave - 1;
   }
 
+  /** Every entry of the current wave has spawned (or come through its door). */
+  allSpawned(world: World): boolean {
+    const def = this.script.waves[this.wave];
+    if (!def || this.pendingDoors.length > 0) return false;
+    return this.entry >= forPlayers(def, world.players.length).entries.length;
+  }
+
   /** Every enemy of the current wave has spawned and none is left alive (the kill cam's "last kill of a wave"). */
   waveFinished(world: World): boolean {
     const def = this.script.waves[this.wave];

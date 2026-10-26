@@ -80,7 +80,7 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
       }
       stepLocomotion(world, a, cmd, dt);
       if (b.state === 'diving' && b.sweep) sweepContact(world, a);
-      setClip(a, a.cook !== undefined ? 'cook' : a.holding ? 'carry' : holdsLong(a) ? 'holdLong' : 'idle');
+      setClip(a, a.cook !== undefined ? 'cook' : a.holding ? 'carry' : holdsLong(a) ? 'holdLong' : a.ai?.aware === false && a.ai.idle === 'smoke' ? 'smoke' : 'idle');
       break;
     }
     case 'attack': {

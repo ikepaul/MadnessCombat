@@ -258,19 +258,19 @@ Labs: `throw-knives`, `throw-grenade`, `throw-grenade-return`, `throw-catch-retu
 **Read first:** `enemy-grunt-armed`, `enemy-behaviours`, `enemy-squad-leader`, `enemy-elite-bodyguard`, `enemy-zombie`, `melee-stealth-kill`, `move-drop-from-above`, `combat-cover`.
 
 Build:
-- [ ] Weapon-driven grunt behaviour: melee → close in. Ranged → keep 3–5 H, seek cover facing the player, **aim telegraph ≈ 0.4 s**, then fire at 0.6–1.2 s intervals with aim error (invented numbers).
-- [ ] Friendly fire (enemy rays hit enemies). Floor-weapon scavenging within 2 H (they can pick up your empty guns, which click). Table flip into cover (25%, invented). Knife throws at > 2 H. One grenade per encounter.
-- [ ] Unaware/alert: unaware enemies idle/patrol facing a fixed direction. They become alert on seeing the player in front, unsuppressed gunshots or explosions in the room, and nearby loud deaths. The suppressed pistol doesn't alert.
-- [ ] Takedowns: E behind or landing on an unaware enemy = silent kill (knife ≈ 0.6 s, wire 1.5 s).
-- [ ] Squad leader (gun + melee squad within 2 H, the squad charges when he dies). Bodyguard (stays near a VIP, 2 hits, headshot 1).
-- [ ] Zombie: rises from an intact corpse in 1.0 s, walks 0.7–0.9 H/s, 3 bullet hits, 1–3 axe hits, keeps going headless (1 more hit), melee only or its corpse's weapon. Debug "raise all" command.
+- [x] Weapon-driven grunt behaviour: melee → close in. Ranged → keep 3–5 H, seek cover facing the player, **aim telegraph ≈ 0.4 s**, then fire at 0.6–1.2 s intervals with aim error (invented numbers).
+- [x] Friendly fire (enemy rays hit enemies). Floor-weapon scavenging within 2 H (they can pick up your empty guns, which click). Table flip into cover (25%, invented). Knife throws at > 2 H. One grenade per encounter.
+- [x] Unaware/alert: unaware enemies idle/patrol facing a fixed direction. They become alert on seeing the player in front, unsuppressed gunshots or explosions in the room, and nearby loud deaths. The suppressed pistol doesn't alert.
+- [x] Takedowns: E behind or landing on an unaware enemy = silent kill (knife ≈ 0.6 s, wire 1.5 s).
+- [x] Squad leader (gun + melee squad within 2 H, the squad charges when he dies). Bodyguard (stays near a VIP, 2 hits, headshot 1).
+- [x] Zombie: rises from an intact corpse in 1.0 s, walks 0.7–0.9 H/s, 3 bullet hits, 1–3 axe hits, keeps going headless (1 more hit), melee only or its corpse's weapon. Debug "raise all" command.
 
 Look & sound:
-- [ ] Character-sheet entries first (style frame): squad leader accessory, bodyguard look, welder mask (used in M10).
-- [ ] Aim telegraph: dashed red line from the muzzle (style frame) + gun-raise pose + telegraph sound (clack + rising tone, 0.4 s).
-- [ ] Unaware idle loops (smoking with an ember, patrol). Alert reaction (head snap + small "!" mark in our style). Fear sweat on the last enemy of a wave.
-- [ ] Takedown animations (knife from behind, drop from above, wire). Zombie rise animation (green spreads over 1 s, jerky get-up), shuffle walk, moan. Zombie kills show green on the counter.
-- [ ] Table flip animation + sound. Squad leader shades.
+- [x] Character-sheet entries first (style frame): squad leader accessory, bodyguard look, welder mask (used in M10).
+- [x] Aim telegraph: dashed red line from the muzzle (style frame) + gun-raise pose + telegraph sound (clack + rising tone, 0.4 s).
+- [x] Unaware idle loops (smoking with an ember, patrol). Alert reaction (head snap + small "!" mark in our style). Fear sweat on the last enemy of a wave.
+- [x] Takedown animations (knife from behind, drop from above, wire). Zombie rise animation (green spreads over 1 s, jerky get-up), shuffle walk, moan. Zombie kills show green on the counter.
+- [x] Table flip animation + sound. Squad leader shades.
 
 Acceptance tests: an aim telegraph precedes every enemy shot · a friendly-fire kill · alert rules (suppressed vs. unsuppressed) · a takedown only works on unaware targets from behind/above · zombie rise time, HP and the raisable rule.
 Labs: `enemy-grunt-armed`, `enemy-behaviours`, `enemy-squad-leader`, `enemy-elite-bodyguard`, `enemy-zombie`, `melee-stealth-kill`, `move-drop-from-above`.

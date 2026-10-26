@@ -43,7 +43,9 @@
     "wirePull": { "body": [-0.04, 0, -0.15], "head": [-0.07, -0.79, -0.1], "handF": [0.28, -0.74, 0], "handB": [0.18, -0.76, 0], "footF": [0.1, -0.03, 0], "footB": [-0.14, -0.03, 0] },
     "wirePull2": { "body": [-0.06, 0, -0.25], "head": [-0.12, -0.77, -0.2], "handF": [0.24, -0.72, 0], "handB": [0.12, -0.74, 0], "footF": [0.12, -0.03, 0], "footB": [-0.16, -0.03, 0] },
     "stabRaise": { "body": [0, 0, -0.05], "head": [0.0, -0.79, -0.03], "handF": [0.22, -0.92, 0], "handB": [0.3, -0.68, 0], "item": [0, 0, 1.6] },
-    "stabDownHit": { "body": [0.04, 0, 0.15], "head": [0.08, -0.78, 0.1], "handF": [0.34, -0.6, 0], "handB": [0.3, -0.7, 0], "footF": [0.13, -0.03, 0], "footB": [-0.08, -0.03, 0], "item": [0, 0, 1.4] }
+    "stabDownHit": { "body": [0.04, 0, 0.15], "head": [0.08, -0.78, 0.1], "handF": [0.34, -0.6, 0], "handB": [0.3, -0.7, 0], "footF": [0.13, -0.03, 0], "footB": [-0.08, -0.03, 0], "item": [0, 0, 1.4] },
+    "smokeHold": { "body": [0, 0, -0.03], "head": [0, -0.79, -0.02], "handF": [0.16, -0.44, 0], "handB": [-0.14, -0.3, 0] },
+    "smokeDrag": { "body": [-0.01, 0, -0.05], "head": [0.0, -0.8, -0.1], "handF": [0.18, -0.71, 0], "handB": [-0.14, -0.3, 0] }
   },
   "clips": {
     "idle": { "loop": true, "keys": [[0, "idle", "linear"]] },
@@ -74,6 +76,7 @@
     "kick": { "keys": [[0, "idle", "linear"], [6, "kickWind", "out"], [9, "kickHit", "out"], [13, "kickHit", "linear"], [18, "idle", "inOut"]] },
     "takenDown": { "keys": [[0, "stun", "linear"], [4, "choked", "out"]] },
     "stabDown": { "keys": [[0, "idle", "linear"], [8, "stabRaise", "out"], [14, "stabDownHit", "out"], [18, "stabDownHit", "linear"], [26, "idle", "inOut"]] },
+    "smoke": { "loop": true, "keys": [[0, "smokeHold", "linear"], [70, "smokeHold", "linear"], [80, "smokeDrag", "inOut"], [100, "smokeDrag", "linear"], [110, "smokeHold", "inOut"], [120, "smokeHold", "linear"]] },
     "wire": { "keys": [[0, "idle", "linear"], [8, "wirePull", "out"], [30, "wirePull2", "inOut"], [45, "wirePull2", "linear"], [53, "idle", "inOut"]] }
   }
 }
