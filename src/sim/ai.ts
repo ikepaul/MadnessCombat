@@ -2,6 +2,7 @@
 // attack token, stand at punch range and swing every 0.6-1.0 s. Grunts without a token wait
 // on a ring 1.5-2.5 H from the player and drift in depth. At most TUNING.ai.maxAttackers hold
 // a token, so enemies trickle into the fight instead of swarming (classic beat-'em-up rule).
+// Co-op: every grunt fights the nearest standing player, and the token limit is per player.
 import { TUNING } from '../data/tuning';
 import { type Actor, alive, type Brain } from './actor';
 import { clamp } from './collision';
@@ -21,6 +22,8 @@ export interface AiState {
   driftT: number;
   /** Seconds spent in punch range (the wind-up before the first swing). */
   ready: number;
+  /** The player this grunt fights (nearest standing player; kept while it holds a token). */
+  target?: number;
 }
 
 export function newAiState(world: World): AiState {
@@ -33,30 +36,51 @@ function ableToFight(a: Actor): boolean {
   return a.state === 'free' || a.state === 'attack' || a.state === 'stun';
 }
 
+/** The standing player nearest to `a`, if any. */
+function nearestPlayer(world: World, a: Actor): Actor | undefined {
+  let best: Actor | undefined, bestD = Infinity;
+  for (const p of world.activePlayers) {
+    const d = dist(a, p);
+    if (d < bestD) { best = p; bestD = d; }
+  }
+  return best;
+}
+
 /**
  * Hand out attack tokens (once per tick, before the actors step): holders keep theirs while
- * they can fight, free tokens go to the able grunts nearest the player.
+ * they and their target can fight; each standing player gets up to TUNING.ai.maxAttackers,
+ * given to the able grunts nearest that player.
  */
 export function assignTokens(world: World): void {
-  const p = world.player;
   const tokens = world.tokens;
+  const standing = world.activePlayers;
   for (const id of [...tokens]) {
     const a = world.actorById(id);
-    if (!a || !ableToFight(a) || !p || !alive(p)) {
+    const target = a?.ai?.target !== undefined ? world.actorById(a.ai.target) : undefined;
+    if (!a || !ableToFight(a) || !target || !standing.includes(target)) {
       tokens.delete(id);
       // a freed token waits before the next grunt steps in, so knockdowns buy breathing room
-      world.tokenFreeAt.push(world.time + AI.tokenCooldown);
+      if (target) world.tokenFreeAt.push({ player: target.id, t: world.time + AI.tokenCooldown });
     }
   }
-  world.tokenFreeAt = world.tokenFreeAt.filter((t) => t > world.time);
-  if (!p || !alive(p) || tokens.size + world.tokenFreeAt.length >= AI.maxAttackers) return;
-  const waiting = world.actors
-    .filter((a) => a.ai && !tokens.has(a.id) && a.state === 'free' && !a.entering)
-    .sort((a, b) => dist(a, p) - dist(b, p));
-  for (const a of waiting) {
-    if (tokens.size >= AI.maxAttackers) break;
-    tokens.add(a.id);
-    a.ai!.ready = 0;
+  world.tokenFreeAt = world.tokenFreeAt.filter((f) => f.t > world.time);
+  // grunts without a token turn to whichever standing player is nearest
+  for (const a of world.actors) {
+    if (a.ai && !tokens.has(a.id)) a.ai.target = nearestPlayer(world, a)?.id;
+  }
+  for (const p of standing) {
+    let used = world.tokenFreeAt.filter((f) => f.player === p.id).length;
+    for (const id of tokens) if (world.actorById(id)?.ai?.target === p.id) used++;
+    if (used >= AI.maxAttackers) continue;
+    const waiting = world.actors
+      .filter((a) => a.ai && !tokens.has(a.id) && a.ai.target === p.id && a.state === 'free' && !a.entering)
+      .sort((a, b) => dist(a, p) - dist(b, p));
+    for (const a of waiting) {
+      if (used >= AI.maxAttackers) break;
+      tokens.add(a.id);
+      a.ai!.ready = 0;
+      used++;
+    }
   }
 }
 
@@ -69,9 +93,9 @@ export function gruntBrain(world: World): Brain {
   return (a, dt) => {
     const ai = a.ai!;
     ai.cooldown = Math.max(0, ai.cooldown - dt);
-    const p = world.player;
+    const p = ai.target !== undefined ? world.actorById(ai.target) : undefined;
     const face = (p && p.pos.x < a.pos.x ? -1 : 1) as 1 | -1;
-    if (!p || !alive(p)) return { ...IDLE_COMMAND, face };
+    if (!p || !alive(p) || p.state === 'downed') return { ...IDLE_COMMAND, face };
     const room = world.room;
     const inside = room.halfWidth - 0.6;
 
@@ -88,8 +112,9 @@ export function gruntBrain(world: World): Brain {
       const inRange = dx <= TUNING.melee.range - 0.02 && dx >= 0.3 && dz <= TUNING.melee.depthBand * 0.6;
       // the wind-up only counts once in range, so the player gets a beat to strike first
       ai.ready = inRange ? ai.ready + dt : 0;
-      if (target && inRange && ai.ready >= AI.windUp && ai.cooldown <= 0 && a.state === 'free' && world.time - world.lastEnemySwing >= AI.swingGap) {
-        world.lastEnemySwing = world.time;
+      const last = world.lastEnemySwing.get(p.id) ?? -Infinity;
+      if (target && inRange && ai.ready >= AI.windUp && ai.cooldown <= 0 && a.state === 'free' && world.time - last >= AI.swingGap) {
+        world.lastEnemySwing.set(p.id, world.time);
         const [i0, i1] = AI.attackInterval;
         ai.cooldown = i0 + world.rng() * (i1 - i0);
         return { ...IDLE_COMMAND, face, attack: world.rng() < AI.heavyChance ? 'heavy' : 'light' };

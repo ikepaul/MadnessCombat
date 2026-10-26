@@ -2,7 +2,7 @@ import { lyingAt, rootToWorld, STANDING } from '../anim/skeleton';
 import { TUNING } from '../data/tuning';
 import { type Actor, type ActorKind, alive, createActor, type Vec3 } from './actor';
 import { type Ball, type Cannon, stepCannons } from './cannon';
-import { applyHit, stepActor } from './combat';
+import { applyHit, stepActor, stepRevives } from './combat';
 import { clearEdges, IDLE_COMMAND, type PlayerCommand } from './command';
 import { assignTokens } from './ai';
 import { EventBus, type HitKind } from './events';
@@ -20,10 +20,10 @@ export class World {
   items: Item[] = [];
   readonly dt = 1 / TUNING.simHz;
   tick = 0;
-  /** The actor driven by player commands. */
-  player?: Actor;
-  /** Command for the next tick; edges (jump/dive/attack/grab) are cleared after use. */
-  command: PlayerCommand = { ...IDLE_COMMAND };
+  /** Heroes driven by player commands: [0] = single player / co-op host, [1] = co-op player 2. */
+  players: Actor[] = [];
+  /** Commands for the next tick, one per player; edges (jump/dive/attack/grab) are cleared after use. */
+  commands: PlayerCommand[] = [{ ...IDLE_COMMAND }, { ...IDLE_COMMAND }];
   cannons: Cannon[] = [];
   balls: Ball[] = [];
   /** Enemies allowed to attack right now (src/sim/ai.ts). */
@@ -32,10 +32,10 @@ export class World {
   kills = 0;
   /** Kind of the last enemy killed (the counter turns green for zombies). */
   lastKillKind?: ActorKind;
-  /** Attack tokens freed recently, unavailable until these times (TUNING.ai.tokenCooldown). */
-  tokenFreeAt: number[] = [];
-  /** World time of the last enemy swing (TUNING.ai.swingGap). */
-  lastEnemySwing = -Infinity;
+  /** Attack tokens freed recently, per player they were aimed at, unavailable until `t` (TUNING.ai.tokenCooldown). */
+  tokenFreeAt: { player: number; t: number }[] = [];
+  /** World time of the last enemy swing at each player (TUNING.ai.swingGap). */
+  lastEnemySwing = new Map<number, number>();
   /** The room's wave script, if it has one. */
   director?: WaveDirector;
   doors: DoorState[] = [];
@@ -52,6 +52,42 @@ export class World {
         this.lastKillKind = kind;
       }
     });
+  }
+
+  /** Player 1 (single player, or the co-op host). */
+  get player(): Actor | undefined {
+    return this.players[0];
+  }
+
+  set player(a: Actor | undefined) {
+    if (!a) { this.players = []; return; }
+    a.playerIndex = 0;
+    this.players[0] = a;
+  }
+
+  /** Player 1's command (single player and tests). */
+  get command(): PlayerCommand {
+    return this.commands[0];
+  }
+
+  set command(c: PlayerCommand) {
+    this.commands[0] = c;
+  }
+
+  /** Add a co-op hero as the next player. */
+  addPlayer(a: Actor): void {
+    a.playerIndex = this.players.length;
+    this.players.push(a);
+    if (!this.actors.includes(a)) this.actors.push(a);
+  }
+
+  get coop(): boolean {
+    return this.players.length > 1;
+  }
+
+  /** Players who can fight right now (not dead, not downed). */
+  get activePlayers(): Actor[] {
+    return this.players.filter((p) => p.state !== 'dead' && p.state !== 'downed');
   }
 
   private resetDoors(): void {
@@ -116,10 +152,11 @@ export class World {
     assignTokens(this);
     for (const a of this.actors) {
       if (a.corpse?.phase === 'frozen') continue;
-      const cmd = a === this.player ? this.command : a.brain ? a.brain(a, this.dt) : IDLE_COMMAND;
+      const cmd = a.playerIndex !== undefined ? this.commands[a.playerIndex] ?? IDLE_COMMAND : a.brain ? a.brain(a, this.dt) : IDLE_COMMAND;
       stepActor(this, a, cmd, this.dt);
     }
-    this.command = clearEdges(this.command);
+    this.commands = this.commands.map(clearEdges);
+    stepRevives(this, this.dt);
     this.updateHeld();
     this.separate();
     stepItems(this, this.dt);

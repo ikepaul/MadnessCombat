@@ -70,9 +70,10 @@ export interface Body {
 
 /**
  * Combat state machine (PLAN.md M2). `free` = the movement controller is in charge
- * (idle / walk / jump / prone, see stateLabel()).
+ * (idle / walk / jump / prone, see stateLabel()). `downed` = a co-op hero out of lives, lying
+ * in a revive circle until a teammate stands in it (PLAN.md co-op milestone).
  */
-export type ActorState = 'free' | 'attack' | 'stun' | 'knockback' | 'down' | 'getUp' | 'grabbed' | 'dead';
+export type ActorState = 'free' | 'attack' | 'stun' | 'knockback' | 'down' | 'getUp' | 'grabbed' | 'dead' | 'downed';
 
 export type AttackKind = 'light' | 'heavy' | 'uppercut' | 'finisher' | 'throw';
 
@@ -150,6 +151,12 @@ export interface Actor {
   slumpWall?: 'left' | 'right' | 'back';
   /** Direction of the throw being wound up. */
   throwDir?: { x: number; z: number };
+  /** Co-op: which player controls this hero (0 = host / single player, 1 = player 2). */
+  playerIndex?: number;
+  /** Co-op: the current knockdown ends downed (out of lives, a teammate still up). */
+  goingDown?: boolean;
+  /** Co-op: 0..1 revive progress while downed. */
+  revive?: number;
   /** Still walking in from off-screen or a door (may be outside the side bounds). */
   entering?: boolean;
   /** Enemy AI memory (src/sim/ai.ts). */

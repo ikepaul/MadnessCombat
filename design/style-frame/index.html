@@ -253,6 +253,12 @@ function drawCharacter(c, pal, face) {
   if (c.kind === 'hero') { // light collar mark to tell the hero apart
     ctx.beginPath(); ctx.moveTo(0.02, -0.565); ctx.lineTo(0.11, -0.565); ctx.lineTo(0.06, -0.47); ctx.closePath(); ctx.fillStyle = '#d9d9dc'; ctx.fill(); ctx.lineWidth = 0.008; ctx.stroke();
   }
+  if (c.player2) { // co-op player 2: a light strap across the body, shoulder to hip (own design)
+    ctx.save(); bodyPath(); ctx.clip();
+    ctx.beginPath(); ctx.moveTo(-0.2, -0.5); ctx.lineTo(-0.12, -0.56); ctx.lineTo(0.22, -0.16); ctx.lineTo(0.22, -0.06); ctx.closePath();
+    ctx.fillStyle = '#d9d9dc'; ctx.fill(); ctx.lineWidth = 0.008; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.restore();
+  }
   // head
   ctx.save(); ctx.translate(0.01, -0.79); ctx.rotate(aim !== null ? Math.max(-0.25, Math.min(0.25, aim * 0.18)) : 0); ctx.translate(-0.01, 0.79);
   ctx.beginPath(); ctx.ellipse(0.01, -0.79, 0.2, 0.225, 0, 0, 7);
@@ -450,13 +456,14 @@ function drawSheet(pal, face) {
   const s = 360, base = 900, t = sim.frame;
   const cast = [
     { label: 'Hero', c: { kind: 'hero', facing: 1 }, f: face },
+    { label: 'Hero · player 2', c: { kind: 'hero', facing: 1, player2: true }, f: face },
     { label: 'Grunt · A slit (chosen)', c: { kind: 'grunt', facing: 1 }, f: 'slit' },
     { label: 'Grunt · B dots', c: { kind: 'grunt', facing: 1 }, f: 'dots' },
     { label: 'Grunt · C blank', c: { kind: 'grunt', facing: 1 }, f: 'blank' },
     { label: 'Zombie', c: { kind: 'zombie', facing: -1, walk: t * 0.09 }, f: face },
   ];
   cast.forEach((e, i) => {
-    const x = 330 + i * 290;
+    const x = 300 + i * 250;
     e.c.t = t; e.c.screen = { x, y: base, s };
     drawCharacter(e.c, pal, e.f);
     ctx.font = '600 22px system-ui, sans-serif'; ctx.textAlign = 'center';

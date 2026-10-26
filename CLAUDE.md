@@ -20,9 +20,12 @@ Node 26 via nvm (`nvm use`; the system Node is too old for Vite 8).
 - `src/feel/feel.ts` turns events into hit-stop/shake/chromatic/kill-cam requests (numbers in `src/data/feel.ts`); `src/render/feelFx.ts` carries them out. `src/audio/`: Web Audio mixer (buses, voice limits, reverb, ducking, kill-cam filter), synthesized placeholder sounds (`synth.ts`, ids in `src/data/audio.ts`), music system (`assets/music/cues.json`), event hooks (`hooks.ts`). `src/settings.ts`: volumes + effect intensity.
 - `src/render/canvas/`: Canvas 2D vector painters (room, characters, items) drawing into `CanvasLayer`s shown by Phaser. Layers: room (baked) → decals (blood, baked) → corpses (frozen bodies, baked) → actors/props/items (per frame, sorted far→near). `src/render/post.ts`: vignette + grain. HUD/debug in `UIScene` (no post FX).
 - `src/data/`: `tuning.ts` (gameplay constants, each citing its research note or "invented"), `feel.ts` (effect numbers), `palettes.ts` (one per stage), rooms.
-- Routes: `/` = stage 1 arena, wave A (`/?stage=1&room=arena&wave=A`); `/?room=test` = the M0 style-frame room.
+- Routes: `/` = stage 1 arena, wave A (`/?stage=1&room=arena&wave=A`); `/?coop=host` / `/?coop=join` = co-op; `/?room=test` = the M0 style-frame room.
 - `src/sim/ai.ts` grunt AI (attack tokens), `src/sim/waves.ts` spawn points + wave scripts, `src/data/stages/` room and wave data.
 - Labs: `/?lab` lists them, `/?lab=<slug>` opens one (`src/labs/registry.ts`). Every mechanic gets a replica lab compared against its reference frames.
+
+## Co-op (2 laptops, same Wi-Fi)
+Host: `npm run dev:lan` (or `preview_start` "dev-lan"), open `/?coop=host`, read the join link it shows. Player 2 opens that link (`http://<host-ip>:5173/?coop=join`) in Chrome or Safari. The host's laptop runs the game (`src/net/`); player 2's laptop sends inputs and draws snapshots. Single player stays at `/`.
 
 ## Controls
 WASD move (W/S depth) · Space jump · Ctrl or C dive/prone, again or Space to get up (dive into an adjacent enemy = low sweep) · mouse aims (facing follows it) · LMB light punch · RMB heavy punch (cursor steeply above the shoulder = uppercut; a punch at a downed body = finisher) · F grab, F (or a punch) again throws toward the cursor.

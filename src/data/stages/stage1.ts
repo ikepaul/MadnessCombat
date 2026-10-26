@@ -34,10 +34,10 @@ const SPAWNS: RoomScript['spawns'] = [
  * trickling in from both edges, 1-2 at a time. Delays are invented within enemy-spawning's
  * 0.5-1.5 s; pairs arrive together from opposite sides now and then.
  */
-function waveA(): WaveEntry[] {
+function waveA(count: number): WaveEntry[] {
   const order = ['L-mid', 'R-mid', 'R-front', 'L-back', 'L-front', 'R-back'];
   const delays = [1.0, 0.6, 1.4, 0.5, 1.2, 0.8];
-  return Array.from({ length: 18 }, (_, i) => [i === 0 ? 1.0 : delays[i % delays.length], order[i % order.length], 'grunt', null] as WaveEntry);
+  return Array.from({ length: count }, (_, i) => [i === 0 ? 1.0 : delays[i % delays.length], order[i % order.length], 'grunt', null] as WaveEntry);
 }
 
 export const STAGE1 = {
@@ -50,7 +50,8 @@ export const STAGE1 = {
       script: {
         spawns: SPAWNS,
         // maxAlive 4: at most 2 fight (attack tokens), 2 more wait on the ring
-        waves: [{ id: 'A', threshold: 0, maxAlive: 4, entries: waveA() }],
+        // co-op: 27 grunts (the episode's whole grunt budget), 6 alive at once. invented
+        waves: [{ id: 'A', threshold: 0, maxAlive: 4, entries: waveA(18), coop: { maxAlive: 6, entries: waveA(27) } }],
       } satisfies RoomScript,
     },
   },

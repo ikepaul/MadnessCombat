@@ -76,7 +76,7 @@ export function stepItems(world: World, dt: number): void {
 /** A thrown head staggers whoever it hits (melee-decapitation: light knockback, no kill). */
 function thrownItemHits(world: World, it: Item): void {
   for (const o of world.actors) {
-    if (o.id === it.thrownBy || it.hit.includes(o.id) || o.state === 'dead' || o.state === 'grabbed' || o.state === 'getUp') continue;
+    if (o.id === it.thrownBy || it.hit.includes(o.id) || o.state === 'dead' || o.state === 'grabbed' || o.state === 'getUp' || o.state === 'downed') continue;
     if (Math.abs(o.pos.z - it.pos.z) > 0.25 || Math.abs(o.pos.x - it.pos.x) > 0.25) continue;
     if (it.pos.y < o.pos.y || it.pos.y > o.pos.y + o.body.height) continue;
     it.hit.push(o.id);

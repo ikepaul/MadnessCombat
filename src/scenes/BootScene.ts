@@ -21,6 +21,16 @@ export class BootScene extends Phaser.Scene {
       if (params.has('lab') && !lab) this.scene.start('lab-index');
       else if (lab && getLab(lab)?.scene) this.scene.start(getLab(lab)!.scene!);
       else if (lab) this.scene.start('game', { lab, palette });
+      else if (params.get('coop') === 'host' || params.get('coop') === 'join') {
+        // co-op (PLAN.md M4b): /?coop=host on one laptop, /?coop=join on the other
+        this.scene.start('coop-lobby', {
+          role: params.get('coop') === 'host' ? 'host' : 'guest',
+          stage: 1,
+          room: (params.get('room') ?? 'arena') as StageRoomId,
+          wave: params.get('wave') ?? 'A',
+          palette,
+        });
+      }
       else if (params.get('room') === 'test') this.scene.start('game', { testRoom: true, palette });
       else {
         // the stage route is the default: /?stage=1&room=arena&wave=A

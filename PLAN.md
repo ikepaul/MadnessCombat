@@ -13,6 +13,7 @@ Decisions live in `research/design-decisions.md` (gameplay), `design/art-directi
 | M2 | Body, melee & corpses | Punch dummies, knockdown, grab & throw, bodies pile up, pose animation | L |
 | M3 | Grunts & waves: **first playable** | Stage 1's unarmed riot (wave A) against real AI | M |
 | M4 | **Feel & audio foundation** | The riot with hit-stop, shake, kill cam, impact frames, real SFX, mixer, music system | M |
+| M4b | **Local co-op** (added 2026-10-26) | Two players on two laptops on the same Wi-Fi play the riot together; downed players are revived by standing in their circle | M |
 | M5 | Free aim & guns | Shoot with free aim across depth, dual wield, scavenge guns. Every gun sounds and flashes right | L |
 | M6 | Throwing, explosives & advanced combat | Knives, grenades, disarms, human shield, melee weapons, props | L |
 | M7 | Armed enemies, stealth & zombies | Gunfights against armed grunts, takedowns, zombies | L |
@@ -181,6 +182,24 @@ Hit-stop revised with the user (2026-10-26): kills 2 frames, every punch 1 frame
 
 Acceptance tests: a kill emits hit-stop 2 (revised from 3) / shake 6 / chromatic events · auto-fire hit-stop never exceeds 6 frames per second (synthetic test) · the mixer respects voice limits (synthetic burst of 20 casings → 6 voices) · music layer changes land on bar boundaries (unit test on the scheduler).
 Feel review: play wave A at 1× and 0.25× next to the style frame. Note what feels cheap and fix it in this milestone.
+
+## M4b: Local co-op (M)
+**Goal (decided with the user 2026-10-26):** the final game is 2-player co-op. Two laptops (Windows and Mac) on the same Wi-Fi play the same room; single player stays available.
+**Read first:** `research/design-decisions.md` (Co-op), this section.
+
+Build:
+- [x] Sim with several players: `World.players` / `commands` (one per player), per-player kill healing, combat walk, restart when nobody is left standing.
+- [x] Down & revive: a co-op hero out of lives is knocked into `downed` (enemies ignore them); a teammate standing in the circle (0.75 H) charges the revive over 5 s, stepping out drains it in 1 s; revived with 1 life and the get-up i-frames. Alone, running out of lives still kills.
+- [x] Grunt AI: each grunt fights the nearest standing player; attack tokens, the swing gap and token cooldowns are per player.
+- [x] Co-op waves: `WaveDef.coop` overrides; stage 1 wave A is 27 grunts, 6 alive at once (invented).
+- [x] Player 2's look: the hero plus a light strap across the body (style-frame character sheet first).
+- [x] Network: the host simulates; player 2 sends inputs and draws the host's world. Relay on the Vite dev server's websocket (`src/net/relay.ts`, plugin in `vite.config.ts`), snapshots of everything drawn plus every sim event, replayed on the guest so its VFX, decals, corpse baking, sound and feel run unchanged (`src/net/snapshot.ts`). No prediction (same Wi-Fi).
+- [x] Lobby: `/?coop=host` shows the join link for the other laptop and starts when player 2 connects (Enter plays alone); `/?coop=join` joins. A host restart restarts the guest too; a reconnecting guest gets the whole room.
+- [x] HUD: a row of life pips per player ("P1 · you"), revive circle on the floor and a bar over the downed hero.
+
+Done: host with `npm run dev:lan` (Vite on all network interfaces; Windows asks once to let Node through the firewall). Snapshots are ~0.5 KB per actor at 60 per second. Dev server only: a production build has no relay (internet play would need a server, later). The two-laptop playtest itself is up to the users.
+
+Acceptance tests: two heroes follow their own commands · grunts target the nearest standing player, ≤ 2 tokens per player · downed instead of dead in co-op, dead when alone · revive after 5 s in the circle, drain when stepping out · relay routes inputs guest→host and snapshots host→guest only · the puppet world matches the host world and replays events without double counting · two competent bots clear co-op wave A.
 
 ## M5: Free aim & guns (L)
 **Goal:** shooting works like the show: instant tracers, one-shot kills, constant weapon swapping.

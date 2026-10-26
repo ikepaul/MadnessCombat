@@ -21,6 +21,10 @@ import { FixedClock } from '../sim/clock';
 import { hasEdges, mergeEdges } from '../sim/command';
 import { WaveDirector } from '../sim/waves';
 import { World } from '../sim/world';
+import { STAGE1, type StageRoomId } from '../data/stages/stage1';
+import { coopLink, type CoopLink } from '../net/link';
+import { applySnapshot, type Snapshot, SnapshotWriter } from '../net/snapshot';
+import { paintReviveBar, paintReviveCircle } from '../render/canvas/revivePainter';
 import { hookWorldAudio } from '../audio/hooks';
 import { audio } from '../audio/mixer';
 import { MusicSystem } from '../audio/music';
@@ -30,7 +34,8 @@ import { cycleEffects, saveSettings, SETTINGS } from '../settings';
 
 /** One music system for the game (survives room restarts). */
 let music: MusicSystem | undefined;
-import { STAGE1, type StageRoomId } from '../data/stages/stage1';
+/** Guest: the host's first snapshot of a new session, applied after the scene restarts. */
+let pendingFull: Snapshot | undefined;
 
 export interface GameSceneData {
   lab?: string;
@@ -41,7 +46,12 @@ export interface GameSceneData {
   stage?: 1;
   room?: StageRoomId;
   wave?: string;
+  /** Co-op (PLAN.md M4b): this laptop hosts the game, or joins as player 2. */
+  coop?: 'host' | 'guest';
 }
+
+/** Room definitions by id, for the guest (the host's snapshot names the room). */
+const ROOMS_BY_ID = Object.fromEntries([TEST_ROOM, ...Object.values(STAGE1.rooms).map((r) => r.room)].map((r) => [r.id, r]));
 
 /** Seconds after the player dies before the room restarts (checkpoint per room, PLAN.md M3). */
 const RESTART_DELAY = 2;
@@ -73,6 +83,13 @@ export class GameScene extends Phaser.Scene {
   stageInfo?: { stage: number; room: string; targetBodyCount: number };
   /** Set when the room's wave script is done: the HUD shows the body-count card. */
   cleared = false;
+  /** Which player this laptop controls (0 = single player / host, 1 = co-op guest). */
+  localPlayer = 0;
+  coop?: 'host' | 'guest';
+  private link?: CoopLink;
+  private snaps?: SnapshotWriter;
+  /** Guest: the host session currently shown. */
+  private session?: number;
 
   constructor() {
     super('game');
@@ -91,9 +108,15 @@ export class GameScene extends Phaser.Scene {
     this.deadFor = 0;
     this.cleared = false;
     this.stageInfo = undefined;
+    this.coop = data.coop;
+    this.localPlayer = data.coop === 'guest' ? 1 : 0;
+    this.link = undefined;
+    this.snaps = undefined;
+    this.session = undefined;
 
     this.lab = data.lab ? getLab(data.lab) : undefined;
-    if (this.lab) {
+    if (data.coop === 'guest') this.setupGuest();
+    else if (this.lab) {
       this.world = new World(TEST_ROOM);
       this.lab.setup(this.world);
     } else if (data.testRoom) {
@@ -132,15 +155,23 @@ export class GameScene extends Phaser.Scene {
     });
     this.world.events.on('corpseThawed', () => this.bakeCorpses());
     this.bakeRoom();
+    if (data.coop === 'host') this.startHosting();
+    if (data.coop === 'guest' && pendingFull) {
+      const first = pendingFull;
+      pendingFull = undefined;
+      this.applySnap(first);
+    }
 
+    // the guest's world is a puppet of the host's: time controls stay with the host
+    const host = data.coop !== 'guest';
     bindDebugKeys(this, {
       toggleOverlay: () => (this.overlay = !this.overlay),
-      toggleSlowMo: () => (this.clock.timeScale = this.clock.timeScale === 1 ? 0.25 : 1),
-      togglePause: () => (this.clock.paused = !this.clock.paused),
-      stepFrame: () => this.clock.stepOnce(),
+      toggleSlowMo: () => { if (host) this.clock.timeScale = this.clock.timeScale === 1 ? 0.25 : 1; },
+      togglePause: () => { if (host) this.clock.paused = !this.clock.paused; },
+      stepFrame: () => { if (host) this.clock.stepOnce(); },
       setPalette: (i) => this.setPalette(STAGE_PALETTE[i]),
       togglePost: () => this.post.setEnabled(!this.post.enabled),
-      spawnCorpses: () => this.world.spawnCorpses(20),
+      spawnCorpses: () => { if (host) this.world.spawnCorpses(20); },
       cycleEffects: () => cycleEffects(),
       toggleMute: () => {
         SETTINGS.master = SETTINGS.master > 0 ? 0 : 0.8;
@@ -149,7 +180,7 @@ export class GameScene extends Phaser.Scene {
       },
     });
     // end card: Enter fights the room again
-    this.input.keyboard?.on('keydown-ENTER', () => this.cleared && this.restart());
+    this.input.keyboard?.on('keydown-ENTER', () => this.cleared && host && this.restart());
     this.scene.launch('ui');
   }
 
@@ -168,17 +199,50 @@ export class GameScene extends Phaser.Scene {
     this.scene.restart({ ...this.data_, palette: this.paletteId });
   }
 
-  /** Stage route: the room, the player in the middle, and the wave script from the chosen wave. */
+  /** Stage route: the room, the player(s) in the middle, and the wave script from the chosen wave. */
   private setupStage(data: GameSceneData): void {
     const roomId = data.room && data.room in STAGE1.rooms ? data.room : 'arena';
     const def = STAGE1.rooms[roomId];
     this.world = new World(def.room);
-    const hero = createActor('hero', 0, 9.2, 1);
-    this.world.actors.push(hero);
-    this.world.player = hero;
+    const coop = data.coop === 'host';
+    this.world.addPlayer(createActor('hero', coop ? -0.6 : 0, 9.2, 1));
+    if (coop) this.world.addPlayer(createActor('hero', 0.6, 9.2, -1));
     const start = Math.max(0, def.script.waves.findIndex((w) => w.id === (data.wave ?? 'A')));
     this.world.director = new WaveDirector(def.script, start);
     this.stageInfo = { stage: STAGE1.stage, room: roomId, targetBodyCount: STAGE1.targetBodyCount };
+  }
+
+  /** Co-op host: player 2's inputs come in, a snapshot of the world goes out every frame. */
+  private startHosting(): void {
+    const link = (this.link = coopLink('host'));
+    const snaps = (this.snaps = new SnapshotWriter(this.world, Date.now()));
+    link.onInput = (cmd) => (this.world.commands[1] = mergeEdges(this.world.commands[1], cmd));
+    // a (re)joining guest gets the whole room first
+    link.onPeer = (connected) => { if (connected) snaps.needFull = true; };
+  }
+
+  /** Co-op guest: an empty puppet world until the host's first snapshot arrives. */
+  private setupGuest(): void {
+    this.world = new World(STAGE1.rooms.arena.room);
+    const link = (this.link = coopLink('guest'));
+    link.onSnap = (s) => this.applySnap(s);
+  }
+
+  /** Guest: show the host's world. A new session (the host restarted the room) restarts this scene. */
+  private applySnap(s: Snapshot): void {
+    if (s.session !== this.session) {
+      if (!s.full) return; // wait for the host's full snapshot of the new session
+      if (this.session !== undefined) {
+        pendingFull = s;
+        this.restart();
+        return;
+      }
+      this.session = s.session;
+      const room = ROOMS_BY_ID[s.roomId];
+      if (room && room.id !== this.world.room.id) this.world.setRoom(room);
+    }
+    applySnapshot(this.world, s);
+    if (s.full) this.bakeCorpses();
   }
 
   /** `?room=test`: the style-frame room with the player and the M0 cast as dummies. */
@@ -214,6 +278,16 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
+    if (this.coop === 'guest') {
+      // player 2: send this frame's input to the host, draw the host's world
+      this.link?.sendInput(this.input_.read());
+      this.input_.consumeEdges();
+      this.render();
+      this.post.update();
+      this.feelFx.update(delta / 1000);
+      music?.setIntensity(this.world.actors.filter((a) => a.ai && a.state !== 'dead' && !a.entering).length);
+      return;
+    }
     // keep an edge latched until a tick actually consumes it
     this.world.command = mergeEdges(this.world.command, this.input_.read());
     const steps = this.clock.advance(delta / 1000, () => {
@@ -224,14 +298,18 @@ export class GameScene extends Phaser.Scene {
     this.watchPlayerDeath(delta / 1000);
     this.render();
     this.post.update();
+    if (this.snaps) {
+      if (this.link?.peer && (steps > 0 || this.snaps.needFull)) this.link.sendSnap(this.snaps.take());
+      else if (!this.link?.peer) this.snaps.drop();
+    }
     this.feelFx.update(delta / 1000);
     // music intensity follows the enemies actually in the fight
     music?.setIntensity(this.world.actors.filter((a) => a.ai && a.state !== 'dead' && !a.entering).length);
   }
 
-  /** PLAN.md M3: player death -> restart the room. */
+  /** PLAN.md M3: player death -> restart the room. Co-op: once nobody is left standing. */
   private watchPlayerDeath(dt: number): void {
-    if (this.world.player?.state !== 'dead') return;
+    if (this.world.players.length === 0 || this.world.activePlayers.length > 0) return;
     this.deadFor += dt * this.clock.timeScale;
     if (this.deadFor >= RESTART_DELAY) this.restart();
   }
@@ -246,6 +324,8 @@ export class GameScene extends Phaser.Scene {
     // doors sit in the side walls, behind everything in the room
     this.world.room.doors.forEach((d, i) => paintDoor(ctx, this.world.room, d, this.world.doors[i]?.open ?? 0, pal));
     this.decals.drawGrowing(ctx);
+    // co-op: a subtle circle on the floor around a downed teammate
+    for (const p of this.world.players) if (p.state === 'downed') paintReviveCircle(ctx, p);
     const list: { z: number; draw: () => void }[] = [];
     for (const a of this.world.actors) {
       if (a.corpse?.phase === 'frozen') continue;
@@ -259,6 +339,7 @@ export class GameScene extends Phaser.Scene {
     for (const b of this.world.balls) list.push({ z: b.z - 0.01, draw: () => paintBall(ctx, b) });
     list.sort((a, b) => b.z - a.z);
     for (const d of list) d.draw();
+    for (const p of this.world.players) if (p.state === 'downed') paintReviveBar(ctx, p);
     this.vfx.draw(ctx);
     this.actorLayer.upload();
     this.decalLayer.flush();

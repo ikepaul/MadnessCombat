@@ -16,11 +16,10 @@ export class UIScene extends Phaser.Scene {
   private info!: Phaser.GameObjects.Text;
   private labText!: Phaser.GameObjects.Text;
   private rulers: Phaser.GameObjects.Text[] = [];
-  private lastHp = -1;
-  /** Seconds left of the pip pop after losing a hit. */
-  private pipPop = 0;
-  /** Seconds left of the pip pop after a kill healed a life. */
-  private healPop = 0;
+  /** Per player row: last hp seen, seconds of pop left after losing / regaining a life. */
+  private pipRows: { lastHp: number; lost: number; healed: number }[] = [];
+  /** Co-op row labels ("P1 · you", "P2"). */
+  private pipLabels: Phaser.GameObjects.Text[] = [];
   private counter!: Phaser.GameObjects.Text;
   private lastKills = 0;
   /** Kill counter pop: frames left of the 1.3 -> 1.0 scale (design/art-direction.md). */
@@ -43,7 +42,8 @@ export class UIScene extends Phaser.Scene {
     const box = { fontFamily: 'Inter', fontSize: '18px', color: '#ffffff', backgroundColor: '#000000aa', padding: { x: 8, y: 4 } };
     this.info = this.add.text(16, 12, '', box);
     this.labText = this.add.text(16, 1080 - 48, '', { ...box, wordWrap: { width: 1880 } }).setVisible(!!game.lab).setOrigin(0, 1).setY(1080 - 16);
-    this.lastHp = -1;
+    this.pipRows = [];
+    this.pipLabels = [0, 1].map(() => this.add.text(0, 0, '', { fontFamily: 'Inter', fontSize: '20px', color: '#ffffff', stroke: INK, strokeThickness: 4, fontStyle: 'bold' }).setOrigin(0, 0.5));
     // world-kill-counter: big number bottom-right, appears at the first kill
     this.counter = this.add.text(1920 - 48, 1080 - 36, '', {
       fontFamily: 'Anton', fontSize: '96px', color: '#ffffff', stroke: INK, strokeThickness: 10,
@@ -65,7 +65,7 @@ export class UIScene extends Phaser.Scene {
   update(_time: number, delta: number): void {
     const game = this.scene.get('game') as GameScene;
     const p = game.world.player;
-    this.drawPips(p, delta / 1000);
+    this.drawPips(game, delta / 1000);
     this.drawCounter(game);
     if (game.lab) {
       const b = p?.body;
@@ -101,30 +101,45 @@ export class UIScene extends Phaser.Scene {
     if (game.cleared && !this.card.visible) {
       (this.card.getByName('n') as Phaser.GameObjects.Text).setText(String(kills));
       const target = game.stageInfo?.targetBodyCount;
-      (this.card.getByName('sub') as Phaser.GameObjects.Text).setText(
-        `${target ? `the whole of stage ${game.stageInfo!.stage} counts ${target} in the episode
-` : ''}press Enter to fight again`,
-      );
+      const episode = target ? `the whole of stage ${game.stageInfo!.stage} counts ${target} in the episode\n` : '';
+      // co-op: only the host restarts the room
+      const again = game.coop === 'guest' ? 'waiting for the host to fight again' : 'press Enter to fight again';
+      (this.card.getByName('sub') as Phaser.GameObjects.Text).setText(`${episode}${again}`);
       this.card.setVisible(true);
     }
   }
 
   /** Hit pips for the player's 3 hits (design/art-direction.md, UI), bottom-left. */
-  private drawPips(p: Actor | undefined, dt: number): void {
+  /** One row of life pips per player, bottom-left (P1 lowest). Co-op rows are labelled. */
+  private drawPips(game: GameScene, dt: number): void {
     const g = this.pips;
     g.clear();
-    if (!p) return;
-    if (this.lastHp >= 0 && p.hp < this.lastHp) this.pipPop = 0.25;
-    if (this.lastHp >= 0 && p.hp > this.lastHp) this.healPop = 0.3;
-    this.lastHp = p.hp;
-    this.pipPop = Math.max(0, this.pipPop - dt);
-    this.healPop = Math.max(0, this.healPop - dt);
+    const players = game.world.players;
+    const coop = players.length > 1;
+    this.pipLabels.forEach((t, i) => t.setVisible(coop && i < players.length));
+    players.forEach((p, row) => {
+      const y = 1080 - 120 - row * 56;
+      this.drawPipRow(g, row, p, coop ? 190 : 48, y, dt);
+      if (!coop) return;
+      const you = row === game.localPlayer ? ' · you' : '';
+      // a downed player's row turns grey (their pips are empty anyway)
+      this.pipLabels[row].setPosition(28, y).setText(`P${row + 1}${you}`).setColor(p.state === 'downed' ? '#8e8f94' : '#ffffff');
+    });
+  }
+
+  private drawPipRow(g: Phaser.GameObjects.Graphics, row: number, p: Actor, x0: number, y: number, dt: number): void {
+    const s = (this.pipRows[row] ??= { lastHp: -1, lost: 0, healed: 0 });
+    if (s.lastHp >= 0 && p.hp < s.lastHp) s.lost = 0.25;
+    if (s.lastHp >= 0 && p.hp > s.lastHp) s.healed = 0.3;
+    s.lastHp = p.hp;
+    s.lost = Math.max(0, s.lost - dt);
+    s.healed = Math.max(0, s.healed - dt);
     const ink = Phaser.Display.Color.HexStringToColor(INK).color;
     for (let i = 0; i < p.maxHp; i++) {
       const lost = i >= p.hp;
       // the pip just lost pops out; the pip just regained (a kill) pops in
-      const pop = lost && i === p.hp ? 1 + this.pipPop * 1.6 : !lost && i === p.hp - 1 ? 1 + this.healPop * 1.4 : 1;
-      const x = 48 + i * 46, y = 1080 - 120;
+      const pop = lost && i === p.hp ? 1 + s.lost * 1.6 : !lost && i === p.hp - 1 ? 1 + s.healed * 1.4 : 1;
+      const x = x0 + i * 46;
       g.fillStyle(ink, 1).fillCircle(x, y, 17 * pop);
       g.fillStyle(lost ? 0x5b5c61 : 0xffffff, 1).fillCircle(x, y, 12 * pop);
     }

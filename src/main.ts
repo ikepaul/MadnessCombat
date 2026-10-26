@@ -5,6 +5,7 @@ import Phaser from 'phaser';
 import { SCREEN_H, SCREEN_W } from './render/camera';
 import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
+import { CoopLobbyScene } from './scenes/CoopLobbyScene';
 import { LabIndexScene } from './scenes/LabIndexScene';
 import { PoseEditorScene } from './scenes/PoseEditorScene';
 import { UIScene } from './scenes/UIScene';
@@ -18,7 +19,7 @@ const game = new Phaser.Game({
   // our own Web Audio engine (src/audio) owns the AudioContext
   audio: { noAudio: true },
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-  scene: [BootScene, GameScene, UIScene, LabIndexScene, PoseEditorScene],
+  scene: [BootScene, GameScene, UIScene, LabIndexScene, PoseEditorScene, CoopLobbyScene],
 });
 
 // dev only: lets a debugging session drive the sim from the console (window.__game)
