@@ -2,11 +2,12 @@
 // hit points and the pose (clip + root) the painter draws.
 import { type Root, STANDING } from '../anim/skeleton';
 import { TUNING } from '../data/tuning';
+import type { MeleeId } from '../data/melee';
 import { isWeapon, WEAPONS, type WeaponId } from '../data/weapons';
 
 export type ActorKind = 'hero' | 'grunt' | 'zombie';
-/** What a hand holds: a gun (src/data/weapons.ts) or a melee weapon (M6). */
-export type HeldItem = WeaponId | 'baton' | null;
+/** What a hand holds: a gun (src/data/weapons.ts) or a melee weapon / throwable (src/data/melee.ts). */
+export type HeldItem = WeaponId | MeleeId | null;
 
 /** One hand's weapon state (PLAN.md M5: two hands, LMB / RMB). */
 export interface Hand {
@@ -71,6 +72,8 @@ export interface Pose {
   impact: number;
   /** Seconds of player hurt flash left. */
   hurt: number;
+  /** A cooked grenade in the front hand (M6). */
+  grenade?: boolean;
 }
 
 export type MoveState = 'ground' | 'air' | 'goingProne' | 'diving' | 'prone' | 'standingUp';
@@ -104,7 +107,12 @@ export interface Body {
  */
 export type ActorState = 'free' | 'attack' | 'stun' | 'knockback' | 'down' | 'getUp' | 'grabbed' | 'dead' | 'downed';
 
-export type AttackKind = 'light' | 'heavy' | 'uppercut' | 'finisher' | 'throw';
+/**
+ * Punches (M2), the body throw, and the M6 actions: `swing` a melee weapon, `thrust` the long
+ * weapon (pins), `toss` a held weapon (knife, axe, ...), `lob` a cooked grenade, `pull` a stuck
+ * blade / the planted sign, `steal` an enemy's weapon.
+ */
+export type AttackKind = 'light' | 'heavy' | 'uppercut' | 'finisher' | 'throw' | 'swing' | 'thrust' | 'toss' | 'lob' | 'pull' | 'steal';
 
 export interface Attack {
   kind: AttackKind;
@@ -113,6 +121,19 @@ export interface Attack {
   t: number;
   /** Already connected (one target per swing). */
   done: boolean;
+  /** Which hand acts (swing, toss). */
+  hand?: 0 | 1;
+  /** Actors already hit by this swing (multi-hit long weapons). */
+  hits?: number[];
+  /** Pull / steal target: an item id or an actor id. */
+  itemId?: number;
+  targetId?: number;
+  /** Aim point when the action started (toss, lob). */
+  aim?: [number, number];
+  /** Grenade: fuse left when the lob started. */
+  fuse?: number;
+  /** The weapon a swing / toss started with (a stolen or dropped one stops the swing). */
+  weapon?: string;
 }
 
 /** Ballistic flight of a knocked-back, killed or thrown body. */
@@ -147,6 +168,8 @@ export interface CorpseState {
   raisable: boolean;
   gibbed: boolean;
   slumped: boolean;
+  /** Pinned upright against a wall or prop by a long weapon (melee-environment-weapon). */
+  pinned?: boolean;
 }
 
 export type Holding = { kind: 'actor'; id: number } | { kind: 'item'; id: number };
@@ -192,6 +215,14 @@ export interface Actor {
   revive?: number;
   /** Still walking in from off-screen or a door (may be outside the side bounds). */
   entering?: boolean;
+  /** Grenades carried (thrown with G: hold to cook, release to lob). */
+  grenades: number;
+  /** Cooking a grenade: seconds since the pin was pulled. */
+  cook?: number;
+  /** World time F was last pressed (catching a thrown weapon, throw-catch-return). */
+  catchAt?: number;
+  /** Hits absorbed while held as a human shield (combat-human-shield). */
+  shieldHits?: number;
   /** Enemy AI memory (src/sim/ai.ts). */
   ai?: import('./ai').AiState;
   /** Lab/AI controller; the player is driven by World.command instead. */
@@ -231,6 +262,7 @@ export function createActor(kind: ActorKind, x: number, z: number, facing: 1 | -
     maxHp: hp,
     stunFor: 0,
     hands: [handFor(pose.held), null],
+    grenades: 0,
   };
   // scenery corpses (style-frame cast): already dead and settled
   if (a.pose.dead) {

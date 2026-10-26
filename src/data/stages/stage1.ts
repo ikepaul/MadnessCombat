@@ -1,6 +1,7 @@
 // Stage 1 (research/stages.md): one outdoor arena. Our own design: open flat ground under a
 // pale sky with a single leaning utility pole as the landmark (not the episode's tree).
 // Enemies walk in from both screen edges.
+import type { MeleeId } from '../melee';
 import type { RoomDef } from '../../sim/room';
 import type { RoomScript, WaveEntry } from '../../sim/waves';
 
@@ -30,14 +31,18 @@ const SPAWNS: RoomScript['spawns'] = [
 ];
 
 /**
- * Wave A, the unarmed riot (research/stages.md beat 2, ep1 0:21-0:44): ~18 unarmed grunts
- * trickling in from both edges, 1-2 at a time. Delays are invented within enemy-spawning's
- * 0.5-1.5 s; pairs arrive together from opposite sides now and then.
+ * Wave A, the riot (research/stages.md beat 2, ep1 0:21-0:44): ~18 grunts trickling in from
+ * both edges, 1-2 at a time. Delays are invented within enemy-spawning's 0.5-1.5 s; pairs
+ * arrive together from opposite sides now and then. The first few come barehanded; after that
+ * about every third grunt carries a melee weapon (our addition: something to take off them).
+ * Guns join with M7's armed AI.
  */
+const ARMED: Record<number, MeleeId> = { 4: 'baton', 7: 'knife', 10: 'bat', 13: 'pipe', 15: 'knife', 17: 'axe', 20: 'sword', 23: 'scimitar', 25: 'baton' };
+
 function waveA(count: number): WaveEntry[] {
   const order = ['L-mid', 'R-mid', 'R-front', 'L-back', 'L-front', 'R-back'];
   const delays = [1.0, 0.6, 1.4, 0.5, 1.2, 0.8];
-  return Array.from({ length: count }, (_, i) => [i === 0 ? 1.0 : delays[i % delays.length], order[i % order.length], 'grunt', null] as WaveEntry);
+  return Array.from({ length: count }, (_, i) => [i === 0 ? 1.0 : delays[i % delays.length], order[i % order.length], 'grunt', ARMED[i] ?? null] as WaveEntry);
 }
 
 export const STAGE1 = {

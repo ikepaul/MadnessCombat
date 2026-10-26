@@ -70,26 +70,9 @@ export function stepLocomotion(world: World, a: Actor, cmd: PlayerCommand, dt: n
       }
       break;
     }
-    case 'air': {
-      b.vel.x = b.takeoff.x + JUMP.airSteer * wantX;
-      b.vel.z = b.takeoff.z + JUMP.airSteer * wantZ;
-      const prevY = a.pos.y;
-      // exact constant-gravity step, so airtime/apex match the measured values at any tick rate
-      a.pos.y += b.vel.y * dt - 0.5 * GRAVITY * dt * dt;
-      b.vel.y -= GRAVITY * dt;
-      walkHorizontal(world, a, dt);
-      const ground = surfaceBelow(world.room, a.pos.x, a.pos.z, Math.max(prevY, a.pos.y));
-      b.groundY = ground;
-      if (b.vel.y <= 0 && a.pos.y <= ground) {
-        const fallSpeed = -b.vel.y;
-        a.pos.y = ground;
-        b.vel = { x: 0, y: 0, z: 0 };
-        b.squashLeft = JUMP.landSquash;
-        enter('ground');
-        world.events.emit('land', { actorId: a.id, ...a.pos, fallSpeed });
-      }
+    case 'air':
+      airStep(world, a, wantX, wantZ, dt);
       break;
-    }
     case 'diving': {
       walkHorizontal(world, a, dt);
       if (b.stateTime >= DIVE_TIME) { b.vel = { x: 0, y: 0, z: 0 }; enter('prone'); }
@@ -112,6 +95,47 @@ export function stepLocomotion(world: World, a: Actor, cmd: PlayerCommand, dt: n
   if (b.state !== 'air') b.groundY = surfaceBelow(world.room, a.pos.x, a.pos.z, a.pos.y);
   b.squashLeft = Math.max(0, b.squashLeft - dt);
   syncLocomotionPose(a, len > 0.1);
+}
+
+/** One tick of a jump or fall: steer a little, exact constant-gravity step, land on what's below. */
+function airStep(world: World, a: Actor, wantX: number, wantZ: number, dt: number): void {
+  const b = a.body;
+  b.vel.x = b.takeoff.x + JUMP.airSteer * wantX;
+  b.vel.z = b.takeoff.z + JUMP.airSteer * wantZ;
+  const prevY = a.pos.y;
+  // exact constant-gravity step, so airtime/apex match the measured values at any tick rate
+  a.pos.y += b.vel.y * dt - 0.5 * GRAVITY * dt * dt;
+  b.vel.y -= GRAVITY * dt;
+  walkHorizontal(world, a, dt);
+  const ground = surfaceBelow(world.room, a.pos.x, a.pos.z, Math.max(prevY, a.pos.y));
+  b.groundY = ground;
+  if (b.vel.y <= 0 && a.pos.y <= ground) {
+    const fallSpeed = -b.vel.y;
+    a.pos.y = ground;
+    b.vel = { x: 0, y: 0, z: 0 };
+    b.squashLeft = JUMP.landSquash;
+    b.state = 'ground';
+    b.stateTime = 0;
+    world.events.emit('land', { actorId: a.id, ...a.pos, fallSpeed });
+  }
+}
+
+/**
+ * An action (shot, punch, swing, throw, grenade) started in the air: the jump carries on under
+ * it (same steering and gravity), facing stays with the action. Landing keeps the action going.
+ */
+export function stepAirborneAction(world: World, a: Actor, cmd: PlayerCommand, dt: number): void {
+  let ix = cmd.moveX, iz = cmd.moveZ;
+  const len = Math.hypot(ix, iz);
+  if (len > 1) { ix /= len; iz /= len; }
+  const speed = (inCombat(world, a) ? MOVE.combatWalkSpeed : MOVE.walkSpeed) * (a.walkFactor ?? 1);
+  a.body.stateTime += dt;
+  airStep(world, a, ix * speed, iz * speed * MOVE.depthFactor, dt);
+  a.body.squashLeft = Math.max(0, a.body.squashLeft - dt);
+  a.pose.tuck = a.body.state === 'air' ? 0.6 + 0.4 * (1 - clamp(Math.abs(a.body.vel.y) / JUMP_V0, 0, 1)) : 0;
+  a.pose.squash = a.body.squashLeft / TUNING.jump.landSquash;
+  a.pose.groundY = a.body.groundY;
+  a.pose.walkPhase = undefined;
 }
 
 /** A standing, living actor within `reach` ahead on the same depth band. */

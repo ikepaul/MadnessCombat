@@ -18,9 +18,9 @@ interface Flash { x: number; y: number; angle: number; size: number; light: bool
 interface Tracer { from: ScreenPoint; to: ScreenPoint; left: number }
 interface Puff { x: number; y: number; r: number; life: number; max: number }
 /** A falling casing or magazine (screen space), until it settles on the floor line. */
-interface Debris { kind: 'casing' | 'mag'; x: number; y: number; vx: number; vy: number; spin: number; angle: number; floor: number; s: number; bounced: boolean }
+interface Debris { kind: 'casing' | 'mag' | 'pin'; x: number; y: number; vx: number; vy: number; spin: number; angle: number; floor: number; s: number; bounced: boolean }
 
-export interface SettledDebris { kind: 'casing' | 'mag'; x: number; y: number; angle: number; s: number }
+export interface SettledDebris { kind: 'casing' | 'mag' | 'pin'; x: number; y: number; angle: number; s: number }
 
 export class GunFx {
   private flashes: Flash[] = [];
@@ -50,6 +50,11 @@ export class GunFx {
       if (e.phase !== 'start') return;
       const s = scaleAt(e.z), [x, y] = project(e.x, e.y + 0.4, e.z);
       this.debris.push({ kind: 'mag', x, y, vx: 0, vy: 0.5 * s, spin: (Math.random() - 0.5) * 6, angle: 0, floor: project(e.x, 0, e.z)[1], s, bounced: false });
+    });
+    // throw-grenade: the pin drops and stays on the floor (ep1 f1360)
+    world.events.on('grenadePin', (e) => {
+      const s = scaleAt(e.z), [x, y] = project(e.x, e.y, e.z);
+      this.debris.push({ kind: 'pin', x, y, vx: (Math.random() - 0.5) * 0.6 * s, vy: -0.8 * s, spin: (Math.random() - 0.5) * 20, angle: 0, floor: project(e.x, 0, e.z)[1], s, bounced: false });
     });
     world.events.on('tick', () => this.step(world.dt));
   }
@@ -136,7 +141,7 @@ function muzzleFlash(ctx: Ctx, f: Flash): void {
 }
 
 /** A casing (small light cylinder) or a magazine (dark block), in screen px at scale `s` (px per H). */
-export function paintDebris(ctx: Ctx, kind: 'casing' | 'mag', x: number, y: number, angle: number, s: number): void {
+export function paintDebris(ctx: Ctx, kind: 'casing' | 'mag' | 'pin', x: number, y: number, angle: number, s: number): void {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(angle);
@@ -144,6 +149,14 @@ export function paintDebris(ctx: Ctx, kind: 'casing' | 'mag', x: number, y: numb
   ctx.lineWidth = 0.006;
   ctx.strokeStyle = INK;
   ctx.beginPath();
+  if (kind === 'pin') {
+    // ring + short split pin
+    ctx.arc(0, 0, 0.018, 0, Math.PI * 2);
+    ctx.moveTo(0.018, 0); ctx.lineTo(0.05, 0.004);
+    ctx.lineWidth = 0.007; ctx.strokeStyle = '#8d8e93'; ctx.stroke();
+    ctx.restore();
+    return;
+  }
   if (kind === 'casing') { ctx.roundRect(-0.016, -0.007, 0.032, 0.014, 0.004); ctx.fillStyle = '#c9c7bf'; }
   else { ctx.roundRect(-0.02, -0.05, 0.04, 0.1, 0.006); ctx.fillStyle = '#2f3034'; }
   ctx.fill();

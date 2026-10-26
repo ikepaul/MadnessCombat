@@ -1,9 +1,13 @@
-// Unarmed grunt AI (PLAN.md M3, research/mechanics/enemy-grunt-unarmed): walk in, get an
-// attack token, stand at punch range and swing every 0.6-1.0 s. Grunts without a token wait
+// Grunt AI (PLAN.md M3, research/mechanics/enemy-grunt-unarmed): walk in, get an attack
+// token, stand at punch range and swing every 0.6-1.0 s. Grunts with a melee weapon stand at
+// its reach and swing it; knife grunts also throw from range now and then (enemy-behaviours).
+// Guns wait for M7 (they need the aim telegraph). Grunts without a token wait
 // on a ring 1.5-2.5 H from the player and drift in depth. At most TUNING.ai.maxAttackers hold
 // a token, so enemies trickle into the fight instead of swarming (classic beat-'em-up rule).
 // Co-op: every grunt fights the nearest standing player, and the token limit is per player.
+import { isMelee, MELEE } from '../data/melee';
 import { TUNING } from '../data/tuning';
+import { project } from '../render/camera';
 import { type Actor, alive, type Brain } from './actor';
 import { clamp } from './collision';
 import { IDLE_COMMAND, type PlayerCommand } from './command';
@@ -24,6 +28,8 @@ export interface AiState {
   ready: number;
   /** The player this grunt fights (nearest standing player; kept while it holds a token). */
   target?: number;
+  /** Seconds until a knife grunt considers throwing again. */
+  throwT?: number;
 }
 
 export function newAiState(world: World): AiState {
@@ -102,14 +108,35 @@ export function gruntBrain(world: World): Brain {
     // walking in from off-screen or a door: straight in until inside the bounds
     if (a.entering) return { ...IDLE_COMMAND, moveX: -Math.sign(a.pos.x) * AI.speed, face: (-Math.sign(a.pos.x) || 1) as 1 | -1 };
 
+    // a melee weapon sets how close to stand and swing from
+    const h = a.hands[0];
+    const weapon = h && isMelee(h.item) ? MELEE[h.item] : undefined;
+    const reach = weapon ? weapon.reach : TUNING.melee.range;
+    const stand = weapon ? Math.max(AI.punchDistance, weapon.reach - AI.weaponMargin) : AI.punchDistance;
+
+    // enemy-behaviours: a knife grunt throws it from range now and then (then fights barehanded)
+    if (weapon?.id === 'knife' && a.state === 'free') {
+      ai.throwT = (ai.throwT ?? AI.knifeThrowEvery * world.rng()) - dt;
+      const dx = Math.abs(p.pos.x - a.pos.x), dz = Math.abs(p.pos.z - a.pos.z);
+      const [r0, r1] = AI.knifeThrowRange;
+      const last = world.lastEnemySwing.get(p.id) ?? -Infinity;
+      if (ai.throwT <= 0) {
+        ai.throwT = AI.knifeThrowEvery;
+        if (dx >= r0 && dx <= r1 && dz <= 0.3 && p.state === 'free' && world.time - last >= AI.swingGap && world.rng() < AI.knifeThrowChance) {
+          world.lastEnemySwing.set(p.id, world.time);
+          return { ...IDLE_COMMAND, face, attack: 'light', aim: project(p.pos.x, p.pos.y + 0.6, p.pos.z) };
+        }
+      }
+    }
+
     let tx: number, tz: number;
     if (world.tokens.has(a.id)) {
-      // punch spot on our side of the player, on the player's depth
-      tx = p.pos.x - face * AI.punchDistance;
+      // punch (or weapon) spot on our side of the player, on the player's depth
+      tx = p.pos.x - face * stand;
       tz = p.pos.z;
       const dx = Math.abs(p.pos.x - a.pos.x), dz = Math.abs(p.pos.z - a.pos.z);
       const target = p.state !== 'down' && p.state !== 'getUp' && p.state !== 'knockback';
-      const inRange = dx <= TUNING.melee.range - 0.02 && dx >= 0.3 && dz <= TUNING.melee.depthBand * 0.6;
+      const inRange = dx <= reach - 0.02 && dx >= 0.3 && dz <= TUNING.melee.depthBand * 0.6;
       // the wind-up only counts once in range, so the player gets a beat to strike first
       ai.ready = inRange ? ai.ready + dt : 0;
       const last = world.lastEnemySwing.get(p.id) ?? -Infinity;
@@ -117,7 +144,8 @@ export function gruntBrain(world: World): Brain {
         world.lastEnemySwing.set(p.id, world.time);
         const [i0, i1] = AI.attackInterval;
         ai.cooldown = i0 + world.rng() * (i1 - i0);
-        return { ...IDLE_COMMAND, face, attack: world.rng() < AI.heavyChance ? 'heavy' : 'light' };
+        // armed: swing the weapon (LMB); unarmed: punch, sometimes heavy
+        return { ...IDLE_COMMAND, face, attack: weapon || world.rng() >= AI.heavyChance ? 'light' : 'heavy', aim: project(p.pos.x, p.pos.y + 0.6, p.pos.z) };
       }
     } else {
       // wait on the ring, on whichever side of the player we are, drifting in depth

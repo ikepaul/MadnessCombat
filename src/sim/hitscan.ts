@@ -9,6 +9,7 @@ import { rootToWorld } from '../anim/skeleton';
 import { CAMERA, project, type ScreenPoint, scaleAt } from '../render/camera';
 import type { Actor } from './actor';
 import { BODY, HEAD } from './hurtbox';
+import { heldWeaponSegment } from './melee';
 import type { PropDef, RoomDef } from './room';
 import type { World } from './world';
 
@@ -19,6 +20,8 @@ export interface ActorHit { actor: Actor; part: 'head' | 'body'; t: number; poin
 export interface RayResult {
   /** The body hit, if any (after cover). */
   hit?: ActorHit;
+  /** combat-disarm: the ray crossed this actor's held weapon before any body (shot out of the hand). */
+  disarm?: Actor;
   /** Where the tracer ends on screen. */
   end: ScreenPoint;
   /** What the tracer ends on (when no body was hit). */
@@ -141,10 +144,23 @@ export function planeImpact(room: RoomDef, from: ScreenPoint, dir: ScreenPoint, 
  */
 export function castRay(world: World, from: ScreenPoint, dir: ScreenPoint, shooterZ: number, skip: (a: Actor) => boolean): RayResult {
   let hit: ActorHit | undefined;
+  let gun: { actor: Actor; t: number } | undefined;
   for (const a of world.actors) {
-    if (skip(a) || a.state === 'dead' || a.state === 'downed') continue;
+    // a corpse held up as a human shield still stops bullets (combat-human-shield)
+    if (skip(a) || (a.state === 'dead' && a.grabbedBy === undefined) || a.state === 'downed') continue;
     const h = rayVsActor(from, dir, a);
     if (h && (!hit || h.t < hit.t)) hit = { actor: a, part: h.part, t: h.t, point: [from[0] + dir[0] * h.t, from[1] + dir[1] * h.t] };
+    // combat-disarm: an enemy's weapon in the hand can be shot out of it (small target)
+    if (a.playerIndex === undefined && a.state !== 'dead' && a.grabbedBy === undefined) {
+      const w = heldWeaponSegment(a);
+      const t = w ? hitCapsule(from, dir, w.p0, w.p1, w.r) : undefined;
+      if (t !== undefined && (!gun || t < gun.t)) gun = { actor: a, t };
+    }
+  }
+  if (gun && (!hit || gun.t < hit.t - 1e-6)) {
+    const end: ScreenPoint = [from[0] + dir[0] * gun.t, from[1] + dir[1] * gun.t];
+    const covered = world.room.props.some((p) => p.z0 < gun!.actor.pos.z && (rayVsProp(from, dir, p) ?? Infinity) < gun!.t);
+    if (!covered) return { disarm: gun.actor, end };
   }
   if (hit) {
     // cover: crossed first on screen AND in front of the target in depth

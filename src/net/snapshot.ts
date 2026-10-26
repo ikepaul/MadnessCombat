@@ -27,8 +27,11 @@ export interface ActorSnap {
   bodyState: MoveState;
   bodyHeight: number;
   corpse?: CorpseState['phase'];
+  gibbed?: boolean;
+  pinned?: boolean;
   pose: Pose;
   hands: Actor['hands'];
+  grenades: number;
 }
 
 export interface Snapshot {
@@ -52,7 +55,8 @@ function snapActor(a: World['actors'][number]): ActorSnap {
     id: a.id, kind: a.kind, playerIndex: a.playerIndex, enemy: !!a.ai,
     pos: [a.pos.x, a.pos.y, a.pos.z], facing: a.facing, state: a.state, stateT: a.stateT,
     hp: a.hp, maxHp: a.maxHp, revive: a.revive, entering: a.entering,
-    bodyState: a.body.state, bodyHeight: a.body.height, corpse: a.corpse?.phase, pose: a.pose, hands: a.hands,
+    bodyState: a.body.state, bodyHeight: a.body.height, corpse: a.corpse?.phase, gibbed: a.corpse?.gibbed, pinned: a.corpse?.pinned,
+    pose: a.pose, hands: a.hands, grenades: a.grenades,
   };
 }
 
@@ -116,7 +120,8 @@ export function applySnapshot(world: World, s: Snapshot): void {
     a.body.height = as.bodyHeight;
     a.pose = as.pose;
     a.hands = as.hands;
-    if (as.corpse) a.corpse = { phase: as.corpse, t: 0, raisable: true, gibbed: false, slumped: false };
+    a.grenades = as.grenades ?? 0;
+    if (as.corpse) a.corpse = { phase: as.corpse, t: 0, raisable: !as.gibbed, gibbed: !!as.gibbed, slumped: false, pinned: as.pinned };
     else a.corpse = undefined;
     if (as.enemy && !a.ai) a.ai = newAiState(world);
     if (as.playerIndex !== undefined) {

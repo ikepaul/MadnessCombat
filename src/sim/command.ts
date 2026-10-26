@@ -32,6 +32,8 @@ export interface PlayerCommand {
   throwGun?: boolean;
   /** Shift held: split aim, the back hand locks onto the nearest enemy on the other side. */
   split?: boolean;
+  /** G held: pull a grenade's pin and cook it; releasing G lobs it toward the cursor (M6). */
+  grenade?: boolean;
 }
 
 export const IDLE_COMMAND: PlayerCommand = { moveX: 0, moveZ: 0, jump: false, dive: false, attack: null, grab: false };

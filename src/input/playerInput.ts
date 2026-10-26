@@ -5,11 +5,12 @@ import type { PlayerCommand } from '../sim/command';
  * Keyboard + mouse -> PlayerCommand (PLAN.md controls): WASD move (W/S = depth), Space jump,
  * Ctrl (or C) dive/prone and get up, mouse aim, LMB / RMB use the front / back hand (fire,
  * or punch when empty: light / heavy, uppercut when aimed steeply up), F grab / throw,
- * E pick up, R reload, Q throw the held gun, Shift (hold) split aim. Edges are latched until
+ * E pick up / pull out, R reload, Q throw the held weapon, G (hold) cook a grenade and release
+ * to lob it, Shift (hold) split aim. Edges are latched until
  * the sim consumes them, so a press between ticks is never lost.
  */
 export class PlayerInput {
-  private keys: Record<'W' | 'A' | 'S' | 'D' | 'SPACE' | 'CTRL' | 'C' | 'F' | 'E' | 'R' | 'Q' | 'SHIFT', Phaser.Input.Keyboard.Key>;
+  private keys: Record<'W' | 'A' | 'S' | 'D' | 'SPACE' | 'CTRL' | 'C' | 'F' | 'E' | 'R' | 'Q' | 'G' | 'SHIFT', Phaser.Input.Keyboard.Key>;
   private jumpLatch = false;
   private diveLatch = false;
   private grabLatch = false;
@@ -28,7 +29,7 @@ export class PlayerInput {
     this.keys = {
       W: kb.addKey(K.W), A: kb.addKey(K.A), S: kb.addKey(K.S), D: kb.addKey(K.D),
       SPACE: kb.addKey(K.SPACE), CTRL: kb.addKey(K.CTRL), C: kb.addKey(K.C), F: kb.addKey(K.F),
-      E: kb.addKey(K.E), R: kb.addKey(K.R), Q: kb.addKey(K.Q), SHIFT: kb.addKey(K.SHIFT),
+      E: kb.addKey(K.E), R: kb.addKey(K.R), Q: kb.addKey(K.Q), G: kb.addKey(K.G), SHIFT: kb.addKey(K.SHIFT),
     };
     this.keys.SPACE.on('down', () => (this.jumpLatch = true));
     this.keys.CTRL.on('down', () => (this.diveLatch = true));
@@ -64,6 +65,7 @@ export class PlayerInput {
       reload: this.reloadLatch,
       throwGun: this.throwLatch,
       split: k.SHIFT.isDown,
+      grenade: k.G.isDown,
     };
   }
 

@@ -14,7 +14,7 @@ export interface FeelSink {
   killCam(): void;
 }
 
-const HEAVY_KINDS: HitKind[] = ['heavy', 'uppercut', 'finisher', 'sweep', 'body', 'wall'];
+const HEAVY_KINDS: HitKind[] = ['heavy', 'uppercut', 'finisher', 'sweep', 'body', 'wall', 'slash', 'smash', 'stab', 'knife', 'blast', 'pin'];
 
 export class FeelDirector {
   /** Hit-stop granted in the last second: [time, seconds]. */
@@ -57,6 +57,12 @@ export class FeelDirector {
     });
     // shake per weapon (design/art-direction.md: pistol 2 px, SMG 1, shotgun 6)
     world.events.on('shot', (e) => this.sink.shake(WEAPONS[e.weapon].shake, FEEL.shake.decayMin));
+    // throw-grenade: explosion shake 14 px, chromatic, a short freeze
+    world.events.on('explosion', () => {
+      this.stop(FEEL.hitStop.kill);
+      this.sink.shake(FEEL.shake.explosion, FEEL.shake.decayMax);
+      this.sink.chromatic(FEEL.chromatic.kill.px, FEEL.chromatic.kill.frames);
+    });
     world.events.on('wallHit', (e) => {
       if (e.speed > 2) this.sink.shake(FEEL.shake.wall, FEEL.shake.decayMin + 0.1);
     });

@@ -233,19 +233,22 @@ Labs: `gun-hitscan-smg`, `gun-pistol-suppressed`, `gun-shotgun`, `gun-auto-rifle
 **Read first:** `throw-knives`, `throw-grenade`, `throw-grenade-return`, `throw-catch-return`, `combat-disarm`, `combat-human-shield`, `combat-cover`, `melee-weapons`, `melee-environment-weapon`, `move-jump-onto-object`.
 
 Build:
-- [ ] Knives: stab at ≤ 0.6 H, throw = projectile 13 H/s with slight drop, wind-up 0.1–0.15 s, one-hit kill, sticks in bodies/walls, retrieve by walking over (≈ 0.5 s pull).
-- [ ] Grenades: hold G = cook (the pin drops as debris), release = arc to the floor point under the cursor (max ≈ 4 H, invented). Fuse **1.1 s** from the pin. Blast 2 H: kills, gibs corpses (`raisable = false`), knocks bodies ≈ 1.5 H up, scorch decal. Live grenades are pickups (the fuse keeps running) → throw-back. Hook for breakable floor tiles (used in M9).
-- [ ] Catch: F with an empty hand within 0.15 s (invented) of a thrown object reaching you = catch it.
-- [ ] Disarm: grab on an armed enemy = steal (0.4 s, invented). Kicks/sweeps always knock weapons away, punches 30% (invented). A ray crossing the weapon sprite before the body = shot out of the hand.
-- [ ] Human shield: grab a live/dead enemy and hold them in front. They absorb hits from that side (~30, invented). You move at 0.6× and can fire a one-handed gun with the free hand.
-- [ ] Melee weapons (baton, knife, sword, scimitar, axe, bat, pipe): reach 0.6–1.0 H, one-hit kills on grunts, throwable (the axe can lodge). Long weapons (street sign: reach 1.5 H, multi-hit sweep, 0.5 s swing, 0.5 s pull out of the ground). **Pin**: a thrust into an enemy next to a wall/solid prop sticks them there.
-- [ ] Props: stand on (raises the gun origin), cover (blocks rays per the depth rule), solid (blocks movement).
+- [x] Knives: stab at ≤ 0.6 H, throw = projectile 13 H/s with slight drop, wind-up 0.1–0.15 s, one-hit kill, sticks in bodies/walls, retrieve by walking over (≈ 0.5 s pull).
+- [x] Grenades: hold G = cook (the pin drops as debris), release = arc to the floor point under the cursor (max ≈ 4 H, invented). Fuse **1.1 s** from the pin. Blast 2 H: kills, gibs corpses (`raisable = false`), knocks bodies ≈ 1.5 H up, scorch decal. Live grenades are pickups (the fuse keeps running) → throw-back. Hook for breakable floor tiles (used in M9).
+- [x] Catch: F with an empty hand within 0.15 s (invented) of a thrown object reaching you = catch it.
+- [x] Disarm: grab on an armed enemy = steal (0.4 s, invented). Kicks/sweeps always knock weapons away, punches 30% (invented). A ray crossing the weapon sprite before the body = shot out of the hand.
+- [x] Human shield: grab a live/dead enemy and hold them in front. They absorb hits from that side (~30, invented). You move at 0.6× and can fire a one-handed gun with the free hand.
+- [x] Melee weapons (baton, knife, sword, scimitar, axe, bat, pipe): reach 0.6–1.0 H, one-hit kills on grunts, throwable (the axe can lodge). Long weapons (street sign: reach 1.5 H, multi-hit sweep, 0.5 s swing, 0.5 s pull out of the ground). **Pin**: a thrust into an enemy next to a wall/solid prop sticks them there.
+- [x] Props: stand on (raises the gun origin), cover (blocks rays per the depth rule), solid (blocks movement).
 
 Look & sound:
-- [ ] Knife spin and stick (stays in bodies/walls, visible), axe lodge, street sign drawing, swing smears per weapon.
-- [ ] Grenade: pin and spoon debris, blinking/fuse spark cue, explosion (white starburst → grey smoke puffs, gib debris, scorch decal), shake 14 px, chromatic, ducking.
-- [ ] Disarm: weapon spin-away arc. Human shield hold pose and gore on the shield.
-- [ ] Sounds: knife draw/whoosh/thunk/twang/pull-out, grenade pin/spoon/bounce/fuse hiss/explosion layers, melee weapon swings and hits, catch slap, weapon clatter, shield impacts.
+- [x] Knife spin and stick (stays in bodies/walls, visible), axe lodge, street sign drawing, swing smears per weapon.
+- [x] Grenade: pin and spoon debris, blinking/fuse spark cue, explosion (white starburst → grey smoke puffs, gib debris, scorch decal), shake 14 px, chromatic, ducking.
+- [x] Disarm: weapon spin-away arc. Human shield hold pose and gore on the shield.
+- [x] Sounds: knife draw/whoosh/thunk/twang/pull-out, grenade pin/spoon/bounce/fuse hiss/explosion layers, melee weapon swings and hits, catch slap, weapon clatter, shield impacts.
+- [x] (Added on request) Stage 1 melee-armed grunts: after the first few, about every third wave-A grunt carries a baton, knife, bat, pipe, axe, sword or scimitar. The grunt AI swings from the weapon's reach, and knife grunts sometimes throw from 1.8–4.5 H. Gun-armed grunts wait for M7.
+
+Done notes: input is LMB/RMB per hand (a knife stabs within 0.6 H and is thrown beyond it), Q throws the front-most weapon, G is held to cook (release lobs), E also pulls stuck blades / the planted sign (or stand on one with empty hands). Grab needs only the front hand, so a one-handed gun in the back hand fires past a human shield. Shots can knock a weapon out of an enemy's hand only (not the players'). Gibbed bodies disappear into flying pieces + blood; the `explosion` event is the hook for breakable floors (M9). Enemies don't use the new weapons yet (M7); lab dummies throw knives and fire the machine gun.
 
 Acceptance tests: knife speed/stick/retrieve · grenade fuse, radius, gib flags; a picked-up grenade keeps its fuse · catch window · steal transfers the weapon · the shield absorbs fire from the front only · the street sign hits two targets in one swing · pin attaches the corpse to the prop.
 Labs: `throw-knives`, `throw-grenade`, `throw-grenade-return`, `throw-catch-return`, `combat-disarm`, `combat-human-shield`, `combat-cover`, `melee-weapons`, `melee-environment-weapon`, `move-jump-onto-object`.

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { isMelee, MELEE } from '../data/melee';
 import { rootToWorld } from '../anim/skeleton';
 import { INK } from '../data/palettes';
 import { project } from '../render/camera';
@@ -115,15 +116,20 @@ export class UIScene extends Phaser.Scene {
   }
 
   /** Hit pips for the player's 3 hits (design/art-direction.md, UI), bottom-left. */
-  /** "LMB  SMG  23 +1" per gun hand of the local player, above the life pips. */
+  /** "LMB  SMG  23 +1" per gun hand (melee weapons by name) and the grenade count, above the life pips. */
   private drawAmmo(game: GameScene): void {
     const p = game.world.players[game.localPlayer];
     const rows = game.world.players.length;
     const lines = (p?.hands ?? []).map((h, i) => {
-      if (!h || !isWeapon(h.item)) return undefined;
+      if (!h) return undefined;
+      const key = i === 0 ? 'LMB' : 'RMB';
+      if (isMelee(h.item)) return `${key}  ${MELEE[h.item].name}`;
+      if (!isWeapon(h.item)) return undefined;
       const state = h.reload > 0 ? 'reloading' : h.ammo === 0 ? (h.clicked ? 'empty: press to throw' : 'empty') : `${h.ammo}`;
-      return `${i === 0 ? 'LMB' : 'RMB'}  ${WEAPONS[h.item].name}  ${state}${h.spare > 0 ? '  +1' : ''}`;
+      return `${key}  ${WEAPONS[h.item].name}  ${state}${h.spare > 0 ? '  +1' : ''}`;
     }).filter((l): l is string => !!l);
+    if (p?.cook !== undefined) lines.push('G  grenade: cooking, release to throw');
+    else if (p && p.grenades > 0) lines.push(`G  grenade ×${p.grenades}`);
     this.ammo.setText(lines.join('\n')).setY(1080 - 120 - (rows - 1) * 56 - 30);
   }
 

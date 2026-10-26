@@ -10,6 +10,10 @@ interface Puff { x: number; y: number; vx: number; vy: number; r: number; grow: 
 interface Drop { x: number; y: number; vx: number; vy: number; r: number; life: number; max: number; g: number }
 interface Smear { x: number; y: number; fx: number; fy: number; s: number; facing: number; kind: HitKind; left: number }
 interface Star { x: number; y: number; s: number; left: number; big: boolean }
+/** M6: explosion flash, smoke and the pieces of gibbed bodies. */
+interface Boom { x: number; y: number; s: number; left: number }
+interface Smoke { x: number; y: number; vx: number; vy: number; r: number; grow: number; life: number; max: number; shade: number }
+interface Chunk { x: number; y: number; vx: number; vy: number; floor: number; r: number; angle: number; spin: number; color: string; life: number; landed: boolean }
 
 /** Ticks at 60 Hz: 1 frame at 30 fps = 2 ticks. */
 const SMEAR_TICKS = 2;
@@ -22,6 +26,9 @@ export class Vfx {
   private stars: Star[] = [];
   /** Cannon muzzle blasts: screen pos + ticks left. */
   private blasts: { x: number; y: number; s: number; left: number; facing: number }[] = [];
+  private booms: Boom[] = [];
+  private smoke: Smoke[] = [];
+  private chunks: Chunk[] = [];
 
   /** `blood()` = the current stage shows blood (off for stage 1). */
   constructor(world: World, private blood: () => boolean) {
@@ -62,6 +69,45 @@ export class Vfx {
     });
     world.events.on('wallHit', (e) => {
       if (e.speed > 2) this.dust(e.x, e.y + 0.3, e.z, 6);
+    });
+    // M6: explosions, gibs, blades sticking, guns shot out of hands, catches
+    world.events.on('explosion', (e) => {
+      const [x, y] = project(e.x, Math.max(0.3, e.y), e.z), s = scaleAt(e.z);
+      this.booms.push({ x, y, s, left: 4 });
+      // white starburst -> grey smoke puffs rising (design/art-direction.md effects table)
+      for (let i = 0; i < 18; i++) {
+        const a = Math.random() * Math.PI * 2, v = (0.6 + Math.random() * 1.6) * s;
+        this.smoke.push({ x: x + Math.cos(a) * 0.2 * s, y: y + Math.sin(a) * 0.12 * s, vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.5 - 0.5 * s,
+          r: (0.08 + Math.random() * 0.1) * s, grow: (0.35 + Math.random() * 0.3) * s, life: 0, max: 0.8 + Math.random() * 0.7, shade: 120 + Math.floor(Math.random() * 70) });
+      }
+      this.dust(e.x, 0, e.z, 14);
+    });
+    world.events.on('gib', (e) => {
+      const a = world.actorById(e.actorId);
+      const [x, y] = project(e.x, e.y + 0.4, e.z), s = scaleAt(e.z), floor = project(e.x, 0, e.z)[1];
+      const colors = a?.kind === 'zombie' ? ['#63d06b', '#8e8f94', '#4a4b50'] : ['#8e8f94', '#d2d2d5', '#4a4b50', '#707176'];
+      for (let i = 0; i < 12; i++) {
+        const ang = -Math.PI / 2 + (Math.random() - 0.5) * 2.6, v = (1.5 + Math.random() * 3) * s;
+        this.chunks.push({ x, y, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v, floor: floor + (Math.random() - 0.5) * 0.25 * s, r: (0.03 + Math.random() * 0.05) * s,
+          angle: Math.random() * 6, spin: (Math.random() - 0.5) * 20, color: colors[i % colors.length], life: 0, landed: false });
+      }
+      if (this.blood()) this.mist(x, y, s, 0, 24, -1.4);
+    });
+    world.events.on('stick', (e) => {
+      const [x, y] = project(e.x, e.y, e.z), s = scaleAt(e.z);
+      if (e.surface === 'flesh') { if (this.blood()) this.mist(x, y, s, 0, 6, -0.4); }
+      else this.dust(e.x, e.y, e.z, 4);
+    });
+    world.events.on('disarm', (e) => {
+      if (e.how !== 'shot') return;
+      const a = world.actorById(e.actorId);
+      if (!a) return;
+      const [x, y] = project(a.pos.x + a.facing * 0.35, a.pos.y + 0.55, a.pos.z);
+      this.stars.push({ x, y, s: scaleAt(a.pos.z) * 0.6, left: STAR_TICKS, big: false });
+    });
+    world.events.on('catch', (e) => {
+      const [x, y] = project(e.x, e.y, e.z);
+      this.stars.push({ x, y, s: scaleAt(e.z) * 0.5, left: STAR_TICKS, big: false });
     });
     world.events.on('tick', () => this.step(world.dt));
   }
@@ -112,9 +158,42 @@ export class Vfx {
     this.smears = this.smears.filter((m) => m.left > 0);
     for (const st of this.stars) st.left--;
     this.stars = this.stars.filter((st) => st.left > 0);
+    for (const b of this.booms) b.left--;
+    this.booms = this.booms.filter((b) => b.left > 0);
+    for (const p of this.smoke) {
+      p.life += dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vx *= 0.92;
+      p.vy = p.vy * 0.92 - 0.4 * p.r * dt * 10;
+      p.r += p.grow * dt;
+    }
+    this.smoke = this.smoke.filter((p) => p.life < p.max);
+    for (const c of this.chunks) {
+      c.life += dt;
+      if (c.landed) continue;
+      c.x += c.vx * dt;
+      c.y += c.vy * dt;
+      c.vy += 9 * (c.r / 0.05) * dt * 60;
+      c.angle += c.spin * dt;
+      if (c.y >= c.floor && c.vy > 0) { c.y = c.floor; c.landed = true; }
+    }
+    // the pieces stay a while, then fade
+    this.chunks = this.chunks.filter((c) => c.life < 6);
   }
 
   draw(ctx: Ctx): void {
+    for (const c of this.chunks) {
+      ctx.globalAlpha = c.life > 5 ? 6 - c.life : 1;
+      ctx.save();
+      ctx.translate(c.x, c.y);
+      ctx.rotate(c.angle);
+      ctx.beginPath(); ctx.ellipse(0, 0, c.r, c.r * 0.7, 0, 0, Math.PI * 2);
+      ctx.fillStyle = c.color; ctx.fill();
+      ctx.lineWidth = Math.max(1, c.r * 0.25); ctx.strokeStyle = INK; ctx.stroke();
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
     for (const p of this.puffs) {
       ctx.globalAlpha = 0.45 * (1 - p.life / p.max);
       ctx.fillStyle = '#b9babd';
@@ -131,6 +210,13 @@ export class Vfx {
     }
     for (const m of this.smears) this.drawSmear(ctx, m);
     for (const st of this.stars) this.drawStar(ctx, st);
+    for (const p of this.smoke) {
+      ctx.globalAlpha = 0.55 * (1 - p.life / p.max);
+      ctx.fillStyle = `rgb(${p.shade},${p.shade},${p.shade + 3})`;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    for (const b of this.booms) this.drawBoom(ctx, b);
     for (const b of this.blasts) {
       ctx.save();
       ctx.translate(b.x, b.y);
@@ -173,6 +259,33 @@ export class Vfx {
     ctx.closePath();
     ctx.fillStyle = 'rgba(240,240,242,0.55)';
     ctx.fill();
+    ctx.restore();
+  }
+
+  /** Explosion: additive flash lighting the room, then a big white starburst (2 frames). */
+  private drawBoom(ctx: Ctx, b: Boom): void {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, 700);
+    g.addColorStop(0, `rgba(255,236,200,${0.12 * b.left})`);
+    g.addColorStop(1, 'rgba(255,236,200,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(b.x - 700, b.y - 700, 1400, 1400);
+    ctx.restore();
+    const r = b.s * (0.55 + 0.2 * (4 - b.left));
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.beginPath();
+    for (let i = 0; i < 22; i++) {
+      const a = (i / 22) * Math.PI * 2, rr = i % 2 ? r * 0.45 : r * (0.8 + 0.2 * Math.sin(i * 7.3));
+      ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr * 0.8);
+    }
+    ctx.closePath();
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.lineWidth = Math.max(2, b.s * 0.012);
+    ctx.strokeStyle = INK;
+    ctx.stroke();
     ctx.restore();
   }
 

@@ -7,7 +7,9 @@ export type Recipe =
   | 'whooshLight' | 'whooshHeavy' | 'whooshThrow' | 'impact' | 'crack' | 'thump' | 'bodyFall' | 'wall'
   | 'stepDirt' | 'stepConcrete' | 'land' | 'cloth' | 'dive' | 'door' | 'tick' | 'heal'
   | 'voxEffort' | 'voxHurt' | 'voxDeath' | 'tapeStop' | 'windLoop' | 'roomToneLoop'
-  | 'gunPistol' | 'gunHeavy' | 'gunSmg' | 'gunRifle' | 'gunShotgun' | 'gunSuppressed' | 'slideRack';
+  | 'gunPistol' | 'gunHeavy' | 'gunSmg' | 'gunRifle' | 'gunShotgun' | 'gunSuppressed' | 'slideRack'
+  // M6
+  | 'explosion' | 'slash' | 'thunk' | 'twang' | 'squelch' | 'ping' | 'clink' | 'slap' | 'clang' | 'hiss';
 
 /** Seeded RNG (mulberry32) so variants are stable between runs. */
 function rng(seed: number): () => number {
@@ -211,6 +213,73 @@ export function render(recipe: Recipe, sr: number, seed: number): Float32Array {
       tone(b, (t) => 120 * Math.exp(-t * 10) + 40, ad(0.002, 0.03), 0.6);
       for (const t0 of [0.012, 0.05]) noise(b, r, () => 7000, (t) => (t < t0 ? 0 : Math.exp(-(t - t0) / 0.005)), 0.7, 2000);
       return normalise(b.d, 0.7);
+    }
+    case 'explosion': {
+      // design/audio-direction.md: crack + boom + sub tail + debris rain (0.5 s)
+      const b = new Buf(sr, 1.6);
+      noise(b, r, () => 7000, (t) => Math.exp(-t / 0.012), 1.2, 600); // crack
+      noise(b, r, (t) => 1800 * Math.exp(-t * 4) + 120, ad(0.004, 0.35), 1.6); // boom body
+      tone(b, (t) => jitter(52, 0.1) * Math.exp(-t * 1.5) + 24, ad(0.005, 0.55), 1.4); // sub tail
+      for (let k = 0; k < 14; k++) {
+        const t0 = 0.25 + r() * 0.55;
+        noise(b, r, () => 3500 + r() * 3000, (t) => (t < t0 ? 0 : Math.exp(-(t - t0) / 0.01)), 0.12 + r() * 0.15, 1500); // debris
+      }
+      return normalise(b.d, 0.97);
+    }
+    case 'slash': {
+      // blade: fast airy swish into a wet cut
+      const b = new Buf(sr, 0.28);
+      noise(b, r, (t) => 4500 - 3000 * Math.min(1, t / 0.08), swell(0.04, 0.12), 0.7, 900);
+      noise(b, r, () => jitter(1300), (t) => (t < 0.06 ? 0 : Math.exp(-(t - 0.06) / 0.05)), 1, 200);
+      tone(b, (t) => 160 * Math.exp(-t * 8) + 60, (t) => (t < 0.06 ? 0 : Math.exp(-(t - 0.06) / 0.05)), 0.6);
+      return normalise(b.d, 0.75);
+    }
+    case 'thunk': case 'twang': {
+      // a blade going in: dull knock; in a wall it keeps vibrating (twang)
+      const b = new Buf(sr, recipe === 'twang' ? 0.6 : 0.2);
+      tone(b, (t) => jitter(150, 0.1) * Math.exp(-t * 10) + 70, ad(0.002, 0.04), 1);
+      noise(b, r, () => 1100, ad(0.001, 0.02), 0.8, 300);
+      if (recipe === 'twang') tone(b, (t) => jitter(380, 0.1) * (1 + 0.04 * Math.sin(t * 60)), (t) => (t < 0.01 ? 0 : 0.5 * Math.exp(-(t - 0.01) / 0.18)), 0.7, 'saw');
+      return normalise(b.d, 0.75);
+    }
+    case 'squelch': {
+      const b = new Buf(sr, 0.3);
+      noise(b, r, (t) => 700 + 900 * Math.sin(t * 40) ** 2, swell(0.12, 0.3), 1, 200);
+      return normalise(b.d, 0.5);
+    }
+    case 'ping': {
+      // pin pulled: small bright metal ring
+      const b = new Buf(sr, 0.25);
+      tone(b, () => jitter(2600, 0.05), ad(0.001, 0.07), 0.8);
+      tone(b, () => jitter(3900, 0.05), ad(0.001, 0.05), 0.4);
+      noise(b, r, () => 8000, ad(0.0005, 0.004), 0.5, 3000);
+      return normalise(b.d, 0.45);
+    }
+    case 'clink': {
+      const b = new Buf(sr, 0.16);
+      tone(b, () => jitter(1700, 0.1), ad(0.001, 0.03), 0.7);
+      tone(b, () => jitter(2500, 0.1), ad(0.001, 0.02), 0.4);
+      noise(b, r, () => 3000, ad(0.001, 0.01), 0.6, 600);
+      return normalise(b.d, 0.5);
+    }
+    case 'slap': {
+      const b = new Buf(sr, 0.12);
+      noise(b, r, () => 3200, ad(0.001, 0.015), 1, 500);
+      tone(b, (t) => 280 * Math.exp(-t * 20) + 90, ad(0.001, 0.025), 0.6);
+      return normalise(b.d, 0.6);
+    }
+    case 'clang': {
+      // metal on metal (blade clang, the street sign's gong-like hit)
+      const b = new Buf(sr, 0.9);
+      for (const [f, g, d] of [[520, 1, 0.3], [790, 0.6, 0.22], [1170, 0.4, 0.15], [1740, 0.25, 0.1]] as const) tone(b, () => jitter(f, 0.04), ad(0.001, d), g);
+      noise(b, r, () => 6000, ad(0.0005, 0.006), 0.8, 2000);
+      return normalise(b.d, 0.6);
+    }
+    case 'hiss': {
+      // the grenade's fuse: a thin hiss (a gameplay cue)
+      const b = new Buf(sr, 0.9);
+      noise(b, r, () => 9000, (t) => Math.min(1, t / 0.03) * Math.max(0, 1 - t / 0.9), 1, 3500);
+      return normalise(b.d, 0.3);
     }
     case 'slideRack': {
       // two metal clacks: back, then forward

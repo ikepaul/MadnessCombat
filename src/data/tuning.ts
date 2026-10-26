@@ -144,7 +144,7 @@ export const TUNING = {
     /** "contact range": same reach as a punch. invented */
     range: 0.6,
     /** Walk speed while carrying a body. invented */
-    carrySpeed: 0.7,
+    carrySpeed: 0.6, // combat-human-shield: you move at 0.6x while holding a body (invented, PLAN.md M6)
     /** Throw: wind-up to release, then recovery (matches the "throw" clip). invented */
     windup: 5 / 30,
     recovery: 7 / 30,
@@ -193,6 +193,13 @@ export const TUNING = {
     swingGap: 0.45,
     /** Time a grunt stands in punch range before its first swing (a beat to strike first). invented */
     windUp: 0.5,
+    /** Armed grunts stand this far inside their weapon's reach. invented */
+    weaponMargin: 0.15,
+    /** enemy-behaviours: knife grunts throw at range, between these distances (H). invented (> 2 H in the note) */
+    knifeThrowRange: [1.8, 4.5] as const,
+    /** Seconds between a knife grunt's throw attempts, and the chance per attempt. invented */
+    knifeThrowEvery: 2.5,
+    knifeThrowChance: 0.5,
   },
 
   /** enemy-spawning: wave scripts. */

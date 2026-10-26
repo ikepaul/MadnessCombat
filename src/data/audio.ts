@@ -70,8 +70,21 @@ export const SOUNDS = {
   hitMetal: def('impact', 'impacts', 0.5, { variants: 5, reverb: 0.2, files: kenney('impactMetal_medium_', FIVE) }),
   hitWood: def('impact', 'impacts', 0.6, { variants: 5, reverb: 0.2, files: kenney('impactWood_light_', FIVE) }),
   hitConcrete: def('impact', 'impacts', 0.5, { variants: 5, reverb: 0.2, files: kenney('impactMining_', FIVE) }),
-  ambWind: def('windLoop', 'world', 0.5, { variants: 1, limit: 1, reverb: 0, loop: true }),
-  ambRoom: def('roomToneLoop', 'world', 0.5, { variants: 1, limit: 1, reverb: 0, loop: true }),
+  // M6: throwing, explosives, melee weapons (generated, src/audio/synth.ts)
+  explosion: def('explosion', 'impacts', 1, { variants: 3, limit: 3, reverb: 0.5 }),
+  slash: def('slash', 'impacts', 0.9, { variants: 4, reverb: 0.2 }),
+  knifeFlesh: def('thunk', 'impacts', 0.9, { variants: 4, reverb: 0.15 }),
+  knifeWall: def('twang', 'impacts', 0.8, { variants: 3, reverb: 0.25 }),
+  pullOut: def('squelch', 'foley', 0.7, { variants: 3, reverb: 0.05 }),
+  pin: def('ping', 'weapons', 0.6, { variants: 3, reverb: 0.1 }),
+  bounce: def('clink', 'foley', 0.6, { variants: 4, reverb: 0.15 }),
+  fuse: def('hiss', 'weapons', 0.35, { variants: 2, limit: 2, reverb: 0 }),
+  catchSlap: def('slap', 'foley', 0.8, { variants: 3, reverb: 0.05 }),
+  clang: def('clang', 'impacts', 0.7, { variants: 3, reverb: 0.3 }),
+  /** Outdoor wind bed: turned down ~8 dB (user: the rain-like hiss was too loud, 2026-10-26). */
+  ambWind: def('windLoop', 'world', 0.2, { variants: 1, limit: 1, reverb: 0, loop: true }),
+  /** Indoor room tone: turned down ~4 dB with the wind. */
+  ambRoom: def('roomToneLoop', 'world', 0.3, { variants: 1, limit: 1, reverb: 0, loop: true }),
 } satisfies Record<string, SoundDef>;
 
 export type SoundId = keyof typeof SOUNDS;
