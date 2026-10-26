@@ -1,0 +1,38 @@
+# Design decisions
+
+Decisions taken with the user while researching (2026-10-26). The mechanic notes' "Game translation" sections already follow these.
+
+## Decided
+
+| Topic | Decision | Notes |
+|---|---|---|
+| Scope | Episodes 1–3 only, one stage per episode. Mechanics, movement, enemy types and set pieces are copied. Art, names and characters are not. | No timestamp, no mechanic. |
+| Tech | TypeScript + Phaser, runs in the browser. | Lets us check builds side by side with the reference frames. Versions and architecture: `../PLAN.md`. |
+| Damage | Enemies die like in the show (grunts: 1 bullet / 1 good hit). The player survives about 3 hits (invented). | Zombies, brutes and bosses have their own rules. |
+| Reference footage | Downloaded episodes and clips stay local (gitignored), never shipped. | Rebuild with `tools/research/make_clips.py`. |
+| Level layout | **Fixed-screen rooms** joined by doors, lifts, vents, ladders, holes and falls. | Ep1 = one room. Ep2/ep3 = chains of about 10 rooms (`stages.md`). |
+| Movement plane | **Beat-'em-up depth**: characters move on a floor plane (x, z) + jump (y). Melee and grabs need a matching depth band. | User: "beat em up depth but you should also be able to aim weapon freely so you can shoot on more than the current depth axis". |
+| Aiming | **Free mouse aim.** The gun arm follows the cursor at any angle. Dual wield: both arms aim at the cursor, and a split-aim key locks the off-hand onto the nearest enemy on the other side. | |
+| Bullets across depth | **Screen-space ray**: a bullet is a hitscan line from the muzzle to the cursor and hits the first character it visually crosses, whatever their depth. Cover blocks only if it's in front of the target in depth. | If it looks like a hit, it's a hit. |
+| Stealth | **Contextual takedowns**: unaware/alert states. Attacking an unaware enemy from behind or from above = instant silent kill. Unsuppressed shots and explosions alert the room. No vision cones or body hiding. | |
+| Ammo | **Throw & scavenge**: guns hold one magazine plus at most one spare. Empty guns are thrown (they're a weapon), and you pick new ones off corpses. | Reload exists but is rare. |
+| Stage endings | Stage 2: non-interactive ending where the player dies. Stage 3: **playable last stand**: impaled, can't move, aim/fire for about 5 s to kill the boss behind you and the target, then die. | |
+| Fidelity | **Same rooms & beats** as the episodes (`stages.md`), with waves and placement tuned for gameplay and optional alternate routes (vents, breaches) added. | |
+| Art style | Same proportions, camera and greyscale-and-red feel as the show, own designs. Face **A: slit**. Hands/feet float (no arms or legs). | `../design/art-direction.md`, `../design/style-frame/` |
+| Palette | **One per stage**: stage 1 neutral, stage 2 cool, stage 3 warm. Red only for blood/telegraphs, green only for zombies. | |
+| Effects | **Heavy stylised**: hit-stop, impact frames, chromatic split, screen shake, kill-cam slow-mo, grain/vignette/bloom, with caps for automatic fire and an intensity setting. | |
+| Music | **The user composes it** from the brief in `../design/audio-direction.md`. SFX from CC0/royalty-free libraries, layered and processed. | |
+
+## Defaults assumed (say if you want them changed)
+- Kill counter HUD on **all** stages (only ep3 has one), plus an end-of-stage body-count card against the episode's count (32 / 86 / 91).
+- No sprint, no double jump, no wall jump (none appear in the show).
+- Corpses, weapons and decals never despawn within a room. Only intact corpses can be raised as zombies, so grenades/gibbing counter the halo boss.
+- Enemy ranged attacks have a visible aim telegraph (≈ 0.4 s) before the hitscan shot, because hitscan can't be dodged.
+- Shadow telegraph for everything that falls from above.
+- Bosses, the target and special enemies get a design pass (character sheet in the style frame) before their milestone, in our own designs.
+- Neutral names until we name things: hero, grunt, halo boss, clown, target, welder, sun brute.
+
+## Still open (to ask later, not blocking the first milestone)
+- Controls on gamepad (twin-stick?) or keyboard + mouse only.
+- Difficulty settings / checkpoints per room.
+- How the stage select works (linear unlock vs. free choice).

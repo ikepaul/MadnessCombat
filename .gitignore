@@ -1,0 +1,10 @@
+# Reference footage from the original episodes: local research only, never commit or ship
+reference/
+research/**/*.mp4
+research/**/*.gif
+research/**/*.png
+research/**/*.jpg
+.DS_Store
+node_modules/
+dist/
+.venv/
