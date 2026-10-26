@@ -138,16 +138,47 @@ describe('health rules (decided: grunts 4 hp, light 1 / heavy 2; player 3 lives,
     expect(d.state).toBe('knockback');
   });
 
-  it('light punches stun; the fourth kills', () => {
+  it('unchained light punches stun; the fourth kills', () => {
     const { world, hero } = setup();
     const d = dummy(world, hero.pos.x + 0.5);
     for (let i = 0; i < 3; i++) {
       swing(world, 'light');
       expect(d.state).toBe('stun');
+      idle(world, TUNING.combo.window); // let the chain drop
     }
     swing(world, 'light');
     expect(d.state).toBe('dead');
     expect(d.pose.headless).toBe(false);
+  });
+
+  it('combo: three chained lights kill (the third does +1)', () => {
+    const { world, hero } = setup();
+    const d = dummy(world, hero.pos.x + 0.5);
+    const hits = record(world, 'hit');
+    swing(world, 'light');
+    swing(world, 'light');
+    swing(world, 'light');
+    expect(hits.map((h) => [h.damage, h.combo, h.chain])).toEqual([[1, false, 1], [1, false, 2], [2, true, 3]]);
+    expect(d.state).toBe('dead');
+  });
+
+  it('combo: a quick cross (light then heavy) kills in two hits and takes the head', () => {
+    const { world, hero } = setup();
+    const d = dummy(world, hero.pos.x + 0.5);
+    const kills = record(world, 'kill');
+    swing(world, 'light');
+    swing(world, 'heavy');
+    expect(d.state).toBe('dead');
+    expect(kills[0]).toMatchObject({ kind: 'heavy', decap: true });
+  });
+
+  it('combo: heavy then light gets no bonus', () => {
+    const { world, hero } = setup();
+    const d = dummy(world, hero.pos.x + 0.5, Z, TUNING.health.tough);
+    const hits = record(world, 'hit');
+    swing(world, 'heavy');
+    expect(hits[0].combo).toBe(false);
+    expect(d.hp).toBe(TUNING.health.tough - 2);
   });
 
   it('two lights and a heavy kill, and the heavy kill takes the head off', () => {

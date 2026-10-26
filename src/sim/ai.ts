@@ -19,11 +19,13 @@ export interface AiState {
   waitZ: number;
   /** Re-pick waitZ after this many seconds. */
   driftT: number;
+  /** Seconds spent in punch range (the wind-up before the first swing). */
+  ready: number;
 }
 
 export function newAiState(world: World): AiState {
   const [r0, r1] = AI.waitRing;
-  return { cooldown: AI.windUp, ring: r0 + world.rng() * (r1 - r0), waitZ: 9.3, driftT: 0 };
+  return { cooldown: 0, ring: r0 + world.rng() * (r1 - r0), waitZ: 9.3, driftT: 0, ready: 0 };
 }
 
 /** Can still fight: not knocked about, held or dead. */
@@ -40,16 +42,21 @@ export function assignTokens(world: World): void {
   const tokens = world.tokens;
   for (const id of [...tokens]) {
     const a = world.actorById(id);
-    if (!a || !ableToFight(a) || !p || !alive(p)) tokens.delete(id);
+    if (!a || !ableToFight(a) || !p || !alive(p)) {
+      tokens.delete(id);
+      // a freed token waits before the next grunt steps in, so knockdowns buy breathing room
+      world.tokenFreeAt.push(world.time + AI.tokenCooldown);
+    }
   }
-  if (!p || !alive(p) || tokens.size >= AI.maxAttackers) return;
+  world.tokenFreeAt = world.tokenFreeAt.filter((t) => t > world.time);
+  if (!p || !alive(p) || tokens.size + world.tokenFreeAt.length >= AI.maxAttackers) return;
   const waiting = world.actors
     .filter((a) => a.ai && !tokens.has(a.id) && a.state === 'free' && !a.entering)
     .sort((a, b) => dist(a, p) - dist(b, p));
   for (const a of waiting) {
     if (tokens.size >= AI.maxAttackers) break;
     tokens.add(a.id);
-    a.ai!.cooldown = Math.max(a.ai!.cooldown, AI.windUp);
+    a.ai!.ready = 0;
   }
 }
 
@@ -78,7 +85,11 @@ export function gruntBrain(world: World): Brain {
       tz = p.pos.z;
       const dx = Math.abs(p.pos.x - a.pos.x), dz = Math.abs(p.pos.z - a.pos.z);
       const target = p.state !== 'down' && p.state !== 'getUp' && p.state !== 'knockback';
-      if (target && dx <= TUNING.melee.range - 0.02 && dx >= 0.3 && dz <= TUNING.melee.depthBand * 0.6 && ai.cooldown <= 0 && a.state === 'free') {
+      const inRange = dx <= TUNING.melee.range - 0.02 && dx >= 0.3 && dz <= TUNING.melee.depthBand * 0.6;
+      // the wind-up only counts once in range, so the player gets a beat to strike first
+      ai.ready = inRange ? ai.ready + dt : 0;
+      if (target && inRange && ai.ready >= AI.windUp && ai.cooldown <= 0 && a.state === 'free' && world.time - world.lastEnemySwing >= AI.swingGap) {
+        world.lastEnemySwing = world.time;
         const [i0, i1] = AI.attackInterval;
         ai.cooldown = i0 + world.rng() * (i1 - i0);
         return { ...IDLE_COMMAND, face, attack: world.rng() < AI.heavyChance ? 'heavy' : 'light' };

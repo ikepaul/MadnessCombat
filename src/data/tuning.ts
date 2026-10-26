@@ -87,6 +87,17 @@ export const TUNING = {
     uppercutAimAngle: Math.PI / 4,
   },
 
+  /**
+   * Combos (decided with the user 2026-10-26; the design is invented): consecutive hits on
+   * one target within `window` s chain. 3rd+ hit of a chain: +bonus. A heavy straight after
+   * a light (quick cross): +bonus. Light-heavy kills a grunt in 2 hits, light x3 in 3.
+   */
+  combo: {
+    /** Longer than the light punch cycle (0.4 s) plus the stun, so a stun-lock keeps the chain. invented */
+    window: 0.8,
+    bonus: 1,
+  },
+
   /** Hit reactions. */
   hit: {
     /** melee-hitstun-finisher: face-punch stun ~0.7 s, ep1 f1120-f1140. */
@@ -167,17 +178,21 @@ export const TUNING = {
     /** enemy-grunt-unarmed: at most 2-3 attacking at once (attack tokens). invented within the plan's range */
     maxAttackers: 2,
     /** enemy-grunt-unarmed: attack every 0.6-1.0 s. invented */
-    attackInterval: [0.6, 1.0] as const,
+    attackInterval: [0.8, 1.3] as const,
     /** Share of grunt punches that are heavy (knockdown). invented */
-    heavyChance: 0.25,
+    heavyChance: 0.2,
     /** Where a token holder stands to punch (centre distance, inside the 0.6 H range). invented */
     punchDistance: 0.45,
     /** Grunts without a token wait on a ring 1.5-2.5 H from the player (PLAN.md M3). */
     waitRing: [1.5, 2.5] as const,
     /** Grunts walk at this share of the walk speed (the hero was sped up, grunts less so). invented */
     speed: 0.8,
-    /** Reaction delay before the first swing after reaching the player. invented */
-    windUp: 0.25,
+    /** A freed attack token (holder knocked down or killed) is handed out again after this. invented */
+    tokenCooldown: 1.0,
+    /** No two grunt swings closer than this, across all grunts (keeps a crowd fair). invented */
+    swingGap: 0.45,
+    /** Time a grunt stands in punch range before its first swing (a beat to strike first). invented */
+    windUp: 0.5,
   },
 
   /** enemy-spawning: wave scripts. */

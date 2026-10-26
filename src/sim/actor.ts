@@ -140,6 +140,8 @@ export interface Actor {
   grabbedBy?: number;
   /** Punch pressed during the previous swing (input buffer). */
   queued?: { kind: Exclude<AttackKind, 'finisher' | 'throw'>; aim?: [number, number]; at: number };
+  /** Combo chain being landed on this actor (src/sim/combat.ts chainBonus). */
+  chain?: { by: number; count: number; t: number; last: string };
   /** Length of the current stun (s). */
   stunFor: number;
   /** Root rotation the get-up starts from. */

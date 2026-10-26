@@ -17,6 +17,7 @@ Node 26 via nvm (`nvm use`; the system Node is too old for Vite 8).
 - Units are **H** (one body height) and seconds. `src/render/camera.ts` `project()` is the only world→screen mapping (measured perspective).
 - `src/sim/combat.ts`: actor state machine (free/attack/stun/knockback/down/getUp/grabbed/dead), hits and damage, grabs/throws, sweep, finisher, corpses (tumble → settle → freeze). `src/sim/hurtbox.ts`: head ellipse + body capsule through the pose root.
 - `src/anim/`: pose skeleton (part transforms + whole-body root), clips sampled from `src/data/poses.json`, procedural layers. Poses are authored in `/?lab=pose-editor`.
+- `src/feel/feel.ts` turns events into hit-stop/shake/chromatic/kill-cam requests (numbers in `src/data/feel.ts`); `src/render/feelFx.ts` carries them out. `src/audio/`: Web Audio mixer (buses, voice limits, reverb, ducking, kill-cam filter), synthesized placeholder sounds (`synth.ts`, ids in `src/data/audio.ts`), music system (`assets/music/cues.json`), event hooks (`hooks.ts`). `src/settings.ts`: volumes + effect intensity.
 - `src/render/canvas/`: Canvas 2D vector painters (room, characters, items) drawing into `CanvasLayer`s shown by Phaser. Layers: room (baked) → decals (blood, baked) → corpses (frozen bodies, baked) → actors/props/items (per frame, sorted far→near). `src/render/post.ts`: vignette + grain. HUD/debug in `UIScene` (no post FX).
 - `src/data/`: `tuning.ts` (gameplay constants, each citing its research note or "invented"), `feel.ts` (effect numbers), `palettes.ts` (one per stage), rooms.
 - Routes: `/` = stage 1 arena, wave A (`/?stage=1&room=arena&wave=A`); `/?room=test` = the M0 style-frame room.
@@ -27,7 +28,7 @@ Node 26 via nvm (`nvm use`; the system Node is too old for Vite 8).
 WASD move (W/S depth) · Space jump · Ctrl or C dive/prone, again or Space to get up (dive into an adjacent enemy = low sweep) · mouse aims (facing follows it) · LMB light punch · RMB heavy punch (cursor steeply above the shoulder = uppercut; a punch at a downed body = finisher) · F grab, F (or a punch) again throws toward the cursor.
 
 ## Debug keys
-F1 overlay (H grid, rulers, hurtboxes, tick/fps) · F2 slow-mo 0.25× · F3 pause · F4 or `.` step one tick · 1/2/3 stage palettes (also blood: stage 1 has none) · P post FX on/off · K drop 20 corpses.
+F1 overlay (H grid, rulers, hurtboxes, tick/fps) · F2 slow-mo 0.25× · F3 pause · F4 or `.` step one tick · 1/2/3 stage palettes (also blood: stage 1 has none) · P post FX on/off · K drop 20 corpses · V effect intensity (full/reduced/off) · M mute.
 
 Dev only: `window.__game` is the Phaser game. The browser pane pauses animation frames while it is hidden; drive the loop with `__game.step(t, 16.7)` from the console when checking things there.
 

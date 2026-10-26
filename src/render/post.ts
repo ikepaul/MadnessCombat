@@ -5,20 +5,23 @@ import { SCREEN_H, SCREEN_W } from './camera';
 /**
  * Post-processing on the game camera (design/art-direction.md, "Post"): a soft radial vignette
  * overlay (Phaser's Vignette filter has a hard edge, so we bake the style frame's gradient)
- * and animated film grain as a tiling overlay. Chromatic split and the kill-cam tint are
- * stubs here and get their shaders/timing in M4. The HUD lives in UIScene so none of this
- * touches it.
+ * and animated film grain as a tiling overlay. Chromatic split = red and cyan copies of the
+ * actor layer added on top, offset sideways; the kill-cam tint is a red wash over the room.
+ * Timing lives in src/render/feelFx.ts. The HUD is in UIScene so none of this touches it.
  */
 export class PostFx {
   private grain: Phaser.GameObjects.TileSprite;
   private vignette: Phaser.GameObjects.Image;
-  private killCamTint: Phaser.Filters.ColorMatrix;
+  private split: [Phaser.GameObjects.Image, Phaser.GameObjects.Image];
+  private tint: Phaser.GameObjects.Rectangle;
   enabled = true;
 
-  constructor(scene: Phaser.Scene) {
-    const cam = scene.cameras.main;
-    this.killCamTint = cam.filters.external.addColorMatrix();
-    this.killCamTint.setActive(false);
+  /** `actorKey` = the texture of the per-frame actor layer (what the split copies). */
+  constructor(scene: Phaser.Scene, actorKey: string) {
+    const copy = (color: number) =>
+      scene.add.image(0, 0, actorKey).setOrigin(0, 0).setDepth(11).setTint(color).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.45).setVisible(false);
+    this.split = [copy(0xff2020), copy(0x20ffff)];
+    this.tint = scene.add.rectangle(0, 0, SCREEN_W, SCREEN_H, 0xc70f1b, 1).setOrigin(0, 0).setDepth(998).setAlpha(0);
 
     const key = 'fx-grain';
     if (!scene.textures.exists(key)) {
@@ -60,11 +63,15 @@ export class PostFx {
     this.grain.setTilePosition(Math.random() * 256, Math.random() * 256);
   }
 
-  /** M4: RGB split of `px` pixels for the current frame. */
-  chromatic(_px: number): void {}
+  /** RGB split of `px` pixels this frame (0 = off). */
+  chromatic(px: number): void {
+    const on = px > 0;
+    this.split[0].setVisible(on).setX(-px);
+    this.split[1].setVisible(on).setX(px);
+  }
 
-  /** M4: kill-cam red tint, strength 0..1. */
-  killCam(strength: number): void {
-    this.killCamTint.setActive(strength > 0);
+  /** Kill-cam red tint, alpha 0..1 (the art direction asks for 5-15%). */
+  killCam(alpha: number): void {
+    this.tint.setAlpha(alpha);
   }
 }
