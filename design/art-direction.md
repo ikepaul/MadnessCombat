@@ -44,6 +44,10 @@ Sources: ep1 f470 (close foreground), ep2 f1965 (office) and f3000 (corridor), e
 | Grunts | mid-grey suit. Variants differ by **one accessory/held item** (welder mask, shades for the squad leader, bodyguard armour), not by body shape |
 | Zombies | green skin and hands (`ZOMBIE`), same suit |
 | Bosses / the target | **design pass required** before their milestone. Generic archetypes with our own twist, **not** the show's designs (no goatee + long hair + halo combo, no clown face paint, no hat + moustache sheriff, no bandaged hero). Add each to the style frame's character sheet first. |
+| Boss (necromancer, signed off 2026-10-27) | Style frame "Stage 1 cast". 1.1 H, **hovers** 0.11–0.17 H with a floor shadow, no feet. Tall flared collar rising behind the head (`#3c3c44`) + short lapel under the chin, long dark coat `#2c2c32` (shade `#1d1d22`) with a torn hem, dark gloves. Bald pale head (`#c6c6cb`), no beard, no halo. Eye slit, coat seam and hands glow **lightning cyan** (`BOLT #eafcff`, glow `rgba(110,215,255)`); the glow brightens while he acts. Lightning telegraph = front hand raised overhead with crackling sparks |
+| Boss ward (our shield shape) | screen-facing **diamond** ≈ 1.36 H tall × 0.5 H wide in front of him, translucent cyan fill, bright cyan edge, rings rippling inward, white ricochet sparks where rays are blocked. Never a cross |
+| Boombox NPC | white tee `#e3e3e5` (shade `#bfc0c4`) + over-ear headphones; carries the boombox by the handle at his side. Boombox: dark case, two speakers that pump on the beat, tape window, red beat LED; keeps playing on the floor when dropped |
+| Dancer NPC | dark tracksuit `#4a4b51` (shade `#3a3b40`) with one light side stripe + light knit beanie with a pom; dance loop = bounce, sway ±0.12 rad, hands pumping overhead in turn |
 
 ## Palettes (one per stage)
 Shared: `INK #141416` · `BLOOD #c70f1b` · `BLOOD_DARK #860812` · `ZOMBIE #63d06b` / `ZOMBIE_HI #a6f0aa` · flashes `#ffffff` with warm glow `rgba(255,236,200)`.

@@ -280,7 +280,7 @@ Labs: `enemy-grunt-armed`, `enemy-behaviours`, `enemy-squad-leader`, `enemy-elit
 **Read first:** `research/stages.md` (Stage 1), `boss-halo` (clips 1–4), `research/episodes/ep1-log.md`, `design/audio-direction.md` (music brief, stage 1).
 
 Build:
-- [ ] **Boss design pass first**: our own design for the necromancer boss (character sheet in the style frame, user sign-off), plus the boombox NPC and the dancer NPC.
+- [x] **Boss design pass first**: our own design for the necromancer boss (character sheet in the style frame, user sign-off), plus the boombox NPC and the dancer NPC.
 - [ ] **Sequencer** for scripted beats: coroutine scripts in the sim (`wait`, `moveTo`, `card`, `spawn`, `giveItem`, `lockInput`, `cameraShake`, `music`) for intros, cutscenes and set-piece events. Reused by every later stage.
 - [ ] Intro: the boombox NPC punches you (scripted knockdown), then you kill him (melee tutorial). The dancer NPC is in the background.
 - [ ] Wave A (from M3) → scripted grenade pickup → blow up the pile.
