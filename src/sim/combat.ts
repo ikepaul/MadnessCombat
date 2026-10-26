@@ -1,0 +1,648 @@
+// Combat state machine (PLAN.md M2): punches, hit reactions, knockdown and get-up, grabs and
+// throws, the low sweep, the finisher, death and corpses. Numbers from TUNING, which cites
+// research/mechanics/melee-* and move-knockdown-getup.
+import { aboutFeet, lyingAt, rootToWorld, STANDING } from '../anim/skeleton';
+import { GRAVITY, TUNING } from '../data/tuning';
+import { project, unprojectFloor } from '../render/camera';
+import { type Actor, type AttackKind, alive, type Flight } from './actor';
+import { clamp, moveWithCollision, surfaceBelow } from './collision';
+import type { PlayerCommand } from './command';
+import type { HitKind } from './events';
+import { circleHits } from './hurtbox';
+import { dropHeld } from './items';
+import { DIVE_TIME, stepLocomotion, sweepTarget } from './movement';
+import type { World } from './world';
+
+const M = TUNING.melee, H = TUNING.hit, G = TUNING.grab, C = TUNING.corpse;
+const PUNCH_CLIP: Record<AttackKind, string> = {
+  light: 'punchLight', heavy: 'punchHeavy', uppercut: 'uppercut', finisher: 'finisher', throw: 'throw',
+};
+
+/** Startup / active / recovery of each attack (s). */
+export function attackTiming(kind: AttackKind): { startup: number; active: number; recovery: number } {
+  if (kind === 'throw') return { startup: G.windup, active: 0, recovery: G.recovery };
+  return M[kind];
+}
+
+/** Timer reached a duration (tolerates float drift from summing 1/60 s ticks). */
+const reached = (t: number, d: number) => t >= d - 1e-6;
+
+/** Fist reach from the body centre so the max centre-to-centre range is `M.range` at face height. */
+const FIST_REACH = M.range - 0.2 - M.fistRadius - 0.01;
+
+export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number): void {
+  a.stateT += dt;
+  a.pose.clipT += dt;
+  a.pose.impact = Math.max(0, a.pose.impact - dt);
+  a.pose.hurt = Math.max(0, a.pose.hurt - dt);
+  a.pose.lean *= Math.exp(-8 * dt);
+
+  switch (a.state) {
+    case 'free': {
+      const b = a.body;
+      // a punch pressed during the previous swing comes out as soon as it ends
+      if (!cmd.attack && a.queued && world.time - a.queued.at <= M.buffer + 1e-6 && b.state === 'ground') {
+        cmd = { ...cmd, attack: a.queued.kind, aim: a.queued.aim };
+      }
+      a.queued = undefined;
+      if (b.state === 'ground' && !a.holding && cmd.attack) { startAttack(world, a, cmd); break; }
+      if (b.state === 'ground' && (cmd.grab || (a.holding && cmd.attack))) {
+        if (a.holding) startThrow(a, cmd);
+        else tryGrab(world, a);
+        if (a.state !== 'free') break;
+      }
+      stepLocomotion(world, a, cmd, dt);
+      if (b.state === 'diving' && b.sweep) sweepContact(world, a);
+      setClip(a, a.holding ? 'carry' : 'idle');
+      break;
+    }
+    case 'attack':
+      if (cmd.attack && a.attack?.kind !== 'throw') a.queued = { kind: cmd.attack, aim: cmd.aim, at: world.time };
+      stepAttack(world, a);
+      break;
+    case 'stun':
+      if (reached(a.stateT, a.stunFor)) enter(a, 'free');
+      break;
+    case 'knockback':
+      if (stepFlight(world, a, dt) === 'stopped') {
+        enter(a, 'down');
+        setClip(a, 'lying');
+      }
+      break;
+    case 'down':
+      if (reached(a.stateT, a.kind === 'hero' ? H.lie : H.enemyLie)) startGetUp(a);
+      break;
+    case 'getUp': {
+      const u = clamp(a.stateT / H.getUp, 0, 1);
+      const r0 = a.getUpFrom ?? -Math.PI / 2;
+      a.pose.root = aboutFeet(r0 * (1 - u * u * (3 - 2 * u)));
+      if (reached(a.stateT, H.getUp)) { a.pose.root = { ...STANDING }; enter(a, 'free'); }
+      break;
+    }
+    case 'grabbed':
+      break; // positioned by the holder (World.updateHeld)
+    case 'dead':
+      stepCorpse(world, a, dt);
+      break;
+  }
+  a.pose.dead = a.state === 'dead';
+}
+
+function enter(a: Actor, s: Actor['state']): void {
+  a.state = s;
+  a.stateT = 0;
+  if (s === 'free') {
+    a.attack = undefined;
+    a.body.state = 'ground';
+    a.body.stateTime = 0;
+    a.body.height = 1;
+    a.pose.root = { ...STANDING };
+  }
+}
+
+function setClip(a: Actor, clip: string): void {
+  if (a.pose.clip !== clip) {
+    a.pose.clip = clip;
+    a.pose.clipT = 0;
+  }
+}
+
+// ---------- attacks ----------
+
+function startAttack(world: World, a: Actor, cmd: PlayerCommand): void {
+  let kind: AttackKind = cmd.attack!;
+  if (kind === 'heavy' && cmd.aim && aimedUp(a, cmd.aim)) kind = 'uppercut';
+  // a punch at a downed body with nobody standing in reach becomes the finisher
+  if (kind !== 'uppercut' && !standingInReach(world, a) && downedInReach(world, a)) kind = 'finisher';
+  if (cmd.face) a.facing = cmd.face;
+  a.state = 'attack';
+  a.stateT = 0;
+  a.attack = { kind, t: 0, done: false };
+  a.body.vel = { x: 0, y: 0, z: 0 };
+  a.pose.walkPhase = undefined;
+  setClip(a, PUNCH_CLIP[kind]);
+}
+
+/** Heavy punch with the cursor steeply above the shoulder = uppercut. */
+function aimedUp(a: Actor, aim: [number, number]): boolean {
+  const [sx, sy] = project(a.pos.x, a.pos.y + 0.5, a.pos.z);
+  return Math.atan2(sy - aim[1], Math.abs(aim[0] - sx)) > M.uppercutAimAngle;
+}
+
+function fistPoint(a: Actor, kind: AttackKind): { x: number; y: number; r: number } {
+  if (kind === 'finisher') return { x: a.pos.x + a.facing * M.finisher.reach, y: a.pos.y + M.finisher.height, r: M.finisher.radius };
+  const h = kind === 'uppercut' ? M.uppercut.height : M.light.height;
+  return { x: a.pos.x + a.facing * FIST_REACH, y: a.pos.y + h, r: M.fistRadius };
+}
+
+function hittable(a: Actor, o: Actor): boolean {
+  return o !== a && alive(o) && o.state !== 'grabbed' && o.state !== 'getUp' && Math.abs(o.pos.z - a.pos.z) <= M.depthBand;
+}
+
+function standingInReach(world: World, a: Actor): boolean {
+  const f = fistPoint(a, 'light');
+  return world.actors.some((o) => hittable(a, o) && o.state !== 'down' && circleHits(o, f.x, f.y, f.r) !== null);
+}
+
+function isDowned(o: Actor): boolean {
+  return o.state === 'down' || (o.state === 'knockback' && o.flight?.phase === 'skid') || (o.state === 'dead' && o.corpse?.phase !== 'headless' && o.grabbedBy === undefined && o.flight === undefined);
+}
+
+function downedTarget(world: World, a: Actor): Actor | undefined {
+  const f = fistPoint(a, 'finisher');
+  let best: Actor | undefined, bestD = Infinity;
+  for (const o of world.actors) {
+    if (o === a || !isDowned(o) || Math.abs(o.pos.z - a.pos.z) > M.depthBand) continue;
+    if (circleHits(o, f.x, f.y, f.r) === null) continue;
+    const d = Math.abs(o.pos.x - a.pos.x);
+    // living bodies first, then the nearest corpse
+    const score = d + (alive(o) ? 0 : 10);
+    if (score < bestD) { best = o; bestD = score; }
+  }
+  return best;
+}
+
+function downedInReach(world: World, a: Actor): boolean {
+  return downedTarget(world, a) !== undefined;
+}
+
+function stepAttack(world: World, a: Actor): void {
+  const atk = a.attack!;
+  atk.t += world.dt;
+  const tm = attackTiming(atk.kind);
+  if (atk.kind === 'throw') {
+    if (!atk.done && reached(atk.t, tm.startup)) { atk.done = true; releaseThrow(world, a); }
+  } else if (reached(atk.t, tm.startup) && !reached(atk.t, tm.startup + tm.active)) {
+    if (!atk.done && !reached(atk.t - world.dt, tm.startup)) {
+      const f = fistPoint(a, atk.kind);
+      world.events.emit('punch', { actorId: a.id, x: f.x, y: f.y, z: a.pos.z, kind: atk.kind, facing: a.facing });
+    }
+    if (!atk.done) connect(world, a, atk.kind) && (atk.done = true);
+  }
+  if (reached(atk.t, tm.startup + tm.active + tm.recovery)) enter(a, 'free');
+}
+
+/** Active frames: hit the nearest hurtbox the fist touches. */
+function connect(world: World, a: Actor, kind: AttackKind): boolean {
+  const f = fistPoint(a, kind);
+  if (kind === 'finisher') {
+    const o = downedTarget(world, a);
+    if (!o) return false;
+    applyHit(world, a, o, 'finisher', a.facing, 0, { x: f.x, y: f.y, z: o.pos.z });
+    return true;
+  }
+  let best: Actor | undefined, bestD = Infinity, part: 'head' | 'body' = 'body';
+  for (const o of world.actors) {
+    if (!hittable(a, o) || o.state === 'down') continue;
+    const p = circleHits(o, f.x, f.y, f.r);
+    const d = Math.abs(o.pos.x - a.pos.x);
+    if (p && d < bestD) { best = o; bestD = d; part = p; }
+  }
+  if (!best) return false;
+  applyHit(world, a, best, kind as HitKind, a.facing, 0, { x: f.x, y: f.y, z: best.pos.z }, part);
+  return true;
+}
+
+// ---------- hits, damage, death ----------
+
+const DAMAGE: Record<HitKind, number> = {
+  light: M.light.damage, heavy: M.heavy.damage, uppercut: M.uppercut.damage, finisher: M.finisher.damage,
+  sweep: TUNING.sweep.damage, body: G.damage, head: 0, wall: 99,
+};
+
+/**
+ * Resolve a hit on `o`. dirX/dirZ = push direction. Grunts die from 1 heavy or 2 light hits
+ * (decided); survivors are stunned by light hits and knocked down by everything heavier.
+ */
+export function applyHit(
+  world: World, by: Actor | undefined, o: Actor, kind: HitKind, dirX: number, dirZ: number,
+  at: { x: number; y: number; z: number }, part: 'head' | 'body' = 'body',
+): void {
+  if (o.state === 'getUp') return; // i-frames (invented)
+  const corpse = o.state === 'dead';
+  const damage = corpse ? 0 : DAMAGE[kind];
+  const wasStunned = o.state === 'stun';
+  o.hp = Math.max(0, o.hp - damage);
+  const killed = !corpse && o.hp <= 0;
+  if (o.corpse?.phase !== 'frozen') o.pose.impact = H.impact;
+  if (o.kind === 'hero' && damage > 0) o.pose.hurt = H.hurtFlash;
+  if ((damage > 0 || corpse) && o.corpse?.phase !== 'frozen') addWound(o, at, part);
+  world.events.emit('hit', { actorId: o.id, attackerId: by?.id ?? 0, kind, part, damage, killed, dirX, dirZ, ...at });
+  if (corpse) return;
+
+  if (o.state === 'attack') o.attack = undefined;
+  if (o.holding) releaseHeld(world, o);
+  if (o.grabbedBy !== undefined) releaseFrom(world, o);
+
+  if (killed) {
+    // melee-decapitation: a heavy blow on a stunned grunt knocks the head off (invented trigger)
+    const decap = kind === 'heavy' && wasStunned && o.kind === 'grunt' && part === 'head';
+    die(world, o, by, kind, dirX, dirZ, decap);
+    return;
+  }
+  // a light hit in the air can't freeze you mid-jump: it knocks you down instead
+  const airborne = o.pos.y > o.pose.groundY + 0.05;
+  switch (airborne && kind === 'light' ? 'heavy' : kind) {
+    case 'light':
+      o.state = 'stun';
+      o.stateT = 0;
+      o.stunFor = o.kind === 'hero' ? H.heroFlinch : H.stun;
+      o.pose.lean = -0.35;
+      setClip(o, 'stun');
+      break;
+    case 'head':
+      o.state = 'stun';
+      o.stateT = 0;
+      o.stunFor = G.headStun;
+      o.pose.lean = -0.25;
+      setClip(o, 'stun');
+      break;
+    default:
+      knockDown(world, o, kind, dirX, dirZ);
+  }
+}
+
+function addWound(o: Actor, at: { x: number; y: number }, part: 'head' | 'body'): void {
+  if (o.pose.wounds.length >= 6) return;
+  const [lx, ly] = part === 'head' ? [0.12, -0.84] : [0.05 + (o.pose.wounds.length % 3) * 0.04, -0.3 - (at.y - o.pos.y) * 0.1];
+  o.pose.wounds.push([lx, ly]);
+}
+
+/** Launch profile for each hit kind (measured knockback, sweep and uppercut numbers). */
+function launch(kind: HitKind, dirX: number, dirZ: number): Pick<Flight, 'vx' | 'vz' | 'vy' | 'airtime'> {
+  const n = Math.hypot(dirX, dirZ) || 1, ux = dirX / n, uz = dirZ / n;
+  let dist: number = H.knockbackDistance, airtime: number = H.knockbackAirtime, skid: number = H.skid;
+  if (kind === 'sweep') { dist = TUNING.sweep.distance; airtime = TUNING.sweep.airtime; skid = H.skid * 0.5; }
+  if (kind === 'uppercut') {
+    const vy = Math.sqrt(2 * GRAVITY * H.uppercutHeight);
+    airtime = (2 * vy) / GRAVITY;
+    const v = H.uppercutDrift / airtime;
+    return { vx: ux * v, vz: uz * v, vy, airtime };
+  }
+  if (kind === 'finisher') return { vx: 0, vz: 0, vy: 0, airtime: 0.01 };
+  // distance covered in the air at constant speed plus a linearly decelerating skid
+  const v = dist / (airtime + skid / 2);
+  return { vx: ux * v, vz: uz * v, vy: (GRAVITY * airtime) / 2, airtime };
+}
+
+/** Land on the back with the head away from the push (or on the face if pushed from behind). */
+function landingAngle(o: Actor, dirX: number): number {
+  return o.facing === -Math.sign(dirX || -o.facing) ? -Math.PI / 2 : Math.PI / 2;
+}
+
+function startFlight(o: Actor, kind: HitKind, dirX: number, dirZ: number): void {
+  const l = launch(kind, dirX, dirZ);
+  const r = o.pose.root.r;
+  o.flight = { ...l, r, r0: r, rTo: landingAngle(o, dirX), spin: 0, phase: 'air', t: 0, hit: [] };
+  o.body.vel = { x: 0, y: 0, z: 0 };
+}
+
+function knockDown(world: World, o: Actor, kind: HitKind, dirX: number, dirZ: number): void {
+  dropWeapon(world, o, dirX);
+  o.state = 'knockback';
+  o.stateT = 0;
+  startFlight(o, kind, dirX, dirZ);
+  setClip(o, 'knockback');
+}
+
+function dropWeapon(world: World, o: Actor, dirX: number): void {
+  if (!o.pose.held) return;
+  dropHeld(world, o.pose.held, o.pos, Math.sign(dirX) || o.facing);
+  o.pose.held = null;
+  o.pose.aimAt = undefined;
+}
+
+function die(world: World, o: Actor, by: Actor | undefined, kind: HitKind, dirX: number, dirZ: number, decap: boolean): void {
+  dropWeapon(world, o, dirX);
+  const wasDown = o.state === 'down' || o.state === 'knockback';
+  o.state = 'dead';
+  o.stateT = 0;
+  o.hp = 0;
+  o.corpse = { phase: 'tumble', t: 0, raisable: true, gibbed: false, slumped: false };
+  world.events.emit('kill', { actorId: o.id, byId: by?.id ?? 0, kind, decap, ...o.pos });
+  if (decap) {
+    o.pose.headless = true;
+    o.corpse.phase = 'headless';
+    o.flight = undefined;
+    const [hx, hy] = rootToWorld(o.pose.root, o.facing, 0.01, -0.79);
+    // item position = the bottom of the head
+    world.spawnItem('head', o.kind, { x: o.pos.x + hx, y: o.pos.y + hy - 0.2, z: o.pos.z }, { x: dirX * 4.5, y: 3.2, z: dirZ * 2 }, dirX * 16);
+    setClip(o, 'stun');
+    return;
+  }
+  if (kind === 'wall' && o.flight) return; // keeps flying
+  if (kind === 'finisher' || (wasDown && o.flight === undefined)) {
+    // finished on the floor: stays where it lies
+    o.flight = undefined;
+    o.corpse.phase = 'settled';
+    world.events.emit('corpseSettled', { actorId: o.id, ...o.pos });
+    return;
+  }
+  if (kind !== 'wall') startFlight(o, kind, dirX, dirZ);
+  setClip(o, 'knockback');
+}
+
+// ---------- flight (knockback, dead tumble, thrown bodies) ----------
+
+/** Ballistic arc, then a decelerating skid. Returns the phase after this tick. */
+export function stepFlight(world: World, a: Actor, dt: number): 'air' | 'skid' | 'stopped' {
+  const f = a.flight;
+  if (!f) return 'stopped';
+  f.t += dt;
+  const room = world.room;
+  if (f.phase === 'air') {
+    const prevY = a.pos.y;
+    const want = { x: a.pos.x + f.vx * dt, z: a.pos.z + f.vz * dt };
+    const p = moveWithCollision(room, a.pos.x, a.pos.z, f.vx * dt, f.vz * dt, a.pos.y);
+    const lim = room.halfWidth - TUNING.move.radius;
+    if (Math.abs(want.x) > lim && Math.abs(p.x - want.x) > 1e-6) wallImpact(world, a, want.x > 0 ? 'right' : 'left', Math.abs(f.vx));
+    else if (want.z > room.zBack - TUNING.move.radius && Math.abs(p.z - want.z) > 1e-6) wallImpact(world, a, 'back', Math.abs(f.vz));
+    a.pos.x = p.x;
+    a.pos.z = p.z;
+    a.pos.y += f.vy * dt - 0.5 * GRAVITY * dt * dt;
+    f.vy -= GRAVITY * dt;
+    if (f.thrownBy !== undefined) {
+      f.r += f.spin * dt;
+      thrownBodyHits(world, a);
+    } else f.r = f.r0 + (f.rTo - f.r0) * clamp(f.t / f.airtime, 0, 1);
+    const ground = surfaceBelow(room, a.pos.x, a.pos.z, Math.max(prevY, a.pos.y));
+    a.pose.groundY = ground;
+    if (f.vy <= 0 && a.pos.y <= ground) {
+      a.pos.y = ground;
+      world.events.emit('bodyFall', { actorId: a.id, ...a.pos, speed: Math.hypot(f.vx, f.vz, f.vy) });
+      if (f.thrownBy !== undefined) {
+        // land flat on whichever side is closer
+        f.r = Math.sin(f.r) >= 0 ? Math.PI / 2 : -Math.PI / 2;
+        if (alive(a) && !f.hit.includes(-1)) damageThrown(world, a);
+      }
+      f.phase = 'skid';
+      f.t = 0;
+      f.thrownBy = undefined;
+    }
+    a.pose.root = lyingAt(f.r);
+    return 'air';
+  }
+  // skid: speed falls linearly to 0 over H.skid
+  const k = Math.max(0, 1 - f.t / H.skid);
+  const p = moveWithCollision(room, a.pos.x, a.pos.z, f.vx * k * dt, f.vz * k * dt, a.pos.y);
+  a.pos.x = p.x;
+  a.pos.z = p.z;
+  a.pose.root = lyingAt(f.r);
+  if (reached(f.t, H.skid)) {
+    a.flight = undefined;
+    a.pose.root = lyingAt(f.r);
+    if (f.wall) a.slumpWall = f.wall;
+    return 'stopped';
+  }
+  return 'skid';
+}
+
+function wallImpact(world: World, a: Actor, wall: 'left' | 'right' | 'back', speed: number): void {
+  const f = a.flight!;
+  f.wall = wall;
+  if (wall === 'back') f.vz *= -0.2;
+  else f.vx *= -0.2;
+  world.events.emit('wallHit', { actorId: a.id, ...a.pos, wall, speed });
+  // melee-grab-throw: a fast wall impact kills
+  if (f.thrownBy !== undefined && alive(a) && speed >= G.wallKillSpeed) {
+    f.hit.push(-1);
+    applyHit(world, world.actorById(f.thrownBy), a, 'wall', -Math.sign(f.vx) || 1, 0, a.pos);
+  }
+}
+
+/** A thrown body knocks down whoever it hits (melee-grab-throw). */
+function thrownBodyHits(world: World, a: Actor): void {
+  const f = a.flight!;
+  for (const o of world.actors) {
+    if (o === a || o.id === f.thrownBy || f.hit.includes(o.id) || !alive(o) || o.state === 'grabbed' || o.state === 'getUp' || o.state === 'down') continue;
+    if (Math.abs(o.pos.z - a.pos.z) > 0.25 || Math.abs(o.pos.x - a.pos.x) > G.hitRadius) continue;
+    if (a.pos.y > o.pos.y + o.body.height || a.pos.y + 0.4 < o.pos.y) continue;
+    f.hit.push(o.id);
+    const dir = Math.sign(f.vx) || 1;
+    applyHit(world, world.actorById(f.thrownBy!), o, 'body', dir, f.vz / Math.max(1, Math.abs(f.vx)), { x: (a.pos.x + o.pos.x) / 2, y: a.pos.y + 0.3, z: o.pos.z });
+    if (alive(a) && !f.hit.includes(-1)) damageThrown(world, a);
+    // the projectile loses its speed and drops
+    f.vx *= -0.25;
+    f.vz *= 0.3;
+  }
+}
+
+/** A thrown living body takes a hit when it first lands or hits someone. */
+function damageThrown(world: World, a: Actor): void {
+  a.flight?.hit.push(-1);
+  a.hp = Math.max(0, a.hp - G.damage);
+  if (a.hp <= 0) {
+    a.state = 'dead';
+    a.corpse = { phase: 'tumble', t: 0, raisable: true, gibbed: false, slumped: false };
+    world.events.emit('kill', { actorId: a.id, byId: 0, kind: 'body', decap: false, ...a.pos });
+  }
+}
+
+// ---------- get-up, sweep ----------
+
+function startGetUp(a: Actor): void {
+  // lying with the position at mid-body; standing up keeps the feet where they lie
+  const r = a.pose.root.r;
+  a.pos.x += a.facing * -0.5 * Math.sin(r);
+  a.getUpFrom = r;
+  a.slumpWall = undefined;
+  a.pose.root = aboutFeet(r);
+  a.state = 'getUp';
+  a.stateT = 0;
+  setClip(a, 'getUp');
+}
+
+function sweepContact(world: World, a: Actor): void {
+  const b = a.body;
+  if (b.stateTime > DIVE_TIME * 0.8) return;
+  const o = sweepTarget(world, a, a.facing, TUNING.sweep.reach);
+  if (!o || b.swept.includes(o.id)) return;
+  b.swept.push(o.id);
+  applyHit(world, a, o, 'sweep', a.facing, 0, { x: o.pos.x - a.facing * 0.1, y: 0.12, z: o.pos.z });
+}
+
+// ---------- grab & throw ----------
+
+function tryGrab(world: World, a: Actor): void {
+  const R = G.range;
+  let best: { score: number; act?: Actor; itemId?: number } | undefined;
+  const consider = (score: number, act?: Actor, itemId?: number) => {
+    if (!best || score < best.score) best = { score, act, itemId };
+  };
+  for (const o of world.actors) {
+    if (o === a || o.grabbedBy !== undefined || o.state === 'getUp' || Math.abs(o.pos.z - a.pos.z) > M.depthBand) continue;
+    if (o.state === 'dead' && (o.corpse?.phase === 'headless' || o.flight)) continue;
+    if (o.state === 'knockback') continue;
+    const d = (o.pos.x - a.pos.x) * a.facing;
+    // lying bodies are long: measure to the nearer end
+    const reach = o.state === 'dead' || o.state === 'down' ? R + 0.4 : R;
+    if (d < -0.2 || d > reach) continue;
+    consider(Math.abs(d) + (alive(o) ? 0 : 1), o);
+  }
+  for (const it of world.items) {
+    if (it.kind !== 'head' || it.state !== 'floor' || Math.abs(it.pos.z - a.pos.z) > M.depthBand) continue;
+    const d = (it.pos.x - a.pos.x) * a.facing;
+    if (d >= -0.2 && d <= R) consider(Math.abs(d) + 2, undefined, it.id);
+  }
+  if (!best) return;
+  const pick = best as { act?: Actor; itemId?: number };
+  if (pick.act) {
+    const o = pick.act;
+    if (o.corpse?.phase === 'frozen') world.events.emit('corpseThawed', { actorId: o.id });
+    if (o.corpse) { o.corpse.phase = 'tumble'; o.corpse.slumped = false; }
+    if (alive(o)) {
+      if (o.holding) releaseHeld(world, o);
+      dropWeapon(world, o, a.facing);
+      o.state = 'grabbed';
+      o.stateT = 0;
+      o.attack = undefined;
+      setClip(o, 'grabbed');
+    }
+    o.grabbedBy = a.id;
+    o.flight = undefined;
+    a.holding = { kind: 'actor', id: o.id };
+    world.events.emit('grab', { actorId: a.id, targetId: o.id, ...o.pos });
+  } else {
+    const it = world.items.find((i) => i.id === pick.itemId)!;
+    it.state = 'held';
+    it.heldBy = a.id;
+    a.holding = { kind: 'item', id: it.id };
+    world.events.emit('grab', { actorId: a.id, itemId: it.id, ...it.pos });
+  }
+}
+
+function startThrow(a: Actor, cmd: PlayerCommand): void {
+  // toward the floor point under the cursor (free aim across depth), else straight ahead
+  let dx = a.facing, dz = 0;
+  const p = cmd.aim ? unprojectFloor(cmd.aim[0], cmd.aim[1]) : undefined;
+  if (p) {
+    const ex = p.x - a.pos.x, ez = p.z - a.pos.z, n = Math.hypot(ex, ez);
+    if (n > 0.3) { dx = ex / n; dz = ez / n; }
+  }
+  if (Math.abs(dx) > 0.05) a.facing = dx > 0 ? 1 : -1;
+  a.state = 'attack';
+  a.stateT = 0;
+  a.attack = { kind: 'throw', t: 0, done: false };
+  a.throwDir = { x: dx, z: dz };
+  a.body.vel = { x: 0, y: 0, z: 0 };
+  setClip(a, 'throw');
+}
+
+function releaseThrow(world: World, a: Actor): void {
+  const h = a.holding;
+  if (!h) return;
+  a.holding = undefined;
+  const d = a.throwDir ?? { x: a.facing, z: 0 };
+  const vx = d.x * G.speed, vz = d.z * G.speed;
+  if (h.kind === 'item') {
+    const it = world.items.find((i) => i.id === h.id);
+    if (!it) return;
+    it.state = 'air';
+    it.heldBy = undefined;
+    it.thrownBy = a.id;
+    it.hit = [];
+    it.vel = { x: vx, y: G.vy, z: vz };
+    it.spin = Math.sign(vx || 1) * 18;
+    world.events.emit('throw', { actorId: a.id, itemId: it.id, ...it.pos, vx, vz });
+    return;
+  }
+  const o = world.actorById(h.id);
+  if (!o) return;
+  o.grabbedBy = undefined;
+  o.pos = { x: a.pos.x + a.facing * 0.35, y: a.pos.y + G.releaseHeight, z: a.pos.z };
+  const r = o.pose.root.r;
+  o.flight = { vx, vz, vy: G.vy, r, r0: r, rTo: r, spin: Math.sign(vx || 1) * -o.facing * G.spin, phase: 'air', t: 0, airtime: 0.5, thrownBy: a.id, hit: [] };
+  if (alive(o)) {
+    o.state = 'knockback';
+    o.stateT = 0;
+    setClip(o, 'knockback');
+  } else {
+    o.corpse!.phase = 'tumble';
+    setClip(o, 'knockback');
+  }
+  world.events.emit('throw', { actorId: a.id, targetId: o.id, ...o.pos, vx, vz });
+}
+
+/** The holder got hit: let go of whatever is carried. */
+function releaseHeld(world: World, a: Actor): void {
+  const h = a.holding;
+  a.holding = undefined;
+  if (!h) return;
+  if (h.kind === 'item') {
+    const it = world.items.find((i) => i.id === h.id);
+    if (it) { it.state = 'air'; it.heldBy = undefined; it.vel = { x: 0, y: 0, z: 0 }; }
+    return;
+  }
+  const o = world.actorById(h.id);
+  if (!o) return;
+  o.grabbedBy = undefined;
+  dropBody(o);
+}
+
+/** Being hit while held by someone frees you (the holder lets go). */
+function releaseFrom(world: World, o: Actor): void {
+  const holder = world.actorById(o.grabbedBy!);
+  if (holder) holder.holding = undefined;
+  o.grabbedBy = undefined;
+}
+
+/** Let a carried body fall where it is. */
+function dropBody(o: Actor): void {
+  const r = o.pose.root.r;
+  o.flight = { vx: 0, vz: 0, vy: 0, r, r0: r, rTo: r > 0.1 ? Math.PI / 2 : -Math.PI / 2, spin: 0, phase: 'air', t: 0, airtime: 0.3, hit: [] };
+  if (alive(o)) {
+    o.state = 'knockback';
+    o.stateT = 0;
+  } else if (o.corpse) o.corpse.phase = 'tumble';
+}
+
+// ---------- corpses ----------
+
+function stepCorpse(world: World, a: Actor, dt: number): void {
+  const c = a.corpse!;
+  c.t += dt;
+  if (a.grabbedBy !== undefined) return;
+  switch (c.phase) {
+    case 'headless':
+      // melee-decapitation: the body stands a moment, then drops backward
+      if (reached(c.t, C.headlessStand)) {
+        c.phase = 'tumble';
+        c.t = 0;
+        a.flight = { vx: -a.facing * 0.8, vz: 0, vy: 1.6, r: 0, r0: 0, rTo: -Math.PI / 2, spin: 0, phase: 'air', t: 0, airtime: 0.3, hit: [] };
+        setClip(a, 'knockback');
+      }
+      break;
+    case 'tumble':
+      if (!a.flight || stepFlight(world, a, dt) === 'stopped') settle(world, a);
+      break;
+    case 'settled':
+      if (reached(c.t, C.freezeDelay)) {
+        c.phase = 'frozen';
+        world.events.emit('corpseFrozen', { actorId: a.id });
+      }
+      break;
+    case 'frozen':
+      break;
+  }
+}
+
+function settle(world: World, a: Actor): void {
+  const c = a.corpse!;
+  c.phase = 'settled';
+  c.t = 0;
+  a.flight = undefined;
+  // world-persistence-decals / PLAN.md M2: bodies that end against a side wall slump against it
+  const hw = world.room.halfWidth;
+  const wall = a.slumpWall;
+  a.slumpWall = undefined;
+  const nearSide = hw - Math.abs(a.pos.x) < C.slumpDistance + 0.5;
+  if ((wall === 'left' || wall === 'right') && nearSide && a.pos.y < 0.05) {
+    const side = wall === 'left' ? -1 : 1;
+    c.slumped = true;
+    a.facing = (-side) as 1 | -1;
+    a.pos.x = side * (hw - 0.3);
+    a.pose.root = { ...STANDING };
+    setClip(a, 'slumped');
+  } else setClip(a, 'lying');
+  world.events.emit('corpseSettled', { actorId: a.id, ...a.pos });
+}

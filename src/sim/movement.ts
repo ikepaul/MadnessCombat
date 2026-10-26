@@ -1,28 +1,30 @@
-// Player movement (PLAN.md M1): walk on the floor plane, jump, dive/prone, stand on props.
-// Numbers come from TUNING (research/mechanics/move-*).
+// Locomotion (PLAN.md M1): walk on the floor plane, jump, dive/prone, stand on props. Runs
+// while an actor is in the `free` combat state. Numbers come from TUNING (research/mechanics/move-*).
+import { aboutFeet } from '../anim/skeleton';
 import { GRAVITY, JUMP_V0, TUNING } from '../data/tuning';
 import { project } from '../render/camera';
-import type { Actor } from './actor';
+import { type Actor, alive } from './actor';
 import { clamp, moveWithCollision, surfaceBelow } from './collision';
 import type { PlayerCommand } from './command';
 import type { World } from './world';
 
 const { move: MOVE, jump: JUMP, prone: PRONE } = TUNING;
-const DIVE_TIME = PRONE.downTime * 2; // the forward dive is a longer drop: 1 H over 0.3 s (invented split)
+export const DIVE_TIME = PRONE.downTime * 2; // the forward dive is a longer drop: 1 H over 0.3 s (invented split)
 
 /** Combat walk whenever an enemy is in the room or the player is armed (invented rule, PLAN.md M1). */
 export function inCombat(world: World, a: Actor): boolean {
-  return a.pose.held !== null || world.actors.some((o) => o !== a && o.kind !== 'hero' && !o.pose.dead);
+  return a.pose.held !== null || world.actors.some((o) => o !== a && o.kind !== 'hero' && alive(o));
 }
 
-export function stepPlayer(world: World, a: Actor, cmd: PlayerCommand, dt: number): void {
+export function stepLocomotion(world: World, a: Actor, cmd: PlayerCommand, dt: number): void {
   const b = a.body;
   b.stateTime += dt;
 
   let ix = cmd.moveX, iz = cmd.moveZ;
   const len = Math.hypot(ix, iz);
   if (len > 1) { ix /= len; iz /= len; }
-  const speed = inCombat(world, a) ? MOVE.combatWalkSpeed : MOVE.walkSpeed;
+  let speed = inCombat(world, a) ? MOVE.combatWalkSpeed : MOVE.walkSpeed;
+  if (a.holding) speed *= TUNING.grab.carrySpeed;
   const wantX = ix * speed, wantZ = iz * speed * MOVE.depthFactor;
 
   updateFacing(a, cmd, ix);
@@ -31,17 +33,22 @@ export function stepPlayer(world: World, a: Actor, cmd: PlayerCommand, dt: numbe
 
   switch (b.state) {
     case 'ground': {
-      if (cmd.jump) {
+      if (cmd.jump && !a.holding) {
         b.vel = { x: wantX, y: JUMP_V0, z: wantZ };
         b.takeoff = { x: wantX, z: wantZ };
         enter('air');
         world.events.emit('jump', { actorId: a.id, ...a.pos });
         break;
       }
-      if (cmd.dive) {
+      if (cmd.dive && !a.holding) {
         if (len > 0.1) {
           const d = PRONE.diveDistance / DIVE_TIME;
-          b.vel = { x: (ix / Math.max(len, 1e-6)) * d, y: 0, z: (iz / Math.max(len, 1e-6)) * d * MOVE.depthFactor };
+          const ux = ix / Math.max(len, 1e-6), uz = iz / Math.max(len, 1e-6);
+          b.vel = { x: ux * d, y: 0, z: uz * d * MOVE.depthFactor };
+          // melee-low-sweep: diving into an adjacent enemy goes in feet first
+          b.sweep = Math.abs(ux) > 0.3 && sweepTarget(world, a, Math.sign(ux) as 1 | -1, 1.0) !== undefined;
+          b.swept = [];
+          if (b.sweep) a.facing = Math.sign(ux) as 1 | -1;
           enter('diving');
         } else {
           b.vel = { x: 0, y: 0, z: 0 };
@@ -97,17 +104,31 @@ export function stepPlayer(world: World, a: Actor, cmd: PlayerCommand, dt: numbe
       }
       break;
     case 'standingUp':
-      if (b.stateTime >= PRONE.upTime) enter('ground');
+      if (b.stateTime >= PRONE.upTime) { b.sweep = false; enter('ground'); }
       break;
   }
 
   if (b.state !== 'air') b.groundY = surfaceBelow(world.room, a.pos.x, a.pos.z, a.pos.y);
   b.squashLeft = Math.max(0, b.squashLeft - dt);
-  syncPose(a, len > 0.1);
+  syncLocomotionPose(a, len > 0.1);
+}
+
+/** A standing, living actor within `reach` ahead on the same depth band. */
+export function sweepTarget(world: World, a: Actor, dir: 1 | -1, reach: number): Actor | undefined {
+  let best: Actor | undefined, bestD = Infinity;
+  for (const o of world.actors) {
+    if (o === a || o.state === 'dead' || o.state === 'grabbed' || o.state === 'down' || o.state === 'getUp' || o.state === 'knockback') continue;
+    if (o.body.height < 0.9 || Math.abs(o.pos.z - a.pos.z) > TUNING.melee.depthBand) continue;
+    const d = (o.pos.x - a.pos.x) * dir;
+    if (d >= -0.1 && d <= reach && d < bestD) { best = o; bestD = d; }
+  }
+  return best;
 }
 
 function updateFacing(a: Actor, cmd: PlayerCommand, ix: number): void {
-  if (cmd.aim) {
+  if (a.body.sweep && a.body.state !== 'ground') return;
+  if (cmd.face) a.facing = cmd.face;
+  else if (cmd.aim) {
     const [px] = project(a.pos.x, a.pos.y + 0.5, a.pos.z);
     if (cmd.aim[0] > px + MOVE.facingDeadzonePx) a.facing = 1;
     else if (cmd.aim[0] < px - MOVE.facingDeadzonePx) a.facing = -1;
@@ -128,7 +149,7 @@ function advanceWalkCycle(world: World, a: Actor, distance: number): void {
 }
 
 /** Translate body state into the pose the painter draws. */
-function syncPose(a: Actor, moving: boolean): void {
+function syncLocomotionPose(a: Actor, moving: boolean): void {
   const b = a.body, p = a.pose;
   const down = PRONE.height;
   switch (b.state) {
@@ -143,4 +164,8 @@ function syncPose(a: Actor, moving: boolean): void {
   p.squash = b.squashLeft / TUNING.jump.landSquash;
   p.walkPhase = b.state === 'ground' && moving ? b.cycle : undefined;
   p.groundY = b.groundY;
+  // prone falls forward onto the face, a sweep goes in feet first on the back
+  const root = aboutFeet((b.sweep ? -1 : 1) * (Math.PI / 2) * p.prone, 1 - 0.08 * p.prone);
+  if (p.squash > 0) { root.sx *= 1 + 0.08 * p.squash; root.sy *= 1 - 0.1 * p.squash; }
+  p.root = root;
 }

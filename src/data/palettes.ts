@@ -36,3 +36,10 @@ export const PALETTES: Record<PaletteId, Palette> = {
 
 /** Stage -> palette (decided: stage 1 neutral, stage 2 cool, stage 3 warm). */
 export const STAGE_PALETTE: Record<1 | 2 | 3, PaletteId> = { 1: 'neutral', 2: 'cool', 3: 'warm' };
+
+/** Blood per stage (PLAN.md M2): off for stage 1, as in episode 1; on from stage 2. */
+export const STAGE_BLOOD: Record<1 | 2 | 3, boolean> = { 1: false, 2: true, 3: true };
+
+export function paletteStage(id: PaletteId): 1 | 2 | 3 {
+  return id === 'neutral' ? 1 : id === 'cool' ? 2 : 3;
+}

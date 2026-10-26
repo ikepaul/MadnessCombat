@@ -1,5 +1,8 @@
 import Phaser from 'phaser';
 import { INK } from '../data/palettes';
+import '../labs/meleeLabs';
+import '../labs/movementLabs';
+import '../labs/toolLabs';
 import { allLabSlugs, getLab } from '../labs/registry';
 
 /** `/?lab` with no slug: every expected lab, built ones clickable. */

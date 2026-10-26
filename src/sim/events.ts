@@ -19,7 +19,27 @@ export interface GameEvents {
   standUp: At;
   cannonFire: { x: number; z: number };
   cannonHit: { actorId: number };
+
+  /** A punch reached its active frames (smear arc). `x, y, z` = fist. */
+  punch: At & { kind: HitKind; facing: 1 | -1 };
+  /** Something connected. `x, y, z` = contact point; dirX/dirZ = push direction. */
+  hit: At & { attackerId: number; kind: HitKind; part: 'head' | 'body'; damage: number; killed: boolean; dirX: number; dirZ: number };
+  kill: At & { byId: number; kind: HitKind; decap: boolean };
+  /** A body landed on the floor (knockback, death, throw). */
+  bodyFall: At & { speed: number };
+  /** A flying body hit a wall. */
+  wallHit: At & { wall: 'left' | 'right' | 'back'; speed: number };
+  grab: At & { targetId?: number; itemId?: number };
+  throw: At & { targetId?: number; itemId?: number; vx: number; vz: number };
+  /** A held weapon or a severed head left the body. */
+  itemDrop: { itemId: number; x: number; y: number; z: number };
+  /** Corpse lifecycle: settled (pool starts), frozen (baked), thawed (picked up again). */
+  corpseSettled: At;
+  corpseFrozen: { actorId: number };
+  corpseThawed: { actorId: number };
 }
+
+export type HitKind = 'light' | 'heavy' | 'uppercut' | 'finisher' | 'sweep' | 'body' | 'head' | 'wall';
 
 type Handler<T> = (payload: T) => void;
 
