@@ -59,7 +59,7 @@ Not covered by a milestone: **the music itself** (the user composes it from the 
 - Sounds come from CC0/royalty-free sources and are logged in `assets/audio/LICENSES.md`. A session that needs to download sound packs **asks the user first** (name, source, size).
 
 ### Controls (keyboard + mouse, rebinding in M13)
-WASD move (W/S = depth) · Space jump · Ctrl dive/prone · mouse aim · LMB / RMB use left / right hand (fire, swing, or punch when empty) · F grab / throw grabbed / catch · Q throw the held weapon · E pick up / interact / takedown · G grenade (hold to cook) · R reload · Shift (hold) split-aim · F1 debug overlay · F2 slow-motion 0.25× · F3 pause · F4 / `.` frame-step · 1/2/3 stage palettes · P post FX.
+WASD move (W/S = depth) · Space jump · Ctrl or C dive/prone (again, or Space, to get up) · mouse aim · LMB / RMB use left / right hand (fire, swing, or punch when empty) · F grab / throw grabbed / catch · Q throw the held weapon · E pick up / interact / takedown · G grenade (hold to cook) · R reload · Shift (hold) split-aim · F1 debug overlay · F2 slow-motion 0.25× · F3 pause · F4 / `.` frame-step · 1/2/3 stage palettes · P post FX.
 
 ### How to verify a mechanic
 1. **Unit tests** (Vitest, headless sim) assert the numbers in each milestone's acceptance list. Tolerance: ±1 source frame (≈ 0.033 s) for timings, ±5% for distances/speeds unless stated. Events are asserted too (a kill emits `kill` with the right hit-stop and shake values).
@@ -97,17 +97,19 @@ Acceptance: all four npm scripts work · a unit test steps the sim 60 ticks = 1.
 **Read first:** `move-walk`, `move-jump`, `move-prone-dodge`, `move-jump-onto-object` (only the jump-up part), `research/measurements.md` (movement), `design/art-direction.md` (animation).
 
 Build:
-- [ ] Player controller on the floor plane: calm walk 0.8 H/s, combat walk 1.3 H/s (combat walk whenever an enemy is in the room or the player is armed, invented rule), depth speed 0.6× horizontal (invented), facing follows the aim side.
-- [ ] Jump: gravity ≈ 23 H/s², launch ≈ 7.3 H/s → apex 1.15 H, airtime 0.63 s. Keep takeoff momentum, ≤ 30% air steer. No double jump.
-- [ ] Dive/prone: stand → prone ≤ 0.15 s, hurtbox shrinks to 0.3 H tall, prone → stand 0.4 s. Dive while moving = forward dive ≈ 1 H.
-- [ ] Props with top surfaces: land on them if the feet clear the height. Floor bounds clamp.
-- [ ] Depth sorting of all drawables by z.
-- [ ] Debug "cannon" in labs: fires a ball at 26 H/s every 1.3 s at chest height.
+- [x] Player controller on the floor plane: calm walk 0.8 H/s, combat walk 1.3 H/s (combat walk whenever an enemy is in the room or the player is armed, invented rule), depth speed 0.6× horizontal (invented), facing follows the aim side.
+- [x] Jump: gravity ≈ 23 H/s², launch ≈ 7.3 H/s → apex 1.15 H, airtime 0.63 s. Keep takeoff momentum, ≤ 30% air steer. No double jump.
+- [x] Dive/prone: stand → prone ≤ 0.15 s, hurtbox shrinks to 0.3 H tall, prone → stand 0.4 s. Dive while moving = forward dive ≈ 1 H.
+- [x] Props with top surfaces: land on them if the feet clear the height. Floor bounds clamp.
+- [x] Depth sorting of all drawables by z.
+- [x] Debug "cannon" in labs: fires a ball at 26 H/s every 1.3 s at chest height.
 
 Look & sound:
-- [ ] Walk cycle (feet alternate and lift, body bob 0.014 H, hands swing), idle breathing, jump/land poses with a 2-frame squash on landing, dive and prone poses, get-up.
-- [ ] Dust puff on landing and dives (small grey particles).
-- [ ] Hooks only: `footstep`, `land`, `dive` events (sounds arrive in M4).
+- [x] Walk cycle (feet alternate and lift, body bob 0.014 H, hands swing), idle breathing, jump/land poses with a 2-frame squash on landing, dive and prone poses, get-up.
+- [x] Dust puff on landing and dives (small grey particles).
+- [x] Hooks only: `footstep`, `land`, `dive` events (sounds arrive in M4).
+
+Done: prone is a toggle (Ctrl or C to drop, Ctrl/C/Space to get up; no crawl). Dodge labs show live state, speed, feet height, hurtbox height and cannon hits.
 
 Acceptance tests: walk 0.8 and 1.3 H/s · jump airtime 0.63 s ±1 frame, apex 1.15 H ±0.05 · prone transition ≤ 0.15 s, stand-up 0.4 s · the ball passes over a prone player and under a jumping one (timed jump) · landing on a 0.5 H prop.
 Labs: `move-walk`, `move-jump`, `move-prone-dodge`.

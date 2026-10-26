@@ -6,6 +6,7 @@ import type { GameScene } from './GameScene';
 export class UIScene extends Phaser.Scene {
   private grid!: Phaser.GameObjects.Graphics;
   private info!: Phaser.GameObjects.Text;
+  private labText!: Phaser.GameObjects.Text;
   private rulers: Phaser.GameObjects.Text[] = [];
 
   constructor() {
@@ -19,11 +20,19 @@ export class UIScene extends Phaser.Scene {
     this.rulers = rulerLabels(game.world.room).map((l) =>
       this.add.text(l.x, l.y, l.text, { fontFamily: 'Inter', fontSize: '18px', color: '#ff8c00' }),
     );
-    this.info = this.add.text(16, 12, '', { fontFamily: 'Inter', fontSize: '18px', color: '#ffffff', backgroundColor: '#000000aa', padding: { x: 8, y: 4 } });
+    const box = { fontFamily: 'Inter', fontSize: '18px', color: '#ffffff', backgroundColor: '#000000aa', padding: { x: 8, y: 4 } };
+    this.info = this.add.text(16, 12, '', box);
+    this.labText = this.add.text(16, 1080 - 48, '', box).setVisible(!!game.lab);
   }
 
   update(): void {
     const game = this.scene.get('game') as GameScene;
+    const p = game.world.player;
+    if (game.lab) {
+      const b = p?.body;
+      const speed = b ? Math.hypot(b.vel.x, b.vel.z).toFixed(2) : '-';
+      this.labText.setText(`${game.lab.slug}: ${game.lab.title}   |   ${b?.state ?? '-'}  speed ${speed} H/s  feet ${p?.pos.y.toFixed(2) ?? '-'} H  hurtbox ${b?.height.toFixed(2) ?? '-'} H  ·  cannon hits ${game.cannonHits}`);
+    }
     const on = game.overlay;
     this.grid.setVisible(on);
     for (const r of this.rulers) r.setVisible(on);

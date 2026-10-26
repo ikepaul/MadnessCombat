@@ -19,6 +19,9 @@ Node 26 via nvm (`nvm use`; the system Node is too old for Vite 8).
 - `src/data/`: `tuning.ts` (gameplay constants, each citing its research note or "invented"), `feel.ts` (effect numbers), `palettes.ts` (one per stage), rooms.
 - Labs: `/?lab` lists them, `/?lab=<slug>` opens one (`src/labs/registry.ts`). Every mechanic gets a replica lab compared against its reference frames.
 
+## Controls
+WASD move (W/S depth) · Space jump · Ctrl or C dive/prone, again or Space to get up · mouse aims (facing follows it).
+
 ## Debug keys
 F1 overlay (H grid, rulers, tick/fps) · F2 slow-mo 0.25× · F3 pause · F4 or `.` step one tick · 1/2/3 stage palettes · P post FX on/off.
 
