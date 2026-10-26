@@ -2,11 +2,23 @@
 // calls them directly, so feel code stays out of gameplay code and events can be asserted
 // in tests. Later milestones add their events to GameEvents.
 
+interface At { actorId: number; x: number; y: number; z: number }
+
 export interface GameEvents {
   /** A world tick finished. */
   tick: { tick: number };
   /** The room changed (load, palette swap); static layers must re-bake. */
   roomChanged: { roomId: string };
+  /** Half a walk cycle completed (one foot down). */
+  footstep: At;
+  jump: At;
+  /** Touched down after a jump or fall. */
+  land: At & { fallSpeed: number };
+  /** Started a dive or drop to prone. */
+  dive: At;
+  standUp: At;
+  cannonFire: { x: number; z: number };
+  cannonHit: { actorId: number };
 }
 
 type Handler<T> = (payload: T) => void;

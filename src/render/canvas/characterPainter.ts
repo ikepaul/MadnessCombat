@@ -22,12 +22,17 @@ export interface Placement { x: number; y: number; scale: number }
 
 export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, placement?: Placement): PaintedCharacter {
   const { pose } = a;
-  let fx: number, fy: number, s: number;
-  if (placement) ({ x: fx, y: fy, scale: s } = placement);
-  else {
+  let fx: number, fy: number, s: number, shadowY: number;
+  if (placement) {
+    ({ x: fx, y: fy, scale: s } = placement);
+    shadowY = fy;
+  } else {
     [fx, fy] = project(a.pos.x, a.pos.y, a.pos.z);
+    shadowY = project(a.pos.x, pose.groundY, a.pos.z)[1];
     s = scaleAt(a.pos.z);
   }
+  // flat on the floor: dead bodies fully, prone/dive blended
+  const down = pose.lying ? 1 : pose.prone;
   const hero = a.kind === 'hero', zombie = a.kind === 'zombie';
   const suit = hero ? pal.hero : pal.suit;
   const suitShade = hero ? pal.heroShade : pal.suitShade;
@@ -35,19 +40,23 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, p
   const skinHi = zombie ? ZOMBIE_HI : pal.skinHi;
   const handCol = zombie ? ZOMBIE : pal.hand;
 
+  // contact shadow stays on the surface below and shrinks with height
+  const air = Math.max(0, (fy === shadowY ? 0 : (shadowY - fy) / s));
+  const shrink = 1 - Math.min(0.5, air * 0.4);
+  ctx.beginPath();
+  ctx.ellipse(fx + 0.2 * down * a.facing * s, shadowY, (0.3 + 0.32 * down) * shrink * s, 0.06 * shrink * s, 0, 0, Math.PI * 2);
+  ctx.fillStyle = `rgba(0,0,0,${0.2 * (1 - Math.min(0.6, air * 0.5))})`;
+  ctx.fill();
+
   ctx.save();
   ctx.translate(fx, fy);
   ctx.scale(s, s);
-  // contact shadow
-  ctx.beginPath();
-  ctx.ellipse(pose.lying ? 0.2 * a.facing : 0, 0, pose.lying ? 0.62 : 0.3, 0.06, 0, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(0,0,0,0.20)';
-  ctx.fill();
   ctx.scale(a.facing, 1);
-  if (pose.lying) {
-    ctx.scale(1, 0.92);
-    ctx.translate(0, -0.2);
-    ctx.rotate(Math.PI / 2);
+  if (pose.squash > 0) ctx.scale(1 + 0.08 * pose.squash, 1 - 0.1 * pose.squash); // landing squash
+  if (down > 0) {
+    ctx.scale(1, 1 - 0.08 * down);
+    ctx.translate(0, -0.2 * down);
+    ctx.rotate((Math.PI / 2) * down);
   }
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
@@ -56,26 +65,27 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, p
   const ph = pose.walkPhase ?? 0;
   const breath = time * BREATH_RATE;
   const bob = stepping ? Math.abs(Math.sin(ph)) * 0.014 : Math.sin(breath) * 0.004;
-  const liftFront = stepping ? Math.max(0, Math.sin(ph)) * 0.035 : 0;
-  const liftBack = stepping ? Math.max(0, -Math.sin(ph)) * 0.035 : 0;
+  const tuck = pose.tuck;
+  const liftFront = (stepping ? Math.max(0, Math.sin(ph)) * 0.035 : 0) + tuck * 0.12;
+  const liftBack = (stepping ? Math.max(0, -Math.sin(ph)) * 0.035 : 0) + tuck * 0.08;
   const swing = stepping ? Math.sin(ph) * 0.07 : 0;
 
   // aim angle from the shoulder toward the target, in local units
   let aim: number | undefined;
-  if (pose.aimAt && !pose.lying) {
+  if (pose.aimAt && down < 0.5) {
     const [tx, ty] = project(pose.aimAt.x, pose.aimAt.y, pose.aimAt.z);
     const lx = ((tx - fx) / s) * a.facing, ly = (ty - fy) / s;
     aim = Math.atan2(ly - (SHOULDER[1] - bob), lx - SHOULDER[0]);
   }
 
   // back hand (behind the body), feet
-  hand(ctx, -0.17 - swing * 0.6, -0.3 - bob + (stepping ? Math.cos(ph) * 0.02 : Math.sin(breath + 1) * 0.008), handCol);
+  hand(ctx, -0.17 - swing * 0.6 - tuck * 0.03, -0.3 - bob - tuck * 0.12 + (stepping ? Math.cos(ph) * 0.02 : Math.sin(breath + 1) * 0.008), handCol);
   foot(ctx, -0.06 - swing, liftBack, pal.shoe);
   foot(ctx, 0.08 + swing, liftFront, pal.shoe);
 
   ctx.save();
   ctx.translate(0, -bob);
-  ctx.rotate(pose.lean);
+  ctx.rotate(pose.lean + tuck * 0.12);
   // body + shade band on the back side
   bodyPath(ctx); ctx.fillStyle = suit; ctx.fill();
   ctx.save(); bodyPath(ctx); ctx.clip(); ctx.fillStyle = suitShade; ctx.fillRect(-0.25, -0.7, 0.13, 0.7); ctx.restore();
@@ -115,7 +125,7 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, p
     ctx.save(); ctx.translate(hx, hy); ctx.rotate(-1.2 + Math.sin(breath * 1.6) * 0.1); paintHeld(ctx, 'baton'); ctx.restore();
     hand(ctx, hx, hy, handCol);
   } else if (!pose.lying) {
-    hand(ctx, 0.19 + swing * 0.6, -0.32 - bob + Math.sin(breath) * 0.008, handCol);
+    hand(ctx, 0.19 + swing * 0.6 + tuck * 0.04, -0.32 - bob - tuck * 0.14 + Math.sin(breath) * 0.008, handCol);
   } else {
     hand(ctx, 0.05, 0.2, handCol); // lying: front hand flopped on the floor side
   }
