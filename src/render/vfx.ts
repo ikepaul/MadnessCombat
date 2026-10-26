@@ -1,20 +1,34 @@
-// Screen-space particles driven by sim events (design/art-direction.md). Advanced on sim ticks,
-// so slow-mo, hit-stop and pause apply to them too.
+// Screen-space particles and 1-2 frame effects driven by sim events (design/art-direction.md).
+// Advanced on sim ticks, so slow-mo, hit-stop and pause apply to them too.
+import { BLOOD, INK } from '../data/palettes';
+import type { HitKind } from '../sim/events';
 import type { World } from '../sim/world';
 import { project, scaleAt } from './camera';
 import type { Ctx } from './canvas/draw';
 
 interface Puff { x: number; y: number; vx: number; vy: number; r: number; grow: number; life: number; max: number; z: number }
+interface Drop { x: number; y: number; vx: number; vy: number; r: number; life: number; max: number; g: number }
+interface Smear { x: number; y: number; fx: number; fy: number; s: number; facing: number; kind: HitKind; left: number }
+interface Star { x: number; y: number; s: number; left: number; big: boolean }
+
+/** Ticks at 60 Hz: 1 frame at 30 fps = 2 ticks. */
+const SMEAR_TICKS = 2;
+const STAR_TICKS = 3;
 
 export class Vfx {
   private puffs: Puff[] = [];
+  private drops: Drop[] = [];
+  private smears: Smear[] = [];
+  private stars: Star[] = [];
   /** Cannon muzzle blasts: screen pos + ticks left. */
   private blasts: { x: number; y: number; s: number; left: number; facing: number }[] = [];
 
-  constructor(world: World) {
+  /** `blood()` = the current stage shows blood (off for stage 1). */
+  constructor(world: World, private blood: () => boolean) {
     world.events.on('land', (e) => this.dust(e.x, e.y, e.z, 6 + Math.min(6, e.fallSpeed)));
     world.events.on('dive', (e) => this.dust(e.x, e.y, e.z, 8));
     world.events.on('standUp', (e) => this.dust(e.x, e.y, e.z, 4));
+    world.events.on('bodyFall', (e) => this.dust(e.x, e.y, e.z, 6 + Math.min(8, e.speed)));
     world.events.on('cannonFire', (e) => {
       const c = world.cannons.find((k) => k.x === e.x && k.z === e.z);
       const f = c?.facing ?? 1;
@@ -22,11 +36,32 @@ export class Vfx {
       this.blasts.push({ x, y, s: scaleAt(e.z), left: 2, facing: f });
     });
     world.events.on('cannonHit', (e) => {
-      const a = world.actors.find((k) => k.id === e.actorId);
+      const a = world.actorById(e.actorId);
       if (!a) return;
       const [x, y] = project(a.pos.x, a.pos.y + 0.6, a.pos.z);
       this.blasts.push({ x, y, s: scaleAt(a.pos.z) * 0.7, left: 3, facing: 1 });
       this.dust(a.pos.x, a.pos.y, a.pos.z, 6);
+    });
+    world.events.on('punch', (e) => {
+      const a = world.actorById(e.actorId);
+      if (!a) return;
+      const [x, y] = project(a.pos.x, a.pos.y + 0.55, a.pos.z);
+      const [fx, fy] = project(e.x, e.y, e.z);
+      this.smears.push({ x, y, fx, fy, s: scaleAt(a.pos.z), facing: e.facing, kind: e.kind, left: SMEAR_TICKS });
+    });
+    world.events.on('hit', (e) => {
+      const [x, y] = project(e.x, e.y, e.z);
+      const s = scaleAt(e.z);
+      this.stars.push({ x, y, s, left: STAR_TICKS, big: e.damage >= 2 || e.killed });
+      if (this.blood() && e.damage > 0) this.mist(x, y, s, e.dirX, e.killed ? 18 : 10);
+    });
+    world.events.on('kill', (e) => {
+      if (!e.decap || !this.blood()) return;
+      const [x, y] = project(e.x, e.y + 0.6, e.z);
+      this.mist(x, y, scaleAt(e.z), 0, 16, -1.6);
+    });
+    world.events.on('wallHit', (e) => {
+      if (e.speed > 2) this.dust(e.x, e.y + 0.3, e.z, 6);
     });
     world.events.on('tick', () => this.step(world.dt));
   }
@@ -45,6 +80,15 @@ export class Vfx {
     }
   }
 
+  /** Blood mist: ~14 droplets, 0.25-0.45 s, gravity (design/art-direction.md). */
+  private mist(x: number, y: number, s: number, dirX: number, n: number, up = -0.6): void {
+    for (let i = 0; i < n; i++) {
+      const a = Math.atan2(up, dirX || (Math.random() - 0.5)) + (Math.random() - 0.5) * 1.6;
+      const v = (1.2 + Math.random() * 2.2) * s;
+      this.drops.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, r: (0.008 + Math.random() * 0.016) * s, life: 0, max: 0.25 + Math.random() * 0.2, g: 9 * s });
+    }
+  }
+
   private step(dt: number): void {
     for (const p of this.puffs) {
       p.life += dt;
@@ -55,8 +99,19 @@ export class Vfx {
       p.r += p.grow * dt;
     }
     this.puffs = this.puffs.filter((p) => p.life < p.max);
+    for (const d of this.drops) {
+      d.life += dt;
+      d.x += d.vx * dt;
+      d.y += d.vy * dt;
+      d.vy += d.g * dt;
+    }
+    this.drops = this.drops.filter((d) => d.life < d.max);
     for (const b of this.blasts) b.left--;
     this.blasts = this.blasts.filter((b) => b.left > 0);
+    for (const m of this.smears) m.left--;
+    this.smears = this.smears.filter((m) => m.left > 0);
+    for (const st of this.stars) st.left--;
+    this.stars = this.stars.filter((st) => st.left > 0);
   }
 
   draw(ctx: Ctx): void {
@@ -68,6 +123,14 @@ export class Vfx {
       ctx.fill();
     }
     ctx.globalAlpha = 1;
+    ctx.fillStyle = BLOOD;
+    for (const d of this.drops) {
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, d.r * (1 - 0.5 * (d.life / d.max)), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    for (const m of this.smears) this.drawSmear(ctx, m);
+    for (const st of this.stars) this.drawStar(ctx, st);
     for (const b of this.blasts) {
       ctx.save();
       ctx.translate(b.x, b.y);
@@ -82,5 +145,53 @@ export class Vfx {
       ctx.fill();
       ctx.restore();
     }
+  }
+
+  /** 1-frame smear along the fist's path: a tapered streak for jabs and crosses, an arc for swings. */
+  private drawSmear(ctx: Ctx, m: Smear): void {
+    if (m.kind === 'light' || m.kind === 'heavy') {
+      // from behind the fist (thin) to the fist (wide), no outline
+      const len = (m.kind === 'heavy' ? 0.45 : 0.3) * m.s, w = (m.kind === 'heavy' ? 0.07 : 0.05) * m.s;
+      const bx = m.fx - m.facing * len, by = m.fy + 0.05 * m.s;
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(m.fx, m.fy - w);
+      ctx.lineTo(m.fx, m.fy + w);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(240,240,242,0.6)';
+      ctx.fill();
+      return;
+    }
+    // arc angles in local space (+x forward, -y up): where the fist came from -> where it went
+    const [a0, a1, r] = m.kind === 'uppercut' ? [1.1, -1.2, 0.36] : [-1.0, 1.1, 0.42];
+    ctx.save();
+    ctx.translate(m.x, m.y);
+    ctx.scale(m.s * m.facing, m.s);
+    ctx.beginPath();
+    ctx.arc(0, 0, r, a0, a1, a1 < a0);
+    ctx.arc(0, 0, r * 0.72, a1, a0, a1 >= a0);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(240,240,242,0.55)';
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /** 1-2 frame impact star at the contact point: white with an ink rim. */
+  private drawStar(ctx: Ctx, st: Star): void {
+    const r = (st.big ? 0.13 : 0.09) * st.s * (st.left === STAR_TICKS ? 1 : 0.8);
+    ctx.save();
+    ctx.translate(st.x, st.y);
+    ctx.beginPath();
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2 + 0.2, rr = i % 2 ? r * 0.42 : r;
+      ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+    }
+    ctx.closePath();
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.lineWidth = Math.max(1.5, st.s * 0.01);
+    ctx.strokeStyle = INK;
+    ctx.stroke();
+    ctx.restore();
   }
 }

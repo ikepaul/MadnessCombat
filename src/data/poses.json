@@ -1,0 +1,39 @@
+{
+  "poses": {
+    "idle": {},
+    "jabWind": { "body": [-0.01, 0, -0.06], "head": [-0.01, -0.79, -0.05], "handF": [0.12, -0.5, 0], "handB": [-0.15, -0.36, 0] },
+    "jabHit": { "body": [0.03, 0, 0.1], "head": [0.06, -0.78, 0.08], "handF": [0.38, -0.76, 0], "handB": [-0.1, -0.46, 0], "footF": [0.13, -0.03, 0], "footB": [-0.08, -0.03, 0] },
+    "crossWind": { "body": [-0.03, 0, -0.15], "head": [-0.05, -0.78, -0.12], "handF": [0.15, -0.46, 0], "handB": [-0.27, -0.52, 0] },
+    "crossHit": { "body": [0.05, 0, 0.18], "head": [0.11, -0.77, 0.12], "handF": [0.1, -0.42, 0], "handB": [0.42, -0.74, 0], "footF": [0.16, -0.03, 0], "footB": [-0.1, -0.03, 0] },
+    "upWind": { "body": [0, 0.04, 0.12], "head": [0.05, -0.72, 0.12], "handF": [0.15, -0.16, 0.6], "handB": [-0.15, -0.32, 0] },
+    "upHit": { "body": [0.03, -0.03, -0.12], "head": [0.03, -0.84, -0.15], "handF": [0.3, -0.97, -0.6], "handB": [-0.17, -0.38, 0], "footF": [0.1, -0.05, 0.2], "footB": [-0.07, -0.04, 0.1] },
+    "stompWind": { "body": [0, 0.04, 0.25], "head": [0.19, -0.71, 0.3], "handF": [0.3, -0.78, 0], "handB": [-0.05, -0.4, 0] },
+    "stompHit": { "body": [0.04, 0.06, 0.45], "head": [0.33, -0.65, 0.42], "handF": [0.5, -0.12, 1.2], "handB": [0.05, -0.3, 0], "footF": [0.13, -0.03, 0] },
+    "stun": { "body": [-0.03, 0, -0.18], "head": [-0.09, -0.76, -0.28], "handF": [0.13, -0.44, 0.4], "handB": [-0.26, -0.44, -0.4] },
+    "knockback": { "handF": [0.33, -0.62, 0.3], "handB": [0.24, -0.7, 0.3], "footF": [0.18, -0.07, 0.3], "footB": [0.08, -0.03, 0.2] },
+    "lying": { "head": [0.0, -0.8, 0.25], "handF": [0.12, -0.18, 0.5], "handB": [-0.06, -0.5, -0.3], "footF": [0.09, -0.03, 0.2], "footB": [-0.05, -0.02, 0.2] },
+    "getUpPush": { "body": [0, 0, 0.15], "head": [0.06, -0.78, 0.2], "handF": [0.3, -0.06, 0], "handB": [-0.18, -0.06, 0], "footF": [0.08, -0.03, 0] },
+    "grabbed": { "body": [0, 0, 0.12], "head": [0.03, -0.8, 0.22], "handF": [0.24, -0.46, 0.5], "handB": [0.14, -0.52, 0.5], "footF": [0.09, 0.02, 0.3], "footB": [-0.04, 0.03, 0.2] },
+    "carry": { "body": [0, 0, -0.08], "head": [-0.01, -0.79, -0.05], "handF": [0.34, -0.56, 0], "handB": [0.25, -0.62, 0] },
+    "throwWind": { "body": [-0.03, 0, -0.22], "head": [-0.08, -0.77, -0.2], "handF": [0.05, -0.7, 0], "handB": [-0.05, -0.74, 0] },
+    "throwRelease": { "body": [0.05, 0, 0.2], "head": [0.12, -0.77, 0.15], "handF": [0.42, -0.62, 0], "handB": [0.34, -0.66, 0], "footF": [0.15, -0.03, 0] },
+    "sweep": { "head": [0.03, -0.8, 0.2], "handF": [-0.02, -0.55, 0], "handB": [-0.2, -0.6, 0], "footF": [0.18, -0.02, 0.3], "footB": [0.03, -0.05, 0] },
+    "slumped": { "body": [0, 0, -0.35], "head": [-0.2, -0.72, 0.4], "handF": [0.15, -0.08, 0.6], "handB": [-0.25, -0.1, -0.4], "footF": [0.22, -0.04, 0], "footB": [0.14, -0.03, 0] }
+  },
+  "clips": {
+    "idle": { "loop": true, "keys": [[0, "idle", "linear"]] },
+    "punchLight": { "keys": [[0, "idle", "linear"], [3, "jabWind", "out"], [4, "jabHit", "out"], [7, "jabHit", "linear"], [12, "idle", "inOut"]] },
+    "punchHeavy": { "keys": [[0, "idle", "linear"], [5, "crossWind", "out"], [6, "crossHit", "out"], [9, "crossHit", "linear"], [17, "idle", "inOut"]] },
+    "uppercut": { "keys": [[0, "idle", "linear"], [5, "upWind", "out"], [6, "upHit", "out"], [9, "upHit", "linear"], [18, "idle", "inOut"]] },
+    "finisher": { "keys": [[0, "idle", "linear"], [5, "stompWind", "out"], [6, "stompHit", "out"], [9, "stompHit", "linear"], [17, "idle", "inOut"]] },
+    "stun": { "keys": [[0, "idle", "linear"], [2, "stun", "out"], [16, "stun", "linear"], [21, "idle", "inOut"]] },
+    "knockback": { "keys": [[0, "stun", "linear"], [3, "knockback", "out"]] },
+    "lying": { "keys": [[0, "knockback", "linear"], [4, "lying", "out"]] },
+    "getUp": { "keys": [[0, "lying", "linear"], [5, "getUpPush", "inOut"], [12, "idle", "inOut"]] },
+    "grabbed": { "keys": [[0, "stun", "linear"], [3, "grabbed", "out"]] },
+    "carry": { "keys": [[0, "idle", "linear"], [3, "carry", "out"]] },
+    "throw": { "keys": [[0, "carry", "linear"], [3, "throwWind", "out"], [5, "throwRelease", "out"], [12, "idle", "inOut"]] },
+    "sweep": { "keys": [[0, "idle", "linear"], [3, "sweep", "out"]] },
+    "slumped": { "keys": [[0, "lying", "linear"], [4, "slumped", "out"]] }
+  }
+}

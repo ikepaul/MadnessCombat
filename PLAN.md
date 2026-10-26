@@ -119,23 +119,25 @@ Labs: `move-walk`, `move-jump`, `move-prone-dodge`.
 **Read first:** `melee-punch-knockback`, `move-knockdown-getup`, `melee-hitstun-finisher`, `melee-grab-throw`, `melee-low-sweep`, `melee-decapitation`, `world-persistence-decals`, `design/art-direction.md` (animation, effects).
 
 Build:
-- [ ] **Pose animation system**: pose = transforms for head, body, both hands, both feet, held item. Keyframed clips with easing on a 30 fps key grid, plus procedural layers (aim, breathing, walk, recoil, hit lean). **Pose editor lab** (`/?lab=pose-editor`) to author and save poses as data.
-- [ ] Hurtboxes: head ellipse + body capsule.
-- [ ] Actor state machine: idle, walk, jump, prone, attack, stun, knockback, down, get-up, grabbed, dead.
-- [ ] Light punch, heavy punch, uppercut (launch ≈ 1 H up). Punch range 0.5–0.6 H, depth band 0.2 H. Exchange rate 2–3 punches/s.
-- [ ] Hit-stun 0.7 s. Knockback ≈ 1.5 H over 0.35–0.4 s. Lie 0.2 s. Get-up 0.4 s with i-frames (invented). Knockdown drops the held item.
-- [ ] Damage: a grunt dummy dies from 1 heavy or 2 light hits (invented split). Player HP 3 hits (decided).
-- [ ] Grab (F) at contact range, throw toward the cursor (a thrown body is a projectile that knocks down what it hits and kills on a fast wall impact). Works on corpses too.
-- [ ] Low sweep = dive into an adjacent enemy: knockdown + drops their item.
-- [ ] Downward hit on downed enemies (finisher).
-- [ ] Corpses: tumble → settle → freeze → bake into the corpse layer. Flags `raisable`, `gibbed`. Head knock-off as a separate item (decapitation kill on grunts).
+- [x] **Pose animation system**: pose = transforms for head, body, both hands, both feet, held item. Keyframed clips with easing on a 30 fps key grid, plus procedural layers (aim, breathing, walk, recoil, hit lean). **Pose editor lab** (`/?lab=pose-editor`) to author and save poses as data.
+- [x] Hurtboxes: head ellipse + body capsule.
+- [x] Actor state machine: idle, walk, jump, prone, attack, stun, knockback, down, get-up, grabbed, dead.
+- [x] Light punch, heavy punch, uppercut (launch ≈ 1 H up). Punch range 0.5–0.6 H, depth band 0.2 H. Exchange rate 2–3 punches/s.
+- [x] Hit-stun 0.7 s. Knockback ≈ 1.5 H over 0.35–0.4 s. Lie 0.2 s. Get-up 0.4 s with i-frames (invented). Knockdown drops the held item.
+- [x] Damage: a grunt dummy dies from 1 heavy or 2 light hits (invented split). Player HP 3 hits (decided).
+- [x] Grab (F) at contact range, throw toward the cursor (a thrown body is a projectile that knocks down what it hits and kills on a fast wall impact). Works on corpses too.
+- [x] Low sweep = dive into an adjacent enemy: knockdown + drops their item.
+- [x] Downward hit on downed enemies (finisher).
+- [x] Corpses: tumble → settle → freeze → bake into the corpse layer. Flags `raisable`, `gibbed`. Head knock-off as a separate item (decapitation kill on grunts).
 
 Look & sound:
-- [ ] Punch smear arc (1 frame) + impact star (1–2 frames) + hit lean. Uppercut launch pose. Thrown-body spin.
-- [ ] Dead face (x eyes), corpse poses (lying, slumped against a wall).
-- [ ] Blood toggle per stage: **off for stage 1** (as in episode 1), on from stage 2 (mist, wound bursts, wall splatter, pools: style frame code).
-- [ ] Player hurt flash + hit pips in the HUD.
-- [ ] Event hooks: `punch`, `hit`, `kill`, `bodyFall`, `throw`, `grab` (sounds in M4).
+- [x] Punch smear arc (1 frame) + impact star (1–2 frames) + hit lean. Uppercut launch pose. Thrown-body spin.
+- [x] Dead face (x eyes), corpse poses (lying, slumped against a wall).
+- [x] Blood toggle per stage: **off for stage 1** (as in episode 1), on from stage 2 (mist, wound bursts, wall splatter, pools: style frame code).
+- [x] Player hurt flash + hit pips in the HUD.
+- [x] Event hooks: `punch`, `hit`, `kill`, `bodyFall`, `throw`, `grab` (sounds in M4).
+
+Done: LMB light jab, RMB heavy cross, RMB with the cursor steeply above the shoulder (> 45°) = uppercut; a punch at a downed body with nobody standing in reach becomes the finisher; punches pressed mid-swing are buffered 0.2 s. Decapitation = a heavy to the head of a stunned grunt (invented trigger); loose heads can be grabbed and thrown (stagger, no kill). Knocked-down enemies lie 0.8 s (invented, gives the finisher a window), the hero 0.2 s (measured). Thrown bodies: 8 H/s toward the floor point under the cursor, knock down what they hit, kill on a wall impact ≥ 4 H/s, take 1 damage themselves. Poses and clips live in `src/data/poses.json` (`src/anim/`), authored in `/?lab=pose-editor` (Ctrl+S writes the file via the dev server). Layers: room → decals (blood) → baked corpses → actors; static layers upload at most once per frame, and layer canvases no longer use `willReadFrequently` (uploading the actor layer cost ~30 ms per frame before; now 0.04 ms). 200 baked corpses: 0.4 ms per frame; re-baking them after a pick-up ≈ 13 ms. The recoil layer comes with guns (M5). Reference frames were not on the machine this was built on, so the replica labs are checked against the notes' numbers only.
 
 Acceptance tests: punch range/depth band hit and miss cases · knockback distance and airtime · knockdown → controllable ≈ 1.1 s · stun window 0.7 s · grunt kill rules · a thrown body knocks down a second dummy · 200 corpses in a room keep 60 fps (manual check, baked layer).
 Labs: `melee-punch-knockback`, `move-knockdown-getup`, `melee-hitstun-finisher`, `melee-grab-throw`, `melee-low-sweep`, `melee-decapitation`, `pose-editor`.
