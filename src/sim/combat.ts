@@ -358,7 +358,8 @@ export function stepFlight(world: World, a: Actor, dt: number): 'air' | 'skid' |
     const want = { x: a.pos.x + f.vx * dt, z: a.pos.z + f.vz * dt };
     const p = moveWithCollision(room, a.pos.x, a.pos.z, f.vx * dt, f.vz * dt, a.pos.y);
     const lim = room.halfWidth - TUNING.move.radius;
-    if (Math.abs(want.x) > lim && Math.abs(p.x - want.x) > 1e-6) wallImpact(world, a, want.x > 0 ? 'right' : 'left', Math.abs(f.vx));
+    if (room.outdoor) { /* open ground: the bounds just stop the body */ }
+    else if (Math.abs(want.x) > lim && Math.abs(p.x - want.x) > 1e-6) wallImpact(world, a, want.x > 0 ? 'right' : 'left', Math.abs(f.vx));
     else if (want.z > room.zBack - TUNING.move.radius && Math.abs(p.z - want.z) > 1e-6) wallImpact(world, a, 'back', Math.abs(f.vz));
     a.pos.x = p.x;
     a.pos.z = p.z;

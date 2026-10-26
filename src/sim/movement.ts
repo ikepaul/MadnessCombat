@@ -152,9 +152,11 @@ export function stepAttackMove(world: World, a: Actor, cmd: PlayerCommand, dt: n
 }
 
 function walkHorizontal(world: World, a: Actor, dt: number): void {
-  const p = moveWithCollision(world.room, a.pos.x, a.pos.z, a.body.vel.x * dt, a.body.vel.z * dt, a.pos.y);
+  const p = moveWithCollision(world.room, a.pos.x, a.pos.z, a.body.vel.x * dt, a.body.vel.z * dt, a.pos.y, a.entering);
   a.pos.x = p.x;
   a.pos.z = p.z;
+  // walked in from off-screen or through a door: the room bounds apply from now on
+  if (a.entering && Math.abs(a.pos.x) <= world.room.halfWidth - MOVE.radius) a.entering = false;
 }
 
 /** Walk cycle phase: 2 pi per stride; a footstep event on every half cycle. */

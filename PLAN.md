@@ -147,15 +147,17 @@ Labs: `melee-punch-knockback`, `move-knockdown-getup`, `melee-hitstun-finisher`,
 **Read first:** `enemy-grunt-unarmed`, `enemy-spawning`, `world-kill-counter`, `research/stages.md` (Stage 1).
 
 Build:
-- [ ] Grunt AI (unarmed): approach at combat walk → hold at punch range → attack every 0.6–1.0 s (invented) → react/die. **Attack tokens**: max 2–3 grunts actively attacking. Others circle/wait at 1.5–2.5 H.
-- [ ] Spawn points (screen edge, door with a 0.3 s open telegraph) + wave script format: `(delay, spawnPoint, enemyType, weapon)` entries. The next wave starts when the alive count drops below a threshold.
-- [ ] Stage 1 arena room data (our own outdoor arena design: open ground, one landmark prop, neutral palette) + wave A (≈ 18 unarmed grunts from both edges, 1–2 at a time).
-- [ ] Kill counter HUD (Anton, white + ink stroke, bottom-right). End-of-room body-count card.
-- [ ] Player death → restart the room (checkpoint per room, to confirm with the user in M13).
+- [x] Grunt AI (unarmed): approach at combat walk → hold at punch range → attack every 0.6–1.0 s (invented) → react/die. **Attack tokens**: max 2–3 grunts actively attacking. Others circle/wait at 1.5–2.5 H.
+- [x] Spawn points (screen edge, door with a 0.3 s open telegraph) + wave script format: `(delay, spawnPoint, enemyType, weapon)` entries. The next wave starts when the alive count drops below a threshold.
+- [x] Stage 1 arena room data (our own outdoor arena design: open ground, one landmark prop, neutral palette) + wave A (≈ 18 unarmed grunts from both edges, 1–2 at a time).
+- [x] Kill counter HUD (Anton, white + ink stroke, bottom-right). End-of-room body-count card.
+- [x] Player death → restart the room (checkpoint per room, to confirm with the user in M13).
 
 Look & sound:
-- [ ] Outdoor room variant of the room renderer (sky gradient, ground plane, horizon line, one landmark prop), own design.
-- [ ] Door open animation (0.3 s) as the spawn telegraph. Screen-edge entries walk in from off-screen.
+- [x] Outdoor room variant of the room renderer (sky gradient, ground plane, horizon line, one landmark prop), own design.
+- [x] Door open animation (0.3 s) as the spawn telegraph. Screen-edge entries walk in from off-screen.
+
+Done: `src/sim/ai.ts` (attack tokens, max 2 attackers; grunts walk at 80% of the walk speed, punch from 0.45 H, 25% heavy punches, all invented), `src/sim/waves.ts` (wave scripts with a per-wave `maxAlive` cap, 4 for wave A, so arrivals stay a trickle), `src/data/stages/stage1.ts` (arena + wave A: 18 grunts from 6 edge spawns). The landmark is a leaning utility pole (own design, not the episode's tree). Outdoor rooms have no walls, so bodies stop at the bounds instead of slamming. Doors are now drawn per frame (they animate). The stage route is the default (`/`); the M0 style-frame room moved to `/?room=test`. End card: Enter fights the room again. Labs: `enemy-grunt-unarmed`, `enemy-spawning` (door entries), `world-kill-counter`. Difficulty is untuned: standing still, the player dies in about 6 s to two attackers; tune in the M4 feel pass.
 
 Acceptance tests: the wave script runs to completion headless with a scripted "kill all" · never more than 3 attackers at once · the counter matches deaths.
 Playable: `/?stage=1&room=arena&wave=A`.

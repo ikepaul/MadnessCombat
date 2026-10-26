@@ -162,6 +162,34 @@ export const TUNING = {
     slumpDistance: 0.35,
   },
 
+  /** Unarmed grunt AI (enemy-grunt-unarmed). */
+  ai: {
+    /** enemy-grunt-unarmed: at most 2-3 attacking at once (attack tokens). invented within the plan's range */
+    maxAttackers: 2,
+    /** enemy-grunt-unarmed: attack every 0.6-1.0 s. invented */
+    attackInterval: [0.6, 1.0] as const,
+    /** Share of grunt punches that are heavy (knockdown). invented */
+    heavyChance: 0.25,
+    /** Where a token holder stands to punch (centre distance, inside the 0.6 H range). invented */
+    punchDistance: 0.45,
+    /** Grunts without a token wait on a ring 1.5-2.5 H from the player (PLAN.md M3). */
+    waitRing: [1.5, 2.5] as const,
+    /** Grunts walk at this share of the walk speed (the hero was sped up, grunts less so). invented */
+    speed: 0.8,
+    /** Reaction delay before the first swing after reaching the player. invented */
+    windUp: 0.25,
+  },
+
+  /** enemy-spawning: wave scripts. */
+  waves: {
+    /** enemy-spawning: doors open ~0.3 s before an enemy steps through. */
+    doorOpen: 0.3,
+    /** Door stays open after the enemy is through, then closes over doorOpen. invented */
+    doorHold: 1.0,
+    /** Off-screen distance past the side bounds where edge entries start. invented */
+    edgeOffset: 1.6,
+  },
+
   /** Soft push-apart between standing actors. invented */
   separation: { distance: 0.32, rate: 8 },
 

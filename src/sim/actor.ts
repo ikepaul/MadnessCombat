@@ -148,6 +148,10 @@ export interface Actor {
   slumpWall?: 'left' | 'right' | 'back';
   /** Direction of the throw being wound up. */
   throwDir?: { x: number; z: number };
+  /** Still walking in from off-screen or a door (may be outside the side bounds). */
+  entering?: boolean;
+  /** Enemy AI memory (src/sim/ai.ts). */
+  ai?: import('./ai').AiState;
   /** Lab/AI controller; the player is driven by World.command instead. */
   brain?: Brain;
 }

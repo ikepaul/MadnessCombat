@@ -4,9 +4,14 @@ import { type Actor, type ActorKind, alive, createActor, type Vec3 } from './act
 import { type Ball, type Cannon, stepCannons } from './cannon';
 import { applyHit, stepActor } from './combat';
 import { clearEdges, IDLE_COMMAND, type PlayerCommand } from './command';
+import { assignTokens } from './ai';
 import { EventBus, type HitKind } from './events';
 import { type Item, type ItemKind, spawnItem, stepItems } from './items';
 import type { RoomDef } from './room';
+import type { WaveDirector } from './waves';
+
+/** Door animation state: `open` 0 (closed) .. 1 (open), moving toward `target`. */
+export interface DoorState { open: number; target: 0 | 1; hold: number }
 
 /** The simulation state. Stepped only by FixedClock, at 60 Hz. */
 export class World {
@@ -21,10 +26,36 @@ export class World {
   command: PlayerCommand = { ...IDLE_COMMAND };
   cannons: Cannon[] = [];
   balls: Ball[] = [];
+  /** Enemies allowed to attack right now (src/sim/ai.ts). */
+  readonly tokens = new Set<number>();
+  /** Enemy deaths in this room (the kill counter). */
+  kills = 0;
+  /** The room's wave script, if it has one. */
+  director?: WaveDirector;
+  doors: DoorState[] = [];
   /** Seeded RNG so the sim stays reproducible in tests. */
   private seed = 0x2f6b1c3d;
 
-  constructor(public room: RoomDef) {}
+  constructor(public room: RoomDef) {
+    this.resetDoors();
+    // world-kill-counter: every enemy death counts
+    this.events.on('kill', (e) => {
+      if (this.actorById(e.actorId)?.kind !== 'hero') this.kills++;
+    });
+  }
+
+  private resetDoors(): void {
+    this.doors = this.room.doors.map((d) => ({ open: d.open ? 1 : 0, target: d.open ? 1 : 0, hold: Infinity }));
+  }
+
+  /** Spawn telegraph: swing a door open; it closes again after TUNING.waves.doorHold. */
+  openDoor(i: number): void {
+    const d = this.doors[i];
+    if (!d) return;
+    d.target = 1;
+    d.hold = TUNING.waves.doorOpen + TUNING.waves.doorHold;
+    this.events.emit('doorOpen', { door: i });
+  }
 
   /** Seconds of world time (hit-stop and pause don't advance it). */
   get time(): number {
@@ -41,6 +72,7 @@ export class World {
 
   setRoom(room: RoomDef): void {
     this.room = room;
+    this.resetDoors();
     this.events.emit('roomChanged', { roomId: room.id });
   }
 
@@ -71,6 +103,7 @@ export class World {
 
   step(): void {
     this.tick++;
+    assignTokens(this);
     for (const a of this.actors) {
       if (a.corpse?.phase === 'frozen') continue;
       const cmd = a === this.player ? this.command : a.brain ? a.brain(a, this.dt) : IDLE_COMMAND;
@@ -81,7 +114,20 @@ export class World {
     this.separate();
     stepItems(this, this.dt);
     stepCannons(this, this.dt);
+    this.director?.step(this, this.dt);
+    this.stepDoors();
     this.events.emit('tick', { tick: this.tick });
+  }
+
+  private stepDoors(): void {
+    const rate = this.dt / TUNING.waves.doorOpen;
+    this.doors.forEach((d, i) => {
+      d.open = d.target ? Math.min(1, d.open + rate) : Math.max(0, d.open - rate);
+      if (d.target === 1 && d.hold !== Infinity) {
+        d.hold -= this.dt;
+        if (d.hold <= 0) { d.target = 0; this.events.emit('doorClose', { door: i }); }
+      }
+    });
   }
 
   /** Carried bodies and heads hang in front of the holder's hands. */

@@ -39,6 +39,15 @@ export interface GameEvents {
   corpseSettled: At;
   corpseFrozen: { actorId: number };
   corpseThawed: { actorId: number };
+
+  /** An enemy appeared (walking in from an edge, or stepping out of a door). */
+  spawn: At;
+  /** A door started opening (spawn telegraph) or closing. */
+  doorOpen: { door: number };
+  doorClose: { door: number };
+  waveStart: { wave: string };
+  /** Every wave of the room's script ran and every enemy is dead. */
+  roomCleared: { kills: number };
 }
 
 export type HitKind = 'light' | 'heavy' | 'uppercut' | 'finisher' | 'sweep' | 'body' | 'head' | 'wall';

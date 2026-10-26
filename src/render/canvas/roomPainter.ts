@@ -1,13 +1,17 @@
 // Static room layer: walls, ceiling, floor, depth shading, baseboards, doors, decor and the
 // key light. Ported from design/style-frame; baked once per room/palette change.
 import { INK, type Palette } from '../../data/palettes';
-import { ROOM_DRAW_NEAR_Z, type RoomDef, type TableDef } from '../../sim/room';
+import { type DoorDef, type PoleDef, type PropDef, ROOM_DRAW_NEAR_Z, type RoomDef, type TableDef } from '../../sim/room';
 import { project as P, SCREEN_H, SCREEN_W, scaleAt } from '../camera';
 import { type Ctx, line, linear, mulberry32, poly, shade } from './draw';
 
 export function paintRoom(ctx: Ctx, room: RoomDef, pal: Palette): void {
-  const hw = room.halfWidth, zb = room.zBack, h = room.height, zn = ROOM_DRAW_NEAR_Z;
   ctx.clearRect(0, 0, SCREEN_W, SCREEN_H);
+  if (room.outdoor) {
+    paintOutdoor(ctx, room, pal);
+    return;
+  }
+  const hw = room.halfWidth, zb = room.zBack, h = room.height, zn = ROOM_DRAW_NEAR_Z;
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
 
@@ -58,17 +62,6 @@ export function paintRoom(ctx: Ctx, room: RoomDef, pal: Palette): void {
   }
 
   for (const b of room.boards) paintBoard(ctx, b.x0, b.x1, b.y0, b.y1, zb, pal);
-
-  for (const d of room.doors) {
-    const x = d.wall === 'left' ? -hw : hw;
-    poly(ctx, [P(x, 0, d.z0), P(x, d.height, d.z0), P(x, d.height, d.z1), P(x, 0, d.z1)]);
-    ctx.fillStyle = d.open ? '#111113' : pal.door; ctx.fill();
-    ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.stroke();
-    if (!d.open) {
-      const k = P(x, 0.95, d.z1 - 0.12);
-      ctx.beginPath(); ctx.arc(k[0], k[1], 6, 0, Math.PI * 2); ctx.fillStyle = INK; ctx.fill();
-    }
-  }
 
   // room edges
   ctx.lineWidth = 3;
@@ -132,6 +125,110 @@ function paintLamp(ctx: Ctx, room: RoomDef, lx: number, lz: number, shadeY: numb
   ctx.beginPath(); ctx.arc(sh[0], sh[1] + 0.025 * s, 0.035 * s, 0, Math.PI);
   ctx.fillStyle = '#fffbe8'; ctx.fill();
   ctx.lineWidth = 2; ctx.stroke();
+}
+
+/**
+ * Doors animate (spawn telegraph, enemy-spawning), so they're drawn per frame, before the
+ * actors. `open` 0..1: the panel swings into the room on its hinge at z0, showing the dark
+ * doorway behind it.
+ */
+export function paintDoor(ctx: Ctx, room: RoomDef, d: DoorDef, open: number, pal: Palette): void {
+  const side = d.wall === 'left' ? -1 : 1, x = side * room.halfWidth;
+  const frame = [P(x, 0, d.z0), P(x, d.height, d.z0), P(x, d.height, d.z1), P(x, 0, d.z1)];
+  poly(ctx, frame);
+  ctx.fillStyle = open > 0 ? '#111113' : pal.door; ctx.fill();
+  ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.stroke();
+  if (open <= 0) {
+    const k = P(x, 0.95, d.z1 - 0.12);
+    ctx.beginPath(); ctx.arc(k[0], k[1], 6, 0, Math.PI * 2); ctx.fillStyle = INK; ctx.fill();
+    return;
+  }
+  if (open >= 1) return;
+  // the panel, rotated about the hinge: its free edge moves from the wall into the room
+  const w = d.z1 - d.z0, a = (open * Math.PI) / 2;
+  const fx = x - side * w * Math.sin(a), fz = d.z0 + w * Math.cos(a);
+  poly(ctx, [P(x, 0, d.z0), P(x, d.height, d.z0), P(fx, d.height, fz), P(fx, 0, fz)]);
+  ctx.fillStyle = pal.door; ctx.fill();
+  ctx.stroke();
+}
+
+export function paintProp(ctx: Ctx, p: PropDef, pal: Palette): void {
+  if (p.kind === 'table') paintTable(ctx, p, pal);
+  else paintPole(ctx, p, pal);
+}
+
+/** Stage 1 landmark (own design): leaning wooden pole, crossbar, two insulators, sagging wire. */
+function paintPole(ctx: Ctx, p: PoleDef, pal: Palette): void {
+  const cx = (p.x0 + p.x1) / 2, cz = (p.z0 + p.z1) / 2, s = scaleAt(cz);
+  const lean = (y: number) => cx + Math.sin(p.lean) * y;
+  const [bx, by] = P(cx, 0, cz);
+  ctx.beginPath(); ctx.ellipse(bx + 0.25 * s, by, 0.45 * s, 0.06 * s, 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fill();
+  const w = (p.x1 - p.x0) / 2;
+  const base = [P(cx - w, 0, cz), P(cx + w, 0, cz)], top = [P(lean(p.top) + w * 0.7, p.top, cz), P(lean(p.top) - w * 0.7, p.top, cz)];
+  poly(ctx, [base[0], base[1], top[0], top[1]]);
+  ctx.fillStyle = pal.propShade; ctx.fill();
+  ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.stroke();
+  // grain line + a small tag nailed at eye level
+  ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(20,20,22,0.35)';
+  line(ctx, P(cx + w * 0.2, 0.1, cz), P(lean(p.top - 0.3) + w * 0.15, p.top - 0.3, cz));
+  const t = P(lean(1.35), 1.35, cz);
+  ctx.fillStyle = pal.prop; ctx.lineWidth = 2; ctx.strokeStyle = INK;
+  ctx.fillRect(t[0] - 0.06 * s, t[1] - 0.05 * s, 0.12 * s, 0.1 * s); ctx.strokeRect(t[0] - 0.06 * s, t[1] - 0.05 * s, 0.12 * s, 0.1 * s);
+  // crossbar with insulators
+  const yb = p.top - 0.35, l = P(lean(yb) - 0.55, yb, cz), r = P(lean(yb) + 0.55, yb, cz);
+  ctx.lineWidth = 0.06 * s; ctx.strokeStyle = INK; line(ctx, l, r);
+  ctx.lineWidth = 0.035 * s; ctx.strokeStyle = pal.propShade; line(ctx, l, r);
+  for (const ix of [-0.42, 0.42]) {
+    const q = P(lean(yb) + ix, yb + 0.08, cz);
+    ctx.beginPath(); ctx.ellipse(q[0], q[1], 0.03 * s, 0.05 * s, 0, 0, Math.PI * 2);
+    ctx.fillStyle = pal.prop; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = INK; ctx.stroke();
+  }
+  // wires sag off to both sides of the screen
+  ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(20,20,22,0.7)';
+  for (const ix of [-0.42, 0.42]) {
+    const q = P(lean(yb) + ix, yb + 0.12, cz), far = P(ix < 0 ? -9 : 9, yb + 0.5, cz + 2.5);
+    ctx.beginPath(); ctx.moveTo(q[0], q[1]);
+    ctx.quadraticCurveTo((q[0] + far[0]) / 2, Math.max(q[1], far[1]) + 0.35 * s, far[0], far[1]);
+    ctx.stroke();
+  }
+}
+
+/**
+ * Outdoor room (PLAN.md M3, own design): pale sky gradient to a hazy horizon, a low far ridge,
+ * the ground plane with depth shading, a horizon line and a few scattered pebbles and tufts.
+ */
+function paintOutdoor(ctx: Ctx, room: RoomDef, pal: Palette): void {
+  const hy = P(0, 0, 1e6)[1];
+  ctx.fillStyle = linear(ctx, 0, 0, 0, hy, [[0, pal.ceil], [0.7, pal.back], [1, pal.board]]);
+  ctx.fillRect(0, 0, SCREEN_W, hy);
+  // a low far ridge, slightly darker than the haze
+  const rnd = mulberry32(3);
+  ctx.beginPath(); ctx.moveTo(0, hy);
+  for (let x = 0; x <= SCREEN_W; x += 60) ctx.lineTo(x, hy - 14 - 22 * Math.abs(Math.sin(x / 410 + 1.3)) - rnd() * 6);
+  ctx.lineTo(SCREEN_W, hy); ctx.closePath();
+  ctx.fillStyle = pal.sideR; ctx.fill();
+  // ground: far haze to darker near the camera
+  ctx.fillStyle = linear(ctx, 0, hy, 0, SCREEN_H, [[0, pal.board], [0.12, pal.floor], [1, pal.suitShade]]);
+  ctx.fillRect(0, hy, SCREEN_W, SCREEN_H - hy);
+  ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(20,20,22,0.45)';
+  line(ctx, [0, hy], [SCREEN_W, hy]);
+  // soft band marking the back of the walkable ground
+  const yb = P(0, 0, room.zBack)[1];
+  ctx.fillStyle = linear(ctx, 0, yb - 30, 0, yb + 10, [[0, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,0.06)']]);
+  ctx.fillRect(0, yb - 30, SCREEN_W, 40);
+  // pebbles and grass tufts on the ground
+  for (let i = 0; i < 70; i++) {
+    const z = room.zFront - 0.6 + rnd() * (room.zBack - room.zFront + 4), x = (rnd() * 2 - 1) * z * 0.5;
+    const [px, py] = P(x, 0, z), s = scaleAt(z);
+    if (rnd() < 0.55) {
+      ctx.beginPath(); ctx.ellipse(px, py, (0.02 + rnd() * 0.03) * s, (0.01 + rnd() * 0.01) * s, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(20,20,22,0.25)'; ctx.fill();
+    } else {
+      ctx.lineWidth = Math.max(1, 0.006 * s); ctx.strokeStyle = 'rgba(20,20,22,0.35)';
+      for (const dx of [-0.02, 0, 0.02]) line(ctx, [px + dx * s, py], [px + dx * 1.8 * s, py - (0.04 + rnd() * 0.03) * s]);
+    }
+  }
 }
 
 /** Props are depth-sorted with actors, so they're drawn in the dynamic layer, not baked. */

@@ -15,7 +15,19 @@ export interface TableDef {
   top: number;
 }
 
-export type PropDef = TableDef;
+/**
+ * Outdoor landmark (stage 1 arena, own design): a leaning wooden utility pole with a crossbar
+ * and a sagging wire. Solid, far too tall to stand on.
+ */
+export interface PoleDef {
+  kind: 'pole';
+  x0: number; x1: number; z0: number; z1: number;
+  top: number;
+  /** Lean in radians (+ = toward +x). */
+  lean: number;
+}
+
+export type PropDef = TableDef | PoleDef;
 
 export interface LampDef {
   x: number;
@@ -36,8 +48,10 @@ export interface RoomDef {
   height: number;
   /** Front edge of the walkable floor. */
   zFront: number;
-  /** Back wall. */
+  /** Back wall (outdoors: the back edge of the walkable ground). */
   zBack: number;
+  /** Open air: sky and ground, no walls or ceiling, bodies don't slam into the bounds. */
+  outdoor?: boolean;
   doors: DoorDef[];
   props: PropDef[];
   lamps: LampDef[];
