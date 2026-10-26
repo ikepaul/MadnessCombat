@@ -36,7 +36,16 @@
     "pullDown": { "body": [0.02, 0.06, 0.35], "head": [0.2, -0.68, 0.35], "handF": [0.42, -0.3, 0.4], "handB": [0.32, -0.34, 0.4], "footF": [0.12, -0.03, 0] },
     "stealGrab": { "body": [0.03, 0, 0.12], "head": [0.06, -0.78, 0.08], "handF": [0.42, -0.56, 0], "handB": [0.32, -0.6, 0], "footF": [0.14, -0.03, 0] },
     "stealTwist": { "body": [-0.03, 0, -0.15], "head": [-0.05, -0.78, -0.1], "handF": [0.15, -0.62, 0.8], "handB": [0.05, -0.55, 0] },
-    "pinned": { "body": [0, 0, -0.08], "head": [0.06, -0.74, 0.45], "handF": [0.12, -0.2, 0.6], "handB": [-0.12, -0.22, -0.4], "footF": [0.08, -0.03, 0.15], "footB": [-0.06, -0.02, 0.1] }
+    "pinned": { "body": [0, 0, -0.08], "head": [0.06, -0.74, 0.45], "handF": [0.12, -0.2, 0.6], "handB": [-0.12, -0.22, -0.4], "footF": [0.08, -0.03, 0.15], "footB": [-0.06, -0.02, 0.1] },
+    "kickWind": { "body": [-0.03, 0, -0.12], "head": [-0.06, -0.78, -0.1], "handF": [0.15, -0.5, 0], "handB": [-0.2, -0.45, 0], "footF": [0.05, -0.25, 0.3], "footB": [-0.06, -0.03, 0] },
+    "kickHit": { "body": [-0.04, 0, -0.2], "head": [-0.1, -0.77, -0.18], "handF": [0.1, -0.55, 0], "handB": [-0.25, -0.5, 0], "footF": [0.42, -0.3, -0.4], "footB": [-0.08, -0.03, 0] },
+    "choked": { "body": [-0.02, 0, -0.15], "head": [-0.08, -0.77, -0.35], "handF": [0.04, -0.7, 0], "handB": [0.0, -0.68, 0], "footF": [0.12, -0.03, 0], "footB": [-0.08, -0.03, 0] },
+    "wirePull": { "body": [-0.04, 0, -0.15], "head": [-0.07, -0.79, -0.1], "handF": [0.28, -0.74, 0], "handB": [0.18, -0.76, 0], "footF": [0.1, -0.03, 0], "footB": [-0.14, -0.03, 0] },
+    "wirePull2": { "body": [-0.06, 0, -0.25], "head": [-0.12, -0.77, -0.2], "handF": [0.24, -0.72, 0], "handB": [0.12, -0.74, 0], "footF": [0.12, -0.03, 0], "footB": [-0.16, -0.03, 0] },
+    "stabRaise": { "body": [0, 0, -0.05], "head": [0.0, -0.79, -0.03], "handF": [0.22, -0.92, 0], "handB": [0.3, -0.68, 0], "item": [0, 0, 1.6] },
+    "stabDownHit": { "body": [0.04, 0, 0.15], "head": [0.08, -0.78, 0.1], "handF": [0.34, -0.6, 0], "handB": [0.3, -0.7, 0], "footF": [0.13, -0.03, 0], "footB": [-0.08, -0.03, 0], "item": [0, 0, 1.4] },
+    "smokeHold": { "body": [0, 0, -0.03], "head": [0, -0.79, -0.02], "handF": [0.16, -0.44, 0], "handB": [-0.14, -0.3, 0] },
+    "smokeDrag": { "body": [-0.01, 0, -0.05], "head": [0.0, -0.8, -0.1], "handF": [0.18, -0.71, 0], "handB": [-0.14, -0.3, 0] }
   },
   "clips": {
     "idle": { "loop": true, "keys": [[0, "idle", "linear"]] },
@@ -63,6 +72,11 @@
     "lob": { "keys": [[0, "cook", "linear"], [2, "lobWind", "out"], [4, "lobRelease", "out"], [9, "idle", "inOut"]] },
     "pull": { "keys": [[0, "idle", "linear"], [5, "pullDown", "out"], [12, "pullDown", "linear"], [15, "idle", "inOut"]] },
     "steal": { "keys": [[0, "idle", "linear"], [4, "stealGrab", "out"], [10, "stealTwist", "out"], [13, "idle", "inOut"]] },
-    "pinned": { "keys": [[0, "stun", "linear"], [3, "pinned", "out"]] }
+    "pinned": { "keys": [[0, "stun", "linear"], [3, "pinned", "out"]] },
+    "kick": { "keys": [[0, "idle", "linear"], [6, "kickWind", "out"], [9, "kickHit", "out"], [13, "kickHit", "linear"], [18, "idle", "inOut"]] },
+    "takenDown": { "keys": [[0, "stun", "linear"], [4, "choked", "out"]] },
+    "stabDown": { "keys": [[0, "idle", "linear"], [8, "stabRaise", "out"], [14, "stabDownHit", "out"], [18, "stabDownHit", "linear"], [26, "idle", "inOut"]] },
+    "smoke": { "loop": true, "keys": [[0, "smokeHold", "linear"], [70, "smokeHold", "linear"], [80, "smokeDrag", "inOut"], [100, "smokeDrag", "linear"], [110, "smokeHold", "inOut"], [120, "smokeHold", "linear"]] },
+    "wire": { "keys": [[0, "idle", "linear"], [8, "wirePull", "out"], [30, "wirePull2", "inOut"], [45, "wirePull2", "linear"], [53, "idle", "inOut"]] }
   }
 }

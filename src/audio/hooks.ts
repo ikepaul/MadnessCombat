@@ -33,6 +33,7 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
   });
   world.events.on('hit', (e) => {
     lastHitCombo = e.combo;
+    if (e.kind === 'takedown') return;
     const p = at(e.x, e.y, e.z);
     if (e.damage <= 0) {
       if (e.kind !== 'head') play('impact', { ...p, gain: 0.5 }); // punching a corpse
@@ -50,7 +51,8 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
   });
   world.events.on('kill', (e) => {
     if (!isEnemy(e.actorId)) return;
-    play('voxDeath', at(e.x, e.y + 0.7, e.z));
+    // takedowns are silent (melee-stealth-kill)
+    if (e.kind !== 'takedown') play('voxDeath', at(e.x, e.y + 0.7, e.z));
     // kill counter tick, pitched up for combo kills
     play('tick', { rate: lastHitCombo ? 1.35 : 1 });
   });
@@ -102,6 +104,32 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
   });
   world.events.on('pin', (e) => { play('clang', at(e.x, e.y + 0.5, e.z)); play('wall', at(e.x, e.y + 0.5, e.z)); });
   world.events.on('gib', (e) => play('bodyFall', at(e.x, e.y, e.z, { gain: 0.8, rate: 1.3 })));
+  // M7
+  world.events.on('aimStart', (e) => play('telegraph', at(e.x, e.y + 0.6, e.z)));
+  world.events.on('alert', (e) => play('alert', at(e.x, e.y + 1, e.z)));
+  world.events.on('takedown', (e) => {
+    const p = at(e.x, e.y + 0.6, e.z);
+    if (e.phase === 'start') { play('grab', p); if (e.how === 'wire') play('wireStrain', p); }
+    // the kill itself stays quiet: a muffled thunk, no voice
+    else if (e.how === 'knife') play('knifeFlesh', { ...p, gain: 0.6 });
+  });
+  world.events.on('tableFlip', (e) => play('whooshHeavy', at(e.x, 0.4, e.z)));
+  world.events.on('tableLand', (e) => play('woodCrash', at(e.x, 0.3, e.z)));
+  world.events.on('zombieRise', (e) => play(e.phase === 'start' ? 'bodyFall' : 'moan', at(e.x, e.y + 0.5, e.z, e.phase === 'start' ? { gain: 0.4, rate: 0.7 } : {})));
+  world.events.on('zombieHeadless', (e) => play('pullOut', at(e.x, e.y + 0.8, e.z)));
+  let lastWhistle = -Infinity;
+  world.events.on('squadCharge', (e) => {
+    if (world.time - lastWhistle < 1) return;
+    lastWhistle = world.time;
+    play('whistle', at(e.x, e.y + 0.8, e.z));
+  });
+  // zombies moan now and then while they shuffle
+  world.events.on('tick', () => {
+    for (const a of world.actors) {
+      if (a.kind !== 'zombie' || a.state === 'dead' || a.state === 'rising' || Math.random() > world.dt / 4) continue;
+      play('moan', at(a.pos.x, a.pos.y + 0.8, a.pos.z));
+    }
+  });
   world.events.on('doorOpen', (e) => {
     const d = world.room.doors[e.door];
     if (d) play('door', at(d.wall === 'left' ? -world.room.halfWidth : world.room.halfWidth, 1, (d.z0 + d.z1) / 2));

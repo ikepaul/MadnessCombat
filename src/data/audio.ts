@@ -81,6 +81,13 @@ export const SOUNDS = {
   fuse: def('hiss', 'weapons', 0.35, { variants: 2, limit: 2, reverb: 0 }),
   catchSlap: def('slap', 'foley', 0.8, { variants: 3, reverb: 0.05 }),
   clang: def('clang', 'impacts', 0.7, { variants: 3, reverb: 0.3 }),
+  // M7: armed enemies, stealth, zombies (generated)
+  telegraph: def('telegraph', 'weapons', 0.7, { variants: 2, limit: 3, reverb: 0 }),
+  alert: def('alert', 'ui', 0.6, { variants: 1, limit: 2, reverb: 0 }),
+  wireStrain: def('strain', 'foley', 0.7, { variants: 2, limit: 1, reverb: 0.05 }),
+  moan: def('moan', 'voices', 0.5, { variants: 4, limit: 3, reverb: 0.3 }),
+  woodCrash: def('woodCrash', 'impacts', 0.9, { variants: 2, limit: 2, reverb: 0.3 }),
+  whistle: def('whistle', 'voices', 0.5, { variants: 1, limit: 1, reverb: 0.2 }),
   /** Outdoor wind bed: turned down ~8 dB (user: the rain-like hiss was too loud, 2026-10-26). */
   ambWind: def('windLoop', 'world', 0.2, { variants: 1, limit: 1, reverb: 0, loop: true }),
   /** Indoor room tone: turned down ~4 dB with the wind. */

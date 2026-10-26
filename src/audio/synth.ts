@@ -9,7 +9,9 @@ export type Recipe =
   | 'voxEffort' | 'voxHurt' | 'voxDeath' | 'tapeStop' | 'windLoop' | 'roomToneLoop'
   | 'gunPistol' | 'gunHeavy' | 'gunSmg' | 'gunRifle' | 'gunShotgun' | 'gunSuppressed' | 'slideRack'
   // M6
-  | 'explosion' | 'slash' | 'thunk' | 'twang' | 'squelch' | 'ping' | 'clink' | 'slap' | 'clang' | 'hiss';
+  | 'explosion' | 'slash' | 'thunk' | 'twang' | 'squelch' | 'ping' | 'clink' | 'slap' | 'clang' | 'hiss'
+  // M7
+  | 'telegraph' | 'alert' | 'strain' | 'moan' | 'woodCrash' | 'whistle';
 
 /** Seeded RNG (mulberry32) so variants are stable between runs. */
 function rng(seed: number): () => number {
@@ -286,6 +288,54 @@ export function render(recipe: Recipe, sr: number, seed: number): Float32Array {
       const b = new Buf(sr, 0.25);
       for (const [t0, g] of [[0, 0.8], [0.11, 1]] as const) noise(b, r, () => 6500, (t) => (t < t0 ? 0 : Math.exp(-(t - t0) / 0.008)), g, 1500);
       return normalise(b.d, 0.6);
+    }
+    case 'telegraph': {
+      // the aim telegraph (PLAN.md M7): a gun-raise clack, then a thin tone rising over 0.4 s
+      const b = new Buf(sr, 0.45);
+      noise(b, r, () => 5500, ad(0.0005, 0.01), 1, 1200);
+      tone(b, (t) => 900 + 1500 * (t / 0.4) ** 1.5, (t) => (t < 0.03 ? 0 : Math.min(1, (t - 0.03) / 0.3) * (t < 0.4 ? 1 : Math.max(0, 1 - (t - 0.4) / 0.05))), 0.35);
+      return normalise(b.d, 0.45);
+    }
+    case 'alert': {
+      // an unaware enemy notices: a short two-step rising sting under the "!" mark
+      const b = new Buf(sr, 0.22);
+      tone(b, (t) => (t < 0.07 ? 660 : 990), ad(0.003, 0.08), 0.8);
+      tone(b, (t) => (t < 0.07 ? 1320 : 1980), ad(0.003, 0.05), 0.25);
+      return normalise(b.d, 0.4);
+    }
+    case 'strain': {
+      // the wire takedown: a taut creaking wire and a choked struggle, ~1.4 s
+      const b = new Buf(sr, 1.4);
+      tone(b, (t) => 180 + 30 * Math.sin(t * 23), swell(0.3, 1.4), 0.35, 'saw');
+      noise(b, r, (t) => 1400 + 800 * Math.sin(t * 17) ** 2, swell(0.25, 1.4), 0.6, 400);
+      return normalise(bandpass(b.d, sr, jitter(700), 2), 0.35);
+    }
+    case 'moan': {
+      // zombie: a slow low groan through a closing vowel
+      const len = jitter(1.3, 0.2), src = new Buf(sr, len), f0 = jitter(85, 0.15);
+      tone(src, (t) => f0 * (1 + 0.12 * Math.sin(t * 5)) * (1 - 0.15 * (t / len)), swell(len * 0.4, len), 1, 'saw');
+      noise(src, r, () => 1500, swell(len * 0.4, len), 0.3, 200);
+      const a = bandpass(src.d, sr, jitter(380, 0.1), 5), c = bandpass(src.d, sr, jitter(800, 0.1), 7);
+      for (let i = 0; i < src.n; i++) src.d[i] = a[i] + 0.4 * c[i];
+      return normalise(src.d, 0.4);
+    }
+    case 'woodCrash': {
+      // a table slamming onto its side: wooden thud + rattle of the legs
+      const b = new Buf(sr, 0.5);
+      tone(b, (t) => jitter(140, 0.1) * Math.exp(-t * 7) + 50, ad(0.002, 0.09), 1);
+      noise(b, r, () => 1200, ad(0.001, 0.05), 0.8, 150);
+      for (let k = 0; k < 3; k++) {
+        const t0 = 0.06 + k * jitter(0.05, 0.3);
+        noise(b, r, () => 2600, (t) => (t < t0 ? 0 : Math.exp(-(t - t0) / 0.015)), 0.35, 600);
+      }
+      return normalise(b.d, 0.75);
+    }
+    case 'whistle': {
+      // the squad's charge signal: a sharp two-note whistle
+      const b = new Buf(sr, 0.4);
+      tone(b, (t) => (t < 0.16 ? 2100 : 2700) * (1 + 0.01 * Math.sin(t * 60)), (t) => (t < 0.01 ? t / 0.01 : t < 0.36 ? 1 : Math.max(0, 1 - (t - 0.36) / 0.04)), 0.6);
+      noise(b, r, () => 4000, (t) => (t < 0.38 ? 0.3 : 0), 0.15, 2000);
+      return normalise(b.d, 0.35);
     }
     case 'tapeStop': {
       const b = new Buf(sr, 0.35);

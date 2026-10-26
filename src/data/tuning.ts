@@ -50,6 +50,43 @@ export const TUNING = {
   },
 
   /** Hit points. research/design-decisions.md: grunts die from 1 good hit, the player survives ~3. */
+  /** M7 stealth (melee-stealth-kill, move-drop-from-above). */
+  stealth: {
+    /** melee-stealth-kill: knife takedown ~0.6 s from contact (ep3 f620-f640). */
+    knife: 0.6,
+    /** melee-stealth-kill: wire 3 s on screen, shortened to 1.5 s (decided in the note). */
+    wire: 1.5,
+    /** Takedown reach behind an unaware enemy (centre to centre, H) and depth band. invented */
+    reach: 0.7,
+    depthBand: 0.25,
+    /** move-drop-from-above: landing this close to an unaware enemy goes straight into the kill. invented */
+    dropReach: 0.7,
+    /** Sight: a player in front within this distance (x) and depth is noticed after `notice` s. invented */
+    sight: 4,
+    sightDepth: 1.5,
+    notice: 0.3,
+    /** A loud death alerts unaware enemies within this distance (H); seeing one alerts others within it. invented */
+    hearDeath: 3.5,
+    /** Patrols walk at this command share and wait at each end. invented */
+    patrolSpeed: 0.35,
+    patrolWait: 1.2,
+  },
+  /** M7 zombies (enemy-zombie). */
+  zombie: {
+    /** enemy-zombie: bolt -> standing ~1.0 s (ep1 f1485-f1520). */
+    rise: 1.0,
+    /** enemy-zombie: walk 0.7-0.9 H/s (ep1 f1525-f1555), as a share of the calm walk (zombies never combat-walk). */
+    speed: 0.8 / 1.1,
+    /** enemy-zombie: ~3 bullet hits; a melee weapon takes 2 (the note's 1-3 axe hits). invented split */
+    hp: 3,
+    weaponHit: 1.5,
+    /** Headless, it takes one more hit (enemy-zombie, invented). */
+    headlessHp: 0.5,
+    /** Light hits only make it twitch (no stun lock). invented */
+    flinch: 0.12,
+    /** A melee weapon within this distance is taken up on rising. invented */
+    weaponReach: 0.6,
+  },
   health: {
     /** decided with the user (2026-10-26): 4 light or 2 heavy hits (light 1, heavy 2). */
     grunt: 4,
@@ -200,6 +237,48 @@ export const TUNING = {
     /** Seconds between a knife grunt's throw attempts, and the chance per attempt. invented */
     knifeThrowEvery: 2.5,
     knifeThrowChance: 0.5,
+    /** enemy-behaviours: an unarmed grunt walks over to a floor weapon within this distance (H). */
+    scavenge: 2,
+    /** ...but not one lying within this distance of a player. invented */
+    scavengeClear: 1.5,
+    /** combat-cover: share of gun grunts that kick a table over for cover. invented (the note's one in four) */
+    flipChance: 0.25,
+    /** PLAN.md M7: one enemy grenade per encounter (wave); chance per aim opportunity to lob it instead. invented */
+    grenadeChance: 0.2,
+    /** Grenades are lobbed at players 2.5-4 H away with no other grunt within this of the player. invented */
+    grenadeRange: [2.5, 4] as const,
+    grenadeClear: 2.2,
+    /** Cook before the lob (s). invented */
+    grenadeCook: 0.35,
+    /** enemy-squad-leader: the squad waits within this of its leader (half-width), fights anyone within `squadEngage`. invented */
+    squadSpread: 1,
+    squadEngage: 1.4,
+    /** enemy-elite-bodyguard: distance from the VIP (each guard on one side). invented */
+    guardGap: 0.8,
+    /** enemy-elite-bodyguard: hits to kill (invented; a head shot always kills). */
+    bodyguardHits: 2,
+    /** M7 ranged grunts (enemy-grunt-armed). */
+    ranged: {
+      /** Keep this far from the player in x (H): pistols/rifles, and shotguns (close range). invented within the note's 3-5 H */
+      keep: [3, 5] as const,
+      keepShotgun: [1.4, 2.4] as const,
+      /** Aim telegraph: gun raised + red line this long before the shot. enemy-grunt-armed: ~0.4 s (invented) */
+      telegraph: 0.4,
+      /** Seconds between shots (or bursts). PLAN.md M7: 0.6-1.2 s (invented) */
+      interval: [0.6, 1.2] as const,
+      /** Aim error at the target (H, +-): roughly half the shots land. invented */
+      aimError: 0.3,
+      /** Automatic guns fire a burst this long. invented */
+      burst: 0.35,
+      /** At most this many grunts aim at one player at once. invented */
+      maxAimers: 2,
+      /** First shot after walking in waits at least this long. invented */
+      settle: 0.8,
+      /** Cover: a table within this x distance of the firing spot is used (combat-cover). invented */
+      coverRange: 2.5,
+      /** enemy-behaviours: with an ally in the line of fire, a grunt holds fire and sidesteps this often (the rest = friendly fire). invented */
+      holdFire: 0.75,
+    },
   },
 
   /** enemy-spawning: wave scripts. */

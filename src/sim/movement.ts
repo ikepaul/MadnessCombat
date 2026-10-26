@@ -13,6 +13,8 @@ export const DIVE_TIME = PRONE.downTime * 2; // the forward dive is a longer dro
 
 /** Combat walk whenever an enemy is in the room or the player is armed (invented rule, PLAN.md M1). */
 export function inCombat(world: World, a: Actor): boolean {
+  // zombies only ever shuffle (enemy-zombie)
+  if (a.kind === 'zombie') return false;
   return a.hands.some((h) => h !== null) || world.actors.some((o) => o !== a && o.kind !== 'hero' && alive(o));
 }
 

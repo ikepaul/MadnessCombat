@@ -74,6 +74,12 @@ export interface Pose {
   hurt: number;
   /** A cooked grenade in the front hand (M6). */
   grenade?: boolean;
+  /** Enemy aim telegraph progress 0..1 (gun raised, red line); undefined = not aiming (M7). */
+  telegraph?: number;
+  /** Zombie green spreading over the body while it rises, 0..1 (M7). */
+  green?: number;
+  /** enemy-behaviours: the last enemy of a wave sweats (M7). */
+  sweat?: boolean;
 }
 
 export type MoveState = 'ground' | 'air' | 'goingProne' | 'diving' | 'prone' | 'standingUp';
@@ -105,14 +111,14 @@ export interface Body {
  * (idle / walk / jump / prone, see stateLabel()). `downed` = a co-op hero out of lives, lying
  * in a revive circle until a teammate stands in it (PLAN.md co-op milestone).
  */
-export type ActorState = 'free' | 'attack' | 'stun' | 'knockback' | 'down' | 'getUp' | 'grabbed' | 'dead' | 'downed';
+export type ActorState = 'free' | 'attack' | 'stun' | 'knockback' | 'down' | 'getUp' | 'grabbed' | 'dead' | 'downed' | 'rising';
 
 /**
  * Punches (M2), the body throw, and the M6 actions: `swing` a melee weapon, `thrust` the long
  * weapon (pins), `toss` a held weapon (knife, axe, ...), `lob` a cooked grenade, `pull` a stuck
  * blade / the planted sign, `steal` an enemy's weapon.
  */
-export type AttackKind = 'light' | 'heavy' | 'uppercut' | 'finisher' | 'throw' | 'swing' | 'thrust' | 'toss' | 'lob' | 'pull' | 'steal';
+export type AttackKind = 'light' | 'heavy' | 'uppercut' | 'finisher' | 'throw' | 'swing' | 'thrust' | 'toss' | 'lob' | 'pull' | 'steal' | 'flip' | 'takedown';
 
 export interface Attack {
   kind: AttackKind;
@@ -134,6 +140,8 @@ export interface Attack {
   fuse?: number;
   /** The weapon a swing / toss started with (a stolen or dropped one stops the swing). */
   weapon?: string;
+  /** Table flip: index of the prop in room.props (M7). */
+  prop?: number;
 }
 
 /** Ballistic flight of a knocked-back, killed or thrown body. */
@@ -223,6 +231,10 @@ export interface Actor {
   catchAt?: number;
   /** Hits absorbed while held as a human shield (combat-human-shield). */
   shieldHits?: number;
+  /** M7 grunt variants: squad leader (shades, gun), elite bodyguard (2 hits, headshot 1), the VIP they guard. */
+  variant?: 'leader' | 'bodyguard' | 'vip';
+  /** Being taken down (stealth kill) by this actor: held still until the kill (M7). */
+  takenBy?: number;
   /** Enemy AI memory (src/sim/ai.ts). */
   ai?: import('./ai').AiState;
   /** Lab/AI controller; the player is driven by World.command instead. */

@@ -32,6 +32,9 @@ export interface ActorSnap {
   pose: Pose;
   hands: Actor['hands'];
   grenades: number;
+  /** M7: grunt variant, and what an unaware enemy is doing (the painter draws the cigarette). */
+  variant?: Actor['variant'];
+  unaware?: 'stand' | 'smoke' | 'patrol';
 }
 
 export interface Snapshot {
@@ -44,6 +47,8 @@ export interface Snapshot {
   actors: ActorSnap[];
   items: Item[];
   doors: number[];
+  /** M7: props change in play (kicked-over tables). */
+  props: World['room']['props'];
   kills: number;
   lastKillKind?: ActorKind;
   /** Sim events since the last snapshot, in order. */
@@ -57,6 +62,7 @@ function snapActor(a: World['actors'][number]): ActorSnap {
     hp: a.hp, maxHp: a.maxHp, revive: a.revive, entering: a.entering,
     bodyState: a.body.state, bodyHeight: a.body.height, corpse: a.corpse?.phase, gibbed: a.corpse?.gibbed, pinned: a.corpse?.pinned,
     pose: a.pose, hands: a.hands, grenades: a.grenades,
+    variant: a.variant, unaware: a.ai?.aware === false ? a.ai.idle ?? 'stand' : undefined,
   };
 }
 
@@ -86,7 +92,7 @@ export class SnapshotWriter {
     const actors = w.actors.filter((a) => full || a.corpse?.phase !== 'frozen' || this.justFrozen.has(a.id)).map(snapActor);
     const snap: Snapshot = {
       session: this.session, roomId: w.room.id, tick: w.tick, full, actors,
-      items: w.items, doors: w.doors.map((d) => d.open), kills: w.kills, lastKillKind: w.lastKillKind,
+      items: w.items, doors: w.doors.map((d) => d.open), props: w.room.props, kills: w.kills, lastKillKind: w.lastKillKind,
       events: full ? [] : this.events,
     };
     this.events = [];
@@ -124,12 +130,16 @@ export function applySnapshot(world: World, s: Snapshot): void {
     if (as.corpse) a.corpse = { phase: as.corpse, t: 0, raisable: !as.gibbed, gibbed: !!as.gibbed, slumped: false, pinned: as.pinned };
     else a.corpse = undefined;
     if (as.enemy && !a.ai) a.ai = newAiState(world);
+    a.kind = as.kind;
+    a.variant = as.variant;
+    if (a.ai) { a.ai.aware = as.unaware ? false : true; a.ai.idle = as.unaware; }
     if (as.playerIndex !== undefined) {
       a.playerIndex = as.playerIndex;
       world.players[as.playerIndex] = a;
     }
   }
   world.items = s.items;
+  if (s.props) world.room.props = s.props;
   s.doors.forEach((open, i) => { if (world.doors[i]) world.doors[i].open = open; });
   world.tick = s.tick;
   for (const [type, payload] of s.events) world.events.emit(type, payload as never);

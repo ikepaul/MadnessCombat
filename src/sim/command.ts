@@ -34,6 +34,8 @@ export interface PlayerCommand {
   split?: boolean;
   /** G held: pull a grenade's pin and cook it; releasing G lobs it toward the cursor (M6). */
   grenade?: boolean;
+  /** Brains only (M7): kick over the table at this index in room.props (combat-cover). */
+  flip?: number;
 }
 
 export const IDLE_COMMAND: PlayerCommand = { moveX: 0, moveZ: 0, jump: false, dive: false, attack: null, grab: false };

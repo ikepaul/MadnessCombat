@@ -1,9 +1,11 @@
 import Phaser from 'phaser';
+import { raiseAll } from '../sim/zombies';
 import { PALETTES, type PaletteId, paletteStage, STAGE_BLOOD, STAGE_PALETTE } from '../data/palettes';
 import { TEST_ROOM } from '../data/rooms/testRoom';
 import { bindDebugKeys } from '../input/debugKeys';
 import { PlayerInput } from '../input/playerInput';
 import '../labs/aiLabs';
+import '../labs/enemyLabs';
 import '../labs/gunLabs';
 import '../labs/meleeLabs';
 import '../labs/throwLabs';
@@ -180,6 +182,7 @@ export class GameScene extends Phaser.Scene {
       togglePost: () => this.post.setEnabled(!this.post.enabled),
       spawnCorpses: () => { if (host) this.world.spawnCorpses(20); },
       dropGuns: () => { if (host) this.dropGuns(); },
+      raiseAll: () => { if (host) raiseAll(this.world); },
       cycleEffects: () => cycleEffects(),
       toggleMute: () => {
         SETTINGS.master = SETTINGS.master > 0 ? 0 : 0.8;
@@ -242,6 +245,7 @@ export class GameScene extends Phaser.Scene {
   /** Co-op guest: an empty puppet world until the host's first snapshot arrives. */
   private setupGuest(): void {
     this.world = new World(STAGE1.rooms.arena.room);
+    this.world.puppet = true;
     const link = (this.link = coopLink('guest'));
     link.onSnap = (s) => this.applySnap(s);
   }

@@ -7,7 +7,9 @@ import { DISARM, GRENADE, MELEE, SHIELD } from '../data/melee';
 import { GUNS, isWeapon, WEAPONS } from '../data/weapons';
 import { stepHands } from './guns';
 import { blastFlight } from './explosives';
-import { ACTION_KINDS, actionTiming, disarm, dropCooking, holdsLong, lobHeldGrenade, startMeleeAction, stealTarget, stepAction, stepGrenade } from './melee';
+import { tryTakedown } from './stealth';
+import { stepRising, zombieDamage, zombieLosesHead } from './zombies';
+import { ACTION_KINDS, actionTiming, disarm, dropCooking, holdsLong, lobHeldGrenade, startAction, startMeleeAction, stealTarget, stepAction, stepGrenade } from './melee';
 import { project, unprojectFloor } from '../render/camera';
 import { type Actor, type AttackKind, alive, type Flight } from './actor';
 import { clamp, moveWithCollision, surfaceBelow } from './collision';
@@ -45,6 +47,8 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
 
   // throw-catch-return: F opens a short window to catch a thrown weapon
   if (cmd.grab) a.catchAt = world.time;
+  // M7: E behind an unaware enemy is a takedown (before E picks anything up)
+  if (a.state === 'free' && tryTakedown(world, a, cmd)) cmd = { ...cmd, pickup: false };
   // a hand holding a gun fires instead of punching (M5): LMB = hand 0, RMB = hand 1
   if (a.state === 'free' || a.state === 'attack') {
     cmd = withoutGunPunches(a, cmd);
@@ -60,6 +64,8 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
         cmd = { ...cmd, attack: a.queued.kind, aim: a.queued.aim };
       }
       a.queued = undefined;
+      // M7: a grunt kicks a table over for cover
+      if (cmd.flip !== undefined && b.state === 'ground' && !a.holding) { startAction(world, a, 'flip', cmd, { prop: cmd.flip }); break; }
       // M6: a melee weapon in the hand swings / stabs / is thrown instead of punching
       if (a.cook === undefined && startMeleeAction(world, a, cmd)) break;
       cmd = withoutItemPunches(a, cmd);
@@ -74,7 +80,7 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
       }
       stepLocomotion(world, a, cmd, dt);
       if (b.state === 'diving' && b.sweep) sweepContact(world, a);
-      setClip(a, a.cook !== undefined ? 'cook' : a.holding ? 'carry' : holdsLong(a) ? 'holdLong' : 'idle');
+      setClip(a, a.cook !== undefined ? 'cook' : a.holding ? 'carry' : holdsLong(a) ? 'holdLong' : a.ai?.aware === false && a.ai.idle === 'smoke' ? 'smoke' : 'idle');
       break;
     }
     case 'attack': {
@@ -83,7 +89,7 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
       // in the air the jump carries on; on the ground keep walking through a swing
       // (finishers, item throws, pulls and steals are planted)
       if (a.body.state === 'air') stepAirborneAction(world, a, cmd, dt);
-      else if (k !== 'finisher' && k !== 'toss' && k !== 'lob' && k !== 'pull' && k !== 'steal') stepAttackMove(world, a, cmd, dt);
+      else if (k !== 'finisher' && k !== 'toss' && k !== 'lob' && k !== 'pull' && k !== 'steal' && k !== 'flip' && k !== 'takedown') stepAttackMove(world, a, cmd, dt);
       else a.pose.walkPhase = undefined;
       stepAttack(world, a);
       break;
@@ -119,6 +125,9 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
       break; // positioned by the holder (World.updateHeld)
     case 'dead':
       stepCorpse(world, a, dt);
+      break;
+    case 'rising':
+      stepRising(world, a);
       break;
   }
   a.pose.dead = a.state === 'dead';
@@ -279,6 +288,8 @@ const DAMAGE: Record<HitKind, number> = {
   // M6: melee weapons and thrown blades are one-hit kills on grunts (melee-weapons, throw-knives);
   // the explosion and the pin kill outright
   stab: MELEE.knife.damage, slash: 4, smash: 4, knife: 4, blast: 99, pin: 99,
+  // M7: the stealth kill always kills
+  takedown: 99,
 };
 
 /**
@@ -298,9 +309,12 @@ export function applyHit(
   const corpse = o.state === 'dead';
   const base = bullet ? bullet.damage : kind === 'gun' && part === 'head' ? GUNS.throwHead : kind === 'finisher' && heavy ? M.finisher.heavyDamage : DAMAGE[kind];
   const combo = !corpse && base > 0 && o.kind !== 'hero' && MELEE_KINDS.includes(kind) && chainBonus(world, by, o, kind);
-  const damage = corpse || base <= 0 ? 0 : o.kind === 'hero' ? 1 : base + (combo ? C_.bonus : 0);
+  const damage = corpse || base <= 0 ? 0 : o.kind === 'hero' ? 1 : o.kind === 'zombie' ? zombieDamage(kind, base)
+    : o.variant === 'bodyguard' ? (part === 'head' || base >= 99 ? o.hp : 1) : base + (combo ? C_.bonus : 0);
   o.hp = Math.max(0, o.hp - damage);
-  const killed = !corpse && o.hp <= 0;
+  let killed = !corpse && o.hp <= 0;
+  // enemy-zombie: the head comes off and it keeps going (one more hit)
+  if (!corpse && damage < 99 && (killed || part === 'head') && zombieLosesHead(world, o, kind, part, killed, dirX, dirZ)) killed = false;
   if (o.corpse?.phase !== 'frozen') o.pose.impact = H.impact;
   if (o.kind === 'hero' && damage > 0) o.pose.hurt = H.hurtFlash;
   if ((damage > 0 || corpse) && o.corpse?.phase !== 'frozen') addWound(o, at, part);
@@ -331,6 +345,8 @@ export function applyHit(
   switch (airborne && kind === 'light' ? 'heavy' : kind) {
     case 'light':
     case 'stab':
+      // enemy-zombie: light hits only make a zombie twitch
+      if (o.kind === 'zombie') { o.state = 'stun'; o.stateT = 0; o.stunFor = TUNING.zombie.flinch; o.pose.lean = -0.2; setClip(o, 'stun'); break; }
       // combat-disarm: a punch knocks the weapon away 30% of the time (kicks and sweeps always: knockdowns drop it)
       if (kind === 'light' && o.kind !== 'hero' && (o.hands[0] || o.hands[1]) && world.rng() < DISARM.punchChance) disarm(world, by, o, 'knock', dirX);
       o.state = 'stun';
@@ -399,6 +415,8 @@ function launch(kind: HitKind, dirX: number, dirZ: number): Pick<Flight, 'vx' | 
     return { vx: ux * v, vz: uz * v, vy, airtime };
   }
   if (kind === 'finisher') return { vx: 0, vz: 0, vy: 0, airtime: 0.01 };
+  // a takedown victim slumps forward where he stood
+  if (kind === 'takedown') { dist = 0.25; airtime = 0.4; skid = 0.1; }
   if (kind === 'blast') return blastFlight(dirX, dirZ);
   // distance covered in the air at constant speed plus a linearly decelerating skid
   const v = dist / (airtime + skid / 2);
@@ -445,7 +463,8 @@ function die(world: World, o: Actor, by: Actor | undefined, kind: HitKind, dirX:
   o.state = 'dead';
   o.stateT = 0;
   o.hp = 0;
-  o.corpse = { phase: 'tumble', t: 0, raisable: true, gibbed: false, slumped: false };
+  // a zombie that falls again stays down (enemy-zombie: only fresh corpses rise)
+  o.corpse = { phase: 'tumble', t: 0, raisable: o.kind === 'grunt', gibbed: false, slumped: false };
   world.events.emit('kill', { actorId: o.id, byId: by?.id ?? 0, kind, decap, ...o.pos });
   creditKill(world, by?.id);
   if (decap) {

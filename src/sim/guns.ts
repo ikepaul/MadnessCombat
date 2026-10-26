@@ -100,8 +100,8 @@ export function stepHands(world: World, a: Actor, cmd: PlayerCommand, dt: number
     const i = gunIn(front) ? 0 : !front && gunIn(a.hands[1]) ? 1 : -1;
     if (i >= 0) throwGun(world, a, i as 0 | 1, cmd);
   }
-  // players only for now: armed grunts pick weapons up in M7
-  if (a.playerIndex !== undefined && (cmd.pickup || (!a.hands[0] && !a.hands[1]))) pickUp(world, a, !!cmd.pickup, cmd);
+  // players also walk over weapons with empty hands; grunts pick up when their brain says so (M7)
+  if (a.playerIndex !== undefined ? cmd.pickup || (!a.hands[0] && !a.hands[1]) : cmd.pickup) pickUp(world, a, !!cmd.pickup, cmd);
 }
 
 /** gun-reload: one hand at a time, only with a spare and only when not dual-wielding (proposal). */

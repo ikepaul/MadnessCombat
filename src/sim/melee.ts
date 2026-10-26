@@ -10,14 +10,16 @@ import { project, type ScreenPoint, scaleAt, unprojectFloor } from '../render/ca
 import { type Actor, alive, type AttackKind, type HeldItem, newHand } from './actor';
 import { applyHit, setClip } from './combat';
 import type { PlayerCommand } from './command';
+import { COVER, flipTable } from './cover';
 import { explode } from './explosives';
+import { stepTakedown, takedownTiming } from './stealth';
 import { dropHeld, type Item, lobVelocity, spawnItem } from './items';
 import type { World } from './world';
 
 const F = 1 / 30;
 
 /** The M6 actions that run in the `attack` state. */
-export const ACTION_KINDS: AttackKind[] = ['swing', 'thrust', 'toss', 'lob', 'pull', 'steal'];
+export const ACTION_KINDS: AttackKind[] = ['swing', 'thrust', 'toss', 'lob', 'pull', 'steal', 'flip', 'takedown'];
 
 export function meleeIn(a: Actor, i: 0 | 1): MeleeDef | undefined {
   const h = a.hands[i];
@@ -42,20 +44,23 @@ export function actionTiming(kind: AttackKind, weapon?: string): { startup: numb
     case 'lob': return { startup: GRENADE.lobWindup, active: 0, recovery: GRENADE.lobRecovery };
     case 'pull': return { startup: THROWN.pull, active: 0, recovery: 3 * F };
     case 'steal': return { startup: DISARM.steal, active: 0, recovery: 3 * F };
+    case 'flip': return { startup: COVER.flipKick, active: 0, recovery: COVER.flipRecovery };
+    case 'takedown': return takedownTiming(weapon);
     default: return { startup: 0, active: 0, recovery: 0 };
   }
 }
 
-const CLIP: Partial<Record<AttackKind, string>> = { thrust: 'thrust', toss: 'throwOne', lob: 'lob', pull: 'pull', steal: 'steal' };
+const CLIP: Partial<Record<AttackKind, string>> = { thrust: 'thrust', toss: 'throwOne', lob: 'lob', pull: 'pull', steal: 'steal', flip: 'kick' };
 
 function clipFor(kind: AttackKind, weapon?: string): string {
+  if (kind === 'takedown') return weapon === 'wire' ? 'wire' : 'stabDown';
   if (kind === 'swing') return weapon === 'knife' ? 'stab' : weapon && isMelee(weapon) && MELEE[weapon].twoHanded ? 'swingLong' : 'swing';
   return CLIP[kind] ?? 'idle';
 }
 
 /** Enter the attack state for an M6 action. */
-export function startAction(world: World, a: Actor, kind: AttackKind, cmd: Pick<PlayerCommand, 'aim' | 'face'>, extra: { hand?: 0 | 1; itemId?: number; targetId?: number; fuse?: number } = {}): void {
-  const weapon = extra.hand !== undefined ? a.hands[extra.hand]?.item ?? undefined : undefined;
+export function startAction(world: World, a: Actor, kind: AttackKind, cmd: Pick<PlayerCommand, 'aim' | 'face'>, extra: { hand?: 0 | 1; itemId?: number; targetId?: number; fuse?: number; prop?: number; weapon?: string } = {}): void {
+  const weapon = extra.weapon ?? (extra.hand !== undefined ? a.hands[extra.hand]?.item ?? undefined : undefined);
   if (cmd.face) a.facing = cmd.face;
   else if (cmd.aim && (kind === 'toss' || kind === 'lob')) {
     const [sx] = project(a.pos.x, a.pos.y + 0.5, a.pos.z);
@@ -63,8 +68,8 @@ export function startAction(world: World, a: Actor, kind: AttackKind, cmd: Pick<
   }
   a.state = 'attack';
   a.stateT = 0;
-  a.attack = { kind, heavy: false, t: 0, done: false, hand: extra.hand, hits: [], aim: cmd.aim, weapon: weapon ?? undefined, itemId: extra.itemId, targetId: extra.targetId, fuse: extra.fuse };
-  if ((kind === 'toss' || kind === 'lob' || kind === 'pull' || kind === 'steal') && a.body.state !== 'air') a.body.vel = { x: 0, y: 0, z: 0 };
+  a.attack = { kind, heavy: false, t: 0, done: false, hand: extra.hand, hits: [], aim: cmd.aim, weapon: weapon ?? undefined, itemId: extra.itemId, targetId: extra.targetId, fuse: extra.fuse, prop: extra.prop };
+  if ((kind === 'toss' || kind === 'lob' || kind === 'pull' || kind === 'steal' || kind === 'flip' || kind === 'takedown') && a.body.state !== 'air') a.body.vel = { x: 0, y: 0, z: 0 };
   setClip(a, clipFor(kind, weapon ?? undefined));
   if (kind === 'pull') {
     const it = world.items.find((i) => i.id === extra.itemId);
@@ -158,6 +163,12 @@ export function stepAction(world: World, a: Actor): void {
     }
     case 'pull':
       if (start) { atk.done = true; finishPull(world, a, atk.itemId!); }
+      break;
+    case 'flip':
+      if (start) { atk.done = true; flipTable(world, a, atk.prop!); }
+      break;
+    case 'takedown':
+      stepTakedown(world, a, start);
       break;
     case 'steal':
       if (start) { atk.done = true; finishSteal(world, a, atk.targetId!); }
