@@ -70,8 +70,10 @@ export const SOUNDS = {
   hitMetal: def('impact', 'impacts', 0.5, { variants: 5, reverb: 0.2, files: kenney('impactMetal_medium_', FIVE) }),
   hitWood: def('impact', 'impacts', 0.6, { variants: 5, reverb: 0.2, files: kenney('impactWood_light_', FIVE) }),
   hitConcrete: def('impact', 'impacts', 0.5, { variants: 5, reverb: 0.2, files: kenney('impactMining_', FIVE) }),
-  ambWind: def('windLoop', 'world', 0.5, { variants: 1, limit: 1, reverb: 0, loop: true }),
-  ambRoom: def('roomToneLoop', 'world', 0.5, { variants: 1, limit: 1, reverb: 0, loop: true }),
+  /** Outdoor wind bed: turned down ~8 dB (user: the rain-like hiss was too loud, 2026-10-26). */
+  ambWind: def('windLoop', 'world', 0.2, { variants: 1, limit: 1, reverb: 0, loop: true }),
+  /** Indoor room tone: turned down ~4 dB with the wind. */
+  ambRoom: def('roomToneLoop', 'world', 0.3, { variants: 1, limit: 1, reverb: 0, loop: true }),
 } satisfies Record<string, SoundDef>;
 
 export type SoundId = keyof typeof SOUNDS;
