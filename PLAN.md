@@ -59,7 +59,7 @@ Not covered by a milestone: **the music itself** (the user composes it from the 
 - Sounds come from CC0/royalty-free sources and are logged in `assets/audio/LICENSES.md`. A session that needs to download sound packs **asks the user first** (name, source, size).
 
 ### Controls (keyboard + mouse, rebinding in M13)
-WASD move (W/S = depth) · Space jump · Ctrl dive/prone · mouse aim · LMB / RMB use left / right hand (fire, swing, or punch when empty) · F grab / throw grabbed / catch · Q throw the held weapon · E pick up / interact / takedown · G grenade (hold to cook) · R reload · Shift (hold) split-aim · F1 debug overlay · F2 slow-motion 0.25× · F3 pause + frame-step.
+WASD move (W/S = depth) · Space jump · Ctrl dive/prone · mouse aim · LMB / RMB use left / right hand (fire, swing, or punch when empty) · F grab / throw grabbed / catch · Q throw the held weapon · E pick up / interact / takedown · G grenade (hold to cook) · R reload · Shift (hold) split-aim · F1 debug overlay · F2 slow-motion 0.25× · F3 pause · F4 / `.` frame-step · 1/2/3 stage palettes · P post FX.
 
 ### How to verify a mechanic
 1. **Unit tests** (Vitest, headless sim) assert the numbers in each milestone's acceptance list. Tolerance: ±1 source frame (≈ 0.033 s) for timings, ±5% for distances/speeds unless stated. Events are asserted too (a kill emits `kill` with the right hit-stop and shake values).
@@ -77,16 +77,18 @@ WASD move (W/S = depth) · Space jump · Ctrl dive/prone · mouse aim · LMB / R
 **Read first:** `research/README.md`, `research/design-decisions.md`, `design/art-direction.md`, `design/style-frame/index.html`, this file's ground rules.
 
 Build:
-- [ ] Vite + TS + Phaser 4 project, `.nvmrc` (26), scripts `dev`, `build`, `typecheck`, `test`. Add a `dev` entry to `.claude/launch.json` (port 5173) next to the existing `style-frame` one.
-- [ ] Fixed-step loop (60 Hz) with accumulator. Sim/render split. Time controls: time scale (slow-mo), hit-stop counter (frames to freeze), pause/frame-step.
-- [ ] Event bus (typed events, sim → subscribers).
-- [ ] `camera.ts` with the measured projection. `palettes.ts` (3 stage palettes + shared tokens). `feel.ts` skeleton.
-- [ ] **Room renderer** ported from the style frame: walls/ceiling/floor fills, depth gradients, baseboards, ink edges, doors (open/closed), key light (blurred cone + pool + bloom), props (table box), affordance markers (vent). Baked into a texture per room.
-- [ ] **Character renderer** ported from the style frame (head with form shading + specular + slit face, body tube + shade band, mitten hands, feet, contact shadow, hero/grunt/zombie variants), driven by a pose object. A static test pose in the room is enough here.
-- [ ] **Post FX pipeline** as Phaser 4 filters/shaders: film grain, vignette, bloom on light sources; placeholders for chromatic split and kill-cam tint (used in M4).
-- [ ] Debug overlay: H grid on the floor, depth lines, frame counter, FPS.
-- [ ] Lab scene: `/?lab=<slug>` registry and an index page listing slugs from `research/clips.json` with "not built yet" markers.
-- [ ] Bundle Anton + Inter. `CLAUDE.md` with the ground rules summary and pointers to `PLAN.md`, `research/`, `design/`.
+- [x] Vite + TS + Phaser 4 project, `.nvmrc` (26), scripts `dev`, `build`, `typecheck`, `test`. Add a `dev` entry to `.claude/launch.json` (port 5173) next to the existing `style-frame` one.
+- [x] Fixed-step loop (60 Hz) with accumulator. Sim/render split. Time controls: time scale (slow-mo), hit-stop counter (frames to freeze), pause/frame-step.
+- [x] Event bus (typed events, sim → subscribers).
+- [x] `camera.ts` with the measured projection. `palettes.ts` (3 stage palettes + shared tokens). `feel.ts` skeleton.
+- [x] **Room renderer** ported from the style frame: walls/ceiling/floor fills, depth gradients, baseboards, ink edges, doors (open/closed), key light (blurred cone + pool + bloom), props (table box), affordance markers (vent). Baked into a texture per room.
+- [x] **Character renderer** ported from the style frame (head with form shading + specular + slit face, body tube + shade band, mitten hands, feet, contact shadow, hero/grunt/zombie variants), driven by a pose object. A static test pose in the room is enough here.
+- [x] **Post FX pipeline**: film grain (tiling overlay), vignette (baked radial gradient; Phaser's Vignette filter has a hard edge), lamp bloom baked into the room layer; stubs for chromatic split and kill-cam tint (ColorMatrix filter) for M4.
+- [x] Debug overlay: H grid on the floor, depth lines, frame counter, FPS.
+- [x] Lab scene: `/?lab=<slug>` registry and an index page listing slugs from `research/clips.json` with "not built yet" markers.
+- [x] Bundle Anton + Inter. `CLAUDE.md` with the ground rules summary and pointers to `PLAN.md`, `research/`, `design/`.
+
+Done: see `CLAUDE.md` for the resulting architecture.
 
 Acceptance: all four npm scripts work · a unit test steps the sim 60 ticks = 1.0 s · `project()` matches the style frame (front-edge character 0.247 screen height, back wall 0.185, horizon 0.53) · a side-by-side screenshot of the empty room and the style frame shows the same room look in all three palettes.
 
