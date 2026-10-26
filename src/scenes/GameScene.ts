@@ -3,6 +3,7 @@ import { PALETTES, type PaletteId, paletteStage, STAGE_BLOOD, STAGE_PALETTE } fr
 import { TEST_ROOM } from '../data/rooms/testRoom';
 import { bindDebugKeys } from '../input/debugKeys';
 import { PlayerInput } from '../input/playerInput';
+import '../labs/aiLabs';
 import '../labs/meleeLabs';
 import '../labs/movementLabs';
 import { getLab, type Lab } from '../labs/registry';
@@ -10,7 +11,7 @@ import { CanvasLayer } from '../render/canvasLayer';
 import { paintBall, paintCannon } from '../render/canvas/cannonPainter';
 import { paintCharacter } from '../render/canvas/characterPainter';
 import { paintItem } from '../render/canvas/itemPainter';
-import { paintRoom, paintTable } from '../render/canvas/roomPainter';
+import { paintDoor, paintProp, paintRoom } from '../render/canvas/roomPainter';
 import { Decals } from '../render/decals';
 import { PostFx } from '../render/post';
 import { Vfx } from '../render/vfx';
@@ -18,15 +19,23 @@ import { lyingAt } from '../anim/skeleton';
 import { type Actor, createActor } from '../sim/actor';
 import { FixedClock } from '../sim/clock';
 import { hasEdges, mergeEdges } from '../sim/command';
+import { WaveDirector } from '../sim/waves';
 import { World } from '../sim/world';
+import { STAGE1, type StageRoomId } from '../data/stages/stage1';
 
 export interface GameSceneData {
   lab?: string;
   palette?: PaletteId;
+  /** `?room=test`: the style-frame room with the M0 cast (look check). */
+  testRoom?: boolean;
+  /** Stage route `?stage=1&room=arena&wave=A` (the default). */
+  stage?: 1;
+  room?: StageRoomId;
+  wave?: string;
 }
 
-/** Seconds after the player dies before a lab restarts (M3 adds the real room restart). */
-const LAB_RESTART_DELAY = 2;
+/** Seconds after the player dies before the room restarts (checkpoint per room, PLAN.md M3). */
+const RESTART_DELAY = 2;
 
 /**
  * Runs the fixed-step world and draws it: baked room layer, baked decal layer (blood),
@@ -49,6 +58,11 @@ export class GameScene extends Phaser.Scene {
   private decals!: Decals;
   private input_!: PlayerInput;
   private deadFor = 0;
+  private data_: GameSceneData = {};
+  /** Stage route info for the HUD (end card target). */
+  stageInfo?: { stage: number; room: string; targetBodyCount: number };
+  /** Set when the room's wave script is done: the HUD shows the body-count card. */
+  cleared = false;
 
   constructor() {
     super('game');
@@ -60,15 +74,24 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(data: GameSceneData): void {
+    this.data_ = data;
     this.clock = new FixedClock();
-    this.world = new World(TEST_ROOM);
     this.paletteId = data.palette ?? 'neutral';
     this.cannonHits = 0;
     this.deadFor = 0;
+    this.cleared = false;
+    this.stageInfo = undefined;
 
     this.lab = data.lab ? getLab(data.lab) : undefined;
-    if (this.lab) this.lab.setup(this.world);
-    else this.setupTestRoom();
+    if (this.lab) {
+      this.world = new World(TEST_ROOM);
+      this.lab.setup(this.world);
+    } else if (data.testRoom) {
+      this.world = new World(TEST_ROOM);
+      this.setupTestRoom();
+    } else this.setupStage(data);
+    // let the last body land before the end card
+    this.world.events.on('roomCleared', () => this.time.delayedCall(1500, () => (this.cleared = true)));
 
     this.roomLayer = new CanvasLayer(this, 'layer-room', 0);
     this.decalLayer = new CanvasLayer(this, 'layer-decals', 2);
@@ -98,6 +121,8 @@ export class GameScene extends Phaser.Scene {
       togglePost: () => this.post.setEnabled(!this.post.enabled),
       spawnCorpses: () => this.world.spawnCorpses(20),
     });
+    // end card: Enter fights the room again
+    this.input.keyboard?.on('keydown-ENTER', () => this.cleared && this.restart());
     this.scene.launch('ui');
   }
 
@@ -111,7 +136,25 @@ export class GameScene extends Phaser.Scene {
     return this.world.actors.filter((a) => a.corpse?.phase === 'frozen').length;
   }
 
-  /** Default route: the style-frame room with the player and the M0 cast as dummies. */
+  /** Restart the room from its start (checkpoint per room; to confirm with the user in M13). */
+  restart(): void {
+    this.scene.restart({ ...this.data_, palette: this.paletteId });
+  }
+
+  /** Stage route: the room, the player in the middle, and the wave script from the chosen wave. */
+  private setupStage(data: GameSceneData): void {
+    const roomId = data.room && data.room in STAGE1.rooms ? data.room : 'arena';
+    const def = STAGE1.rooms[roomId];
+    this.world = new World(def.room);
+    const hero = createActor('hero', 0, 9.2, 1);
+    this.world.actors.push(hero);
+    this.world.player = hero;
+    const start = Math.max(0, def.script.waves.findIndex((w) => w.id === (data.wave ?? 'A')));
+    this.world.director = new WaveDirector(def.script, start);
+    this.stageInfo = { stage: STAGE1.stage, room: roomId, targetBodyCount: STAGE1.targetBodyCount };
+  }
+
+  /** `?room=test`: the style-frame room with the player and the M0 cast as dummies. */
   private setupTestRoom(): void {
     const zombie = createActor('zombie', 2.95, 9.85, -1);
     const shooter = createActor('grunt', 1.85, 10.3, -1, { held: 'pistol' });
@@ -156,10 +199,11 @@ export class GameScene extends Phaser.Scene {
     this.post.update();
   }
 
+  /** PLAN.md M3: player death -> restart the room. */
   private watchPlayerDeath(dt: number): void {
-    if (!this.lab || this.world.player?.state !== 'dead') return;
+    if (this.world.player?.state !== 'dead') return;
     this.deadFor += dt * this.clock.timeScale;
-    if (this.deadFor >= LAB_RESTART_DELAY) this.scene.restart({ lab: this.lab.slug, palette: this.paletteId });
+    if (this.deadFor >= RESTART_DELAY) this.restart();
   }
 
   /** Draw actors, items, props, cannons and balls far-to-near, then particles. */
@@ -168,6 +212,8 @@ export class GameScene extends Phaser.Scene {
     const ctx = this.actorLayer.ctx;
     const blood = this.blood;
     this.actorLayer.clear();
+    // doors sit in the side walls, behind everything in the room
+    this.world.room.doors.forEach((d, i) => paintDoor(ctx, this.world.room, d, this.world.doors[i]?.open ?? 0, pal));
     this.decals.drawGrowing(ctx);
     const list: { z: number; draw: () => void }[] = [];
     for (const a of this.world.actors) {
@@ -177,7 +223,7 @@ export class GameScene extends Phaser.Scene {
       list.push({ z: a.pos.z - bias, draw: () => paintCharacter(ctx, a, pal, this.world.time, { blood }) });
     }
     for (const it of this.world.items) list.push({ z: it.pos.z, draw: () => paintItem(ctx, it, pal, blood) });
-    for (const p of this.world.room.props) list.push({ z: p.z0, draw: () => paintTable(ctx, p, pal) });
+    for (const p of this.world.room.props) list.push({ z: p.z0, draw: () => paintProp(ctx, p, pal) });
     for (const c of this.world.cannons) list.push({ z: c.z, draw: () => paintCannon(ctx, c) });
     for (const b of this.world.balls) list.push({ z: b.z - 0.01, draw: () => paintBall(ctx, b) });
     list.sort((a, b) => b.z - a.z);

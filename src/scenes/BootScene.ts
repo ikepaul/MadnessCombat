@@ -1,9 +1,11 @@
 import Phaser from 'phaser';
 import type { PaletteId } from '../data/palettes';
+import '../labs/aiLabs';
 import '../labs/meleeLabs';
 import '../labs/movementLabs';
 import '../labs/toolLabs';
 import { getLab } from '../labs/registry';
+import type { StageRoomId } from '../data/stages/stage1';
 
 /** Waits for the bundled fonts, then routes by URL: `?lab` (index), `?lab=<slug>`, or the game. */
 export class BootScene extends Phaser.Scene {
@@ -18,7 +20,17 @@ export class BootScene extends Phaser.Scene {
       const lab = params.get('lab');
       if (params.has('lab') && !lab) this.scene.start('lab-index');
       else if (lab && getLab(lab)?.scene) this.scene.start(getLab(lab)!.scene!);
-      else this.scene.start('game', { lab: params.get('lab') ?? undefined, palette });
+      else if (lab) this.scene.start('game', { lab, palette });
+      else if (params.get('room') === 'test') this.scene.start('game', { testRoom: true, palette });
+      else {
+        // the stage route is the default: /?stage=1&room=arena&wave=A
+        this.scene.start('game', {
+          stage: 1,
+          room: (params.get('room') ?? 'arena') as StageRoomId,
+          wave: params.get('wave') ?? 'A',
+          palette,
+        });
+      }
     });
   }
 }

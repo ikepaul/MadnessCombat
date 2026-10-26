@@ -19,6 +19,8 @@ Node 26 via nvm (`nvm use`; the system Node is too old for Vite 8).
 - `src/anim/`: pose skeleton (part transforms + whole-body root), clips sampled from `src/data/poses.json`, procedural layers. Poses are authored in `/?lab=pose-editor`.
 - `src/render/canvas/`: Canvas 2D vector painters (room, characters, items) drawing into `CanvasLayer`s shown by Phaser. Layers: room (baked) → decals (blood, baked) → corpses (frozen bodies, baked) → actors/props/items (per frame, sorted far→near). `src/render/post.ts`: vignette + grain. HUD/debug in `UIScene` (no post FX).
 - `src/data/`: `tuning.ts` (gameplay constants, each citing its research note or "invented"), `feel.ts` (effect numbers), `palettes.ts` (one per stage), rooms.
+- Routes: `/` = stage 1 arena, wave A (`/?stage=1&room=arena&wave=A`); `/?room=test` = the M0 style-frame room.
+- `src/sim/ai.ts` grunt AI (attack tokens), `src/sim/waves.ts` spawn points + wave scripts, `src/data/stages/` room and wave data.
 - Labs: `/?lab` lists them, `/?lab=<slug>` opens one (`src/labs/registry.ts`). Every mechanic gets a replica lab compared against its reference frames.
 
 ## Controls

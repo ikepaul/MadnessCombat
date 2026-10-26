@@ -20,6 +20,11 @@ export class UIScene extends Phaser.Scene {
   private pipPop = 0;
   /** Seconds left of the pip pop after a kill healed a life. */
   private healPop = 0;
+  private counter!: Phaser.GameObjects.Text;
+  private lastKills = 0;
+  /** Kill counter pop: frames left of the 1.3 -> 1.0 scale (design/art-direction.md). */
+  private counterPop = 0;
+  private card!: Phaser.GameObjects.Container;
 
   constructor() {
     super('ui');
@@ -38,12 +43,29 @@ export class UIScene extends Phaser.Scene {
     this.info = this.add.text(16, 12, '', box);
     this.labText = this.add.text(16, 1080 - 48, '', { ...box, wordWrap: { width: 1880 } }).setVisible(!!game.lab).setOrigin(0, 1).setY(1080 - 16);
     this.lastHp = -1;
+    // world-kill-counter: big number bottom-right, appears at the first kill
+    this.counter = this.add.text(1920 - 48, 1080 - 36, '', {
+      fontFamily: 'Anton', fontSize: '96px', color: '#ffffff', stroke: INK, strokeThickness: 10,
+    }).setOrigin(1, 1).setVisible(false);
+    this.lastKills = 0;
+    this.counterPop = 0;
+    this.card = this.buildCard().setVisible(false);
+  }
+
+  /** End-of-room card: plain text on black, like an episode title card (own wording). */
+  private buildCard(): Phaser.GameObjects.Container {
+    const bg = this.add.rectangle(0, 0, 1920, 1080, 0x000000, 0.88).setOrigin(0, 0);
+    const title = this.add.text(960, 400, 'BODY COUNT', { fontFamily: 'Anton', fontSize: '72px', color: '#ffffff' }).setOrigin(0.5);
+    const n = this.add.text(960, 540, '0', { fontFamily: 'Anton', fontSize: '200px', color: '#ffffff' }).setOrigin(0.5).setName('n');
+    const sub = this.add.text(960, 700, '', { fontFamily: 'Inter', fontSize: '26px', color: '#b9babd', align: 'center' }).setOrigin(0.5).setName('sub');
+    return this.add.container(0, 0, [bg, title, n, sub]).setDepth(100);
   }
 
   update(_time: number, delta: number): void {
     const game = this.scene.get('game') as GameScene;
     const p = game.world.player;
     this.drawPips(p, delta / 1000);
+    this.drawCounter(game);
     if (game.lab) {
       const b = p?.body;
       const speed = b ? Math.hypot(b.vel.x, b.vel.z).toFixed(2) : '-';
@@ -63,6 +85,26 @@ export class UIScene extends Phaser.Scene {
     this.info.setText(
       `tick ${game.world.tick}  ·  ${this.game.loop.actualFps.toFixed(0)} fps  ·  ${c.paused ? 'PAUSED (F4 step)' : `${c.timeScale}×`}  ·  palette ${game.paletteId}${game.blood ? ' (blood)' : ''}  ·  actors ${game.world.actors.length}`,
     );
+  }
+
+  private drawCounter(game: GameScene): void {
+    const kills = game.world.kills;
+    if (kills > this.lastKills) this.counterPop = 8;
+    this.lastKills = kills;
+    this.counter.setVisible(kills > 0).setText(String(kills));
+    // 1.3 -> 1.0 over 8 frames at 30 fps, eased
+    const u = this.counterPop / 8;
+    this.counter.setScale(1 + 0.3 * u * u);
+    if (this.counterPop > 0) this.counterPop = Math.max(0, this.counterPop - this.game.loop.delta / (1000 / 30));
+    if (game.cleared && !this.card.visible) {
+      (this.card.getByName('n') as Phaser.GameObjects.Text).setText(String(kills));
+      const target = game.stageInfo?.targetBodyCount;
+      (this.card.getByName('sub') as Phaser.GameObjects.Text).setText(
+        `${target ? `the whole of stage ${game.stageInfo!.stage} counts ${target} in the episode
+` : ''}press Enter to fight again`,
+      );
+      this.card.setVisible(true);
+    }
   }
 
   /** Hit pips for the player's 3 hits (design/art-direction.md, UI), bottom-left. */
@@ -96,7 +138,9 @@ export class UIScene extends Phaser.Scene {
         const [dx, dy] = rootToWorld(a.pose.root, a.facing, lx, ly);
         return project(a.pos.x + dx, a.pos.y + dy, a.pos.z);
       };
-      g.lineStyle(2, a.state === 'getUp' ? 0x55ff55 : a.state === 'dead' ? 0x777777 : 0xffd400, 0.9);
+      // green = i-frames, grey = dead, orange-red = holds an attack token
+      const color = a.state === 'getUp' ? 0x55ff55 : a.state === 'dead' ? 0x777777 : game.world.tokens.has(a.id) ? 0xff5a1f : 0xffd400;
+      g.lineStyle(2, color, 0.9);
       if (!a.pose.headless) {
         const pts: Phaser.Math.Vector2[] = [];
         for (let i = 0; i <= 24; i++) {

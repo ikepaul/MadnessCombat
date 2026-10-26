@@ -2,6 +2,8 @@ import { TUNING } from '../data/tuning';
 import type { PropDef, RoomDef } from './room';
 
 const R = TUNING.move.radius;
+/** How far past the side bounds an entering enemy may be. invented */
+export const ENTRY_MARGIN = 2.5;
 
 /** Footprint box of a prop, grown by the actor radius. */
 function footprint(p: PropDef) {
@@ -20,15 +22,17 @@ export function surfaceBelow(room: RoomDef, x: number, z: number, feetY: number)
 
 /**
  * Move from (x, z) by (dx, dz) at height `feetY`: clamps to the floor bounds and slides along
- * props the feet are below the top of (solid sides), axis by axis.
+ * props the feet are below the top of (solid sides), axis by axis. `outside` = an enemy still
+ * walking in from off-screen or through a door: x may be past the side bounds.
  */
-export function moveWithCollision(room: RoomDef, x: number, z: number, dx: number, dz: number, feetY: number): { x: number; z: number } {
+export function moveWithCollision(room: RoomDef, x: number, z: number, dx: number, dz: number, feetY: number, outside = false): { x: number; z: number } {
   const blocked = (nx: number, nz: number) =>
     room.props.some((p) => {
       const f = footprint(p);
       return feetY < f.top - 0.02 && nx > f.x0 && nx < f.x1 && nz > f.z0 && nz < f.z1;
     });
-  let nx = clamp(x + dx, -room.halfWidth + R, room.halfWidth - R);
+  const hw = outside ? room.halfWidth + ENTRY_MARGIN : room.halfWidth - R;
+  let nx = clamp(x + dx, -hw, hw);
   if (blocked(nx, z)) nx = x;
   let nz = clamp(z + dz, room.zFront, room.zBack - R);
   if (blocked(nx, nz)) nz = z;
