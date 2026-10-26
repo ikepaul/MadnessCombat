@@ -4,6 +4,7 @@
 // Parts are placed by the pose skeleton (src/anim), the whole body by the root transform.
 import { buildSkeleton } from '../../anim/layers';
 import { flatness, ROOT_PIVOT, type Root, type Skeleton } from '../../anim/skeleton';
+import { FEEL } from '../../data/feel';
 import { BLOOD, BLOOD_DARK, FLASH_GLOW, INK, type Palette, ZOMBIE, ZOMBIE_HI } from '../../data/palettes';
 import type { Actor, ActorKind, HeldItem } from '../../sim/actor';
 import { project, type ScreenPoint, scaleAt } from '../camera';
@@ -25,6 +26,8 @@ export interface PaintOptions {
   /** Blood on this stage (wounds, neck stump). Off for stage 1. */
   blood: boolean;
   placement?: Placement;
+  /** Impact/hurt flashes (the effect-intensity setting can turn them off). */
+  flashes?: boolean;
   /** Draw this skeleton instead of the animated one (pose editor). */
   skeleton?: Skeleton;
 }
@@ -82,7 +85,7 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
   ctx.fill();
 
   ctx.save();
-  if (pose.impact > 0 || pose.hurt > 0) ctx.filter = 'brightness(1.8) contrast(1.2)'; // impact frame
+  if (opts.flashes !== false && (pose.impact > 0 || pose.hurt > 0)) ctx.filter = `brightness(${FEEL.impactFrame.brightness}) contrast(${FEEL.impactFrame.contrast})`; // impact frame
   ctx.translate(fx, fy);
   ctx.scale(s, s);
   ctx.scale(a.facing, 1);

@@ -21,6 +21,15 @@ import { FixedClock } from '../sim/clock';
 import { hasEdges, mergeEdges } from '../sim/command';
 import { WaveDirector } from '../sim/waves';
 import { World } from '../sim/world';
+import { hookWorldAudio } from '../audio/hooks';
+import { audio } from '../audio/mixer';
+import { MusicSystem } from '../audio/music';
+import { FeelDirector } from '../feel/feel';
+import { FeelFx } from '../render/feelFx';
+import { cycleEffects, saveSettings, SETTINGS } from '../settings';
+
+/** One music system for the game (survives room restarts). */
+let music: MusicSystem | undefined;
 import { STAGE1, type StageRoomId } from '../data/stages/stage1';
 
 export interface GameSceneData {
@@ -54,6 +63,7 @@ export class GameScene extends Phaser.Scene {
   private corpseLayer!: CanvasLayer;
   private actorLayer!: CanvasLayer;
   private post!: PostFx;
+  feelFx!: FeelFx;
   private vfx!: Vfx;
   private decals!: Decals;
   private input_!: PlayerInput;
@@ -97,7 +107,18 @@ export class GameScene extends Phaser.Scene {
     this.decalLayer = new CanvasLayer(this, 'layer-decals', 2);
     this.corpseLayer = new CanvasLayer(this, 'layer-corpses', 5);
     this.actorLayer = new CanvasLayer(this, 'layer-actors', 10);
-    this.post = new PostFx(this);
+    this.post = new PostFx(this, 'layer-actors');
+    // feel layer: sim events -> hit-stop, shake, chromatic, kill cam (+ audio through the engine)
+    const engine = audio();
+    this.feelFx = new FeelFx(this.cameras.main, this.clock, this.post, engine);
+    new FeelDirector(this.world, this.feelFx, () => this.clock.tick * this.clock.dt);
+    if (engine) {
+      engine.warmUp();
+      engine.setRoomReverb(this.world.room.outdoor ? 'outdoor' : 'medium');
+      hookWorldAudio(this.world, engine);
+      music ??= new MusicSystem(engine);
+      void music.setRoom(this.world.room.id);
+    }
     this.vfx = new Vfx(this.world, () => this.blood);
     this.decals = new Decals(this.world, this.decalLayer, () => this.blood);
     this.input_ = new PlayerInput(this);
@@ -120,6 +141,12 @@ export class GameScene extends Phaser.Scene {
       setPalette: (i) => this.setPalette(STAGE_PALETTE[i]),
       togglePost: () => this.post.setEnabled(!this.post.enabled),
       spawnCorpses: () => this.world.spawnCorpses(20),
+      cycleEffects: () => cycleEffects(),
+      toggleMute: () => {
+        SETTINGS.master = SETTINGS.master > 0 ? 0 : 0.8;
+        saveSettings();
+        audio()?.applySettings();
+      },
     });
     // end card: Enter fights the room again
     this.input.keyboard?.on('keydown-ENTER', () => this.cleared && this.restart());
@@ -197,6 +224,9 @@ export class GameScene extends Phaser.Scene {
     this.watchPlayerDeath(delta / 1000);
     this.render();
     this.post.update();
+    this.feelFx.update(delta / 1000);
+    // music intensity follows the enemies actually in the fight
+    music?.setIntensity(this.world.actors.filter((a) => a.ai && a.state !== 'dead' && !a.entering).length);
   }
 
   /** PLAN.md M3: player death -> restart the room. */
@@ -211,6 +241,7 @@ export class GameScene extends Phaser.Scene {
     const pal = PALETTES[this.paletteId];
     const ctx = this.actorLayer.ctx;
     const blood = this.blood;
+    const flashes = SETTINGS.effects !== 'off';
     this.actorLayer.clear();
     // doors sit in the side walls, behind everything in the room
     this.world.room.doors.forEach((d, i) => paintDoor(ctx, this.world.room, d, this.world.doors[i]?.open ?? 0, pal));
@@ -220,7 +251,7 @@ export class GameScene extends Phaser.Scene {
       if (a.corpse?.phase === 'frozen') continue;
       // at equal depth the attacker draws in front, so the punching fist is visible
       const bias = a.state === 'attack' ? 0.002 : a.state === 'grabbed' ? -0.001 : 0;
-      list.push({ z: a.pos.z - bias, draw: () => paintCharacter(ctx, a, pal, this.world.time, { blood }) });
+      list.push({ z: a.pos.z - bias, draw: () => paintCharacter(ctx, a, pal, this.world.time, { blood, flashes }) });
     }
     for (const it of this.world.items) list.push({ z: it.pos.z, draw: () => paintItem(ctx, it, pal, blood) });
     for (const p of this.world.room.props) list.push({ z: p.z0, draw: () => paintProp(ctx, p, pal) });

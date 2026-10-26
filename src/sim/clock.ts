@@ -7,7 +7,10 @@ import { TUNING } from '../data/tuning';
  */
 export class FixedClock {
   readonly dt = 1 / TUNING.simHz;
+  /** Debug slow-motion (F2). */
   timeScale = 1;
+  /** Feel slow-motion (kill cam), multiplied with timeScale. */
+  feelScale = 1;
   paused = false;
   /** Ticks completed since start (including hit-stop ticks). */
   tick = 0;
@@ -42,7 +45,7 @@ export class FixedClock {
       return steps;
     }
     // Clamp so a long hitch (tab switch) can't trigger a catch-up spiral.
-    this.acc += Math.min(realSeconds, 0.25) * this.timeScale;
+    this.acc += Math.min(realSeconds, 0.25) * this.timeScale * this.feelScale;
     while (this.acc >= this.dt) {
       this.acc -= this.dt;
       this.tick++;

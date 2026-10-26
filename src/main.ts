@@ -15,6 +15,8 @@ const game = new Phaser.Game({
   width: SCREEN_W,
   height: SCREEN_H,
   backgroundColor: '#000000',
+  // our own Web Audio engine (src/audio) owns the AudioContext
+  audio: { noAudio: true },
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   scene: [BootScene, GameScene, UIScene, LabIndexScene, PoseEditorScene],
 });

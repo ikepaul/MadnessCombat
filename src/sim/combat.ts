@@ -13,7 +13,7 @@ import { dropHeld } from './items';
 import { DIVE_TIME, stepAttackMove, stepLocomotion, sweepTarget } from './movement';
 import type { World } from './world';
 
-const M = TUNING.melee, H = TUNING.hit, G = TUNING.grab, C = TUNING.corpse;
+const M = TUNING.melee, H = TUNING.hit, G = TUNING.grab, C = TUNING.corpse, C_ = TUNING.combo;
 const PUNCH_CLIP: Record<AttackKind, string> = {
   light: 'punchLight', heavy: 'punchHeavy', uppercut: 'uppercut', finisher: 'finisher', throw: 'throw',
 };
@@ -223,13 +223,14 @@ export function applyHit(
   if (o.state === 'getUp') return; // i-frames (invented)
   const corpse = o.state === 'dead';
   const base = kind === 'finisher' && heavy ? M.finisher.heavyDamage : DAMAGE[kind];
-  const damage = corpse || base <= 0 ? 0 : o.kind === 'hero' ? 1 : base;
+  const combo = !corpse && base > 0 && o.kind !== 'hero' && chainBonus(world, by, o, kind);
+  const damage = corpse || base <= 0 ? 0 : o.kind === 'hero' ? 1 : base + (combo ? C_.bonus : 0);
   o.hp = Math.max(0, o.hp - damage);
   const killed = !corpse && o.hp <= 0;
   if (o.corpse?.phase !== 'frozen') o.pose.impact = H.impact;
   if (o.kind === 'hero' && damage > 0) o.pose.hurt = H.hurtFlash;
   if ((damage > 0 || corpse) && o.corpse?.phase !== 'frozen') addWound(o, at, part);
-  world.events.emit('hit', { actorId: o.id, attackerId: by?.id ?? 0, kind, part, damage, killed, dirX, dirZ, ...at });
+  world.events.emit('hit', { actorId: o.id, attackerId: by?.id ?? 0, kind, part, damage, killed, dirX, dirZ, combo, chain: o.chain?.count ?? 0, ...at });
   if (corpse) return;
 
   if (o.state === 'attack') o.attack = undefined;
@@ -262,6 +263,25 @@ export function applyHit(
     default:
       knockDown(world, o, kind, dirX, dirZ);
   }
+}
+
+/**
+ * Combos (decided 2026-10-26, design in PLAN.md M4): hits by the same attacker on the same
+ * target, each within TUNING.combo.window of the last, form a chain. The 3rd+ hit of a chain
+ * and a heavy straight after a light (the quick cross) deal +1. Returns whether this hit gets it.
+ */
+function chainBonus(world: World, by: Actor | undefined, o: Actor, kind: HitKind): boolean {
+  if (!by) { o.chain = undefined; return false; }
+  const c = o.chain;
+  let prev: string | undefined;
+  if (c && c.by === by.id && world.time - c.t <= C_.window) {
+    prev = c.last;
+    c.count++;
+    c.t = world.time;
+    c.last = kind;
+  } else o.chain = { by: by.id, count: 1, t: world.time, last: kind };
+  const n = o.chain!.count;
+  return n >= 3 || (n === 2 && (kind === 'heavy' || kind === 'uppercut') && prev === 'light');
 }
 
 function addWound(o: Actor, at: { x: number; y: number }, part: 'head' | 'body'): void {

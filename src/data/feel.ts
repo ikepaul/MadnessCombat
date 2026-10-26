@@ -1,5 +1,7 @@
-// Every "feel" number from design/art-direction.md (effects table). Filled in further in M4;
-// M0 only needs the post-processing values.
+// Every "feel" number from design/art-direction.md (effects table). Frames are 30 fps frames
+// (the episodes' rate); values not in the table are marked invented.
+
+const F = 1 / 30;
 
 export const FEEL = {
   post: {
@@ -9,12 +11,56 @@ export const FEEL = {
     vignetteOuter: 1.05,
     vignetteStrength: 0.42,
   },
-  /** Hit-stop lengths in seconds (3 frames at 30 fps = 0.1 s). Used from M4. */
+  /**
+   * Hit-stop lengths in seconds. Decided with the user 2026-10-26 (replaces the art
+   * direction's 3 frames): kills 2 frames, every punch or other hit 1 frame.
+   */
   hitStop: {
-    kill: 0.1,
-    bossPhaseKill: 0.167,
-    autoFireMax: 0.033,
-    maxPerSecond: 0.2,
+    kill: 2 * F,
+    heavy: 1 * F,
+    light: 1 * F,
+    bossPhaseKill: 5 * F,
+    /** Automatic weapons: at most 1 frame per hit. */
+    autoFireMax: 1 * F,
+    /** Never more than 6 frames of hit-stop per second. */
+    maxPerSecond: 6 * F,
   },
-  killCam: { timeScale: 0.3, duration: 0.6 },
+  /** Screen shake in px at 1080p, decaying over 0.15-0.4 s. */
+  shake: {
+    pistol: 2,
+    smg: 1,
+    shotgun: 6,
+    explosion: 14,
+    bossSlam: 10,
+    kill: 6,
+    /** invented */
+    heavyHit: 4,
+    /** invented */
+    lightHit: 1.5,
+    /** invented: a body slammed into a wall */
+    wall: 5,
+    /** invented: the player getting hit */
+    hurt: 5,
+    decayMin: 0.15,
+    decayMax: 0.4,
+  },
+  /** Chromatic split: kills / explosions / boss hits, 4-8 px for 2-3 frames. Not on every hit. */
+  chromatic: {
+    kill: { px: 6, frames: 2 },
+    killCam: { px: 8, frames: 3 },
+  },
+  /**
+   * Kill cam: time x0.3 for 0.6 s + red tint (5-15%) + chromatic on the first frame + audio
+   * slowdown. Triggers: the last kill of a wave, 3+ kills within 1 s, boss phase end.
+   */
+  killCam: { timeScale: 0.3, duration: 0.6, tint: 0.1, comboKills: 3, comboWindow: 1.0 },
+  /** Impact frame: the hit character drawn bright for the hit-stop. */
+  impactFrame: { brightness: 1.8, contrast: 1.2 },
+  /** Kill counter pop: 1.3 -> 1.0 over 8 frames; green for zombie kills. */
+  counterPop: { scale: 1.3, frames: 8 },
 } as const;
+
+/** Effect intensity setting (art direction: off / reduced / full), applied to shake, flashes, chromatic. */
+export type EffectIntensity = 'off' | 'reduced' | 'full';
+
+export const INTENSITY_SCALE: Record<EffectIntensity, number> = { off: 0, reduced: 0.5, full: 1 };

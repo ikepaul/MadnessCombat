@@ -30,6 +30,12 @@ export class World {
   readonly tokens = new Set<number>();
   /** Enemy deaths in this room (the kill counter). */
   kills = 0;
+  /** Kind of the last enemy killed (the counter turns green for zombies). */
+  lastKillKind?: ActorKind;
+  /** Attack tokens freed recently, unavailable until these times (TUNING.ai.tokenCooldown). */
+  tokenFreeAt: number[] = [];
+  /** World time of the last enemy swing (TUNING.ai.swingGap). */
+  lastEnemySwing = -Infinity;
   /** The room's wave script, if it has one. */
   director?: WaveDirector;
   doors: DoorState[] = [];
@@ -40,7 +46,11 @@ export class World {
     this.resetDoors();
     // world-kill-counter: every enemy death counts
     this.events.on('kill', (e) => {
-      if (this.actorById(e.actorId)?.kind !== 'hero') this.kills++;
+      const kind = this.actorById(e.actorId)?.kind;
+      if (kind !== 'hero') {
+        this.kills++;
+        this.lastKillKind = kind;
+      }
     });
   }
 

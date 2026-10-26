@@ -46,6 +46,13 @@ export class WaveDirector {
     this.wave = startWave - 1;
   }
 
+  /** Every enemy of the current wave has spawned and none is left alive (the kill cam's "last kill of a wave"). */
+  waveFinished(world: World): boolean {
+    const w = this.script.waves[this.wave];
+    if (!w || this.entry < w.entries.length || this.pendingDoors.length > 0) return false;
+    return !world.actors.some((a) => a.ai && alive(a));
+  }
+
   step(world: World, dt: number): void {
     this.stepDoors(world, dt);
     if (this.state === 'done') return;

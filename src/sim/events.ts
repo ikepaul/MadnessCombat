@@ -23,7 +23,11 @@ export interface GameEvents {
   /** A punch reached its active frames (smear arc). `x, y, z` = fist. */
   punch: At & { kind: HitKind; facing: 1 | -1 };
   /** Something connected. `x, y, z` = contact point; dirX/dirZ = push direction. */
-  hit: At & { attackerId: number; kind: HitKind; part: 'head' | 'body'; damage: number; killed: boolean; dirX: number; dirZ: number };
+  hit: At & {
+    attackerId: number; kind: HitKind; part: 'head' | 'body'; damage: number; killed: boolean; dirX: number; dirZ: number;
+    /** This hit got the combo bonus; `chain` = its position in the chain (1 = first hit). */
+    combo: boolean; chain: number;
+  };
   kill: At & { byId: number; kind: HitKind; decap: boolean };
   /** The player got a life back (a kill). */
   heal: { actorId: number; hp: number };

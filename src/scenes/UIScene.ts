@@ -5,6 +5,7 @@ import { project } from '../render/camera';
 import { drawDebugGrid, rulerLabels } from '../render/debugOverlay';
 import { type Actor, stateLabel } from '../sim/actor';
 import { BODY, HEAD } from '../sim/hurtbox';
+import { SETTINGS } from '../settings';
 import type { GameScene } from './GameScene';
 
 /** HUD + debug overlay. A separate scene/camera so post FX never touch it. */
@@ -83,7 +84,7 @@ export class UIScene extends Phaser.Scene {
     this.drawHurtboxes(game);
     const c = game.clock;
     this.info.setText(
-      `tick ${game.world.tick}  ·  ${this.game.loop.actualFps.toFixed(0)} fps  ·  ${c.paused ? 'PAUSED (F4 step)' : `${c.timeScale}×`}  ·  palette ${game.paletteId}${game.blood ? ' (blood)' : ''}  ·  actors ${game.world.actors.length}`,
+      `tick ${game.world.tick}  ·  ${this.game.loop.actualFps.toFixed(0)} fps  ·  ${c.paused ? 'PAUSED (F4 step)' : `${c.timeScale}×`}  ·  palette ${game.paletteId}${game.blood ? ' (blood)' : ''}  ·  effects ${SETTINGS.effects} (V)  ·  ${SETTINGS.master > 0 ? 'sound on' : 'muted'} (M)  ·  actors ${game.world.actors.length}`,
     );
   }
 
@@ -91,7 +92,8 @@ export class UIScene extends Phaser.Scene {
     const kills = game.world.kills;
     if (kills > this.lastKills) this.counterPop = 8;
     this.lastKills = kills;
-    this.counter.setVisible(kills > 0).setText(String(kills));
+    // world-kill-counter: green while zombies are being killed, white otherwise
+    this.counter.setVisible(kills > 0).setText(String(kills)).setColor(game.world.lastKillKind === 'zombie' ? '#63d06b' : '#ffffff');
     // 1.3 -> 1.0 over 8 frames at 30 fps, eased
     const u = this.counterPop / 8;
     this.counter.setScale(1 + 0.3 * u * u);

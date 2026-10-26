@@ -1,0 +1,87 @@
+// Sound ids -> source, variants, bus, voice limit (design/audio-direction.md). Sounds with
+// `files` play CC0 recordings from assets/audio/ (logged in assets/audio/LICENSES.md); the
+// rest, and every sound until its files are decoded, use the generated recipe (src/audio/synth.ts).
+import type { Recipe } from '../audio/synth';
+
+export type Bus = 'music' | 'weapons' | 'impacts' | 'foley' | 'voices' | 'world' | 'ui';
+
+export interface SoundDef {
+  recipe: Recipe;
+  bus: Bus;
+  /** 3-6 variants for frequent sounds (spec). */
+  variants: number;
+  /** Max simultaneous voices of this sound: 4 by default, casings 6, footsteps 3 (spec). */
+  limit: number;
+  /** Linear gain. */
+  gain: number;
+  /** Share sent to the room reverb (weapon tails and impacts go through it). */
+  reverb: number;
+  loop?: boolean;
+  /** Recorded variants in assets/audio/ (replace the recipe once decoded). */
+  files?: string[];
+}
+
+/** `kenney/<prefix><index>.ogg` for each index. */
+const kenney = (prefix: string, ids: (string | number)[]) => ids.map((i) => `kenney/${prefix}${i}.ogg`);
+const FIVE = ['000', '001', '002', '003', '004'];
+
+const def = (recipe: Recipe, bus: Bus, gain = 1, o: Partial<SoundDef> = {}): SoundDef => ({ recipe, bus, variants: 4, limit: 4, gain, reverb: 0.15, ...o });
+
+export const SOUNDS = {
+  stepDirt: def('stepDirt', 'foley', 0.45, { variants: 5, limit: 3, reverb: 0, files: kenney('footstep_grass_', FIVE) }),
+  stepConcrete: def('stepConcrete', 'foley', 0.45, { variants: 5, limit: 3, reverb: 0.1, files: kenney('footstep_concrete_', FIVE) }),
+  land: def('land', 'foley', 0.7, { variants: 5, files: kenney('impactSoft_medium_', FIVE) }),
+  dive: def('dive', 'foley', 0.8, { variants: 3 }),
+  cloth: def('cloth', 'foley', 0.6, { files: kenney('cloth', [1, 2, 3, 4]) }),
+  grab: def('cloth', 'foley', 0.9, { files: kenney('cloth', [1, 2, 3, 4]) }),
+  whooshLight: def('whooshLight', 'foley', 0.6, { variants: 5, reverb: 0 }),
+  whooshHeavy: def('whooshHeavy', 'foley', 0.8, { variants: 4, reverb: 0 }),
+  whooshThrow: def('whooshThrow', 'foley', 0.9, { variants: 3, reverb: 0 }),
+  impact: def('impact', 'impacts', 1, { variants: 5, reverb: 0.25, files: kenney('impactPunch_medium_', FIVE) }),
+  /** Heavy hits: a heavier punch recording, plus the generated bone crack layer. */
+  impactHeavy: def('impact', 'impacts', 1, { variants: 5, reverb: 0.25, files: kenney('impactPunch_heavy_', FIVE) }),
+  crack: def('crack', 'impacts', 0.6, { variants: 4 }),
+  thump: def('thump', 'impacts', 0.9),
+  bodyFall: def('bodyFall', 'impacts', 0.9, { variants: 5, reverb: 0.25, files: kenney('impactSoft_heavy_', FIVE) }),
+  wall: def('wall', 'impacts', 1, { variants: 5, reverb: 0.35, files: kenney('impactWood_heavy_', FIVE) }),
+  door: def('door', 'world', 0.8, { variants: 2, reverb: 0.3, files: kenney('doorOpen_', [1, 2]) }),
+  voxEffort: def('voxEffort', 'voices', 0.5, { variants: 5, limit: 2 }),
+  voxHurt: def('voxHurt', 'voices', 0.6, { variants: 5, limit: 2 }),
+  voxDeath: def('voxDeath', 'voices', 0.7, { variants: 5, limit: 3 }),
+  tick: def('tick', 'ui', 0.6, { variants: 3, limit: 4, reverb: 0, files: kenney('tick_', ['001', '002', '004']) }),
+  heal: def('heal', 'ui', 0.6, { variants: 4, reverb: 0, files: kenney('confirmation_', ['001', '002', '003', '004']) }),
+  tapeStop: def('tapeStop', 'ui', 0.8, { variants: 1, limit: 1, reverb: 0 }),
+  /** Placeholder until gun casings exist (M5): the synthetic voice-limit test uses it. */
+  casing: def('tick', 'weapons', 0.3, { variants: 3, limit: 6, reverb: 0 }),
+  ambWind: def('windLoop', 'world', 0.5, { variants: 1, limit: 1, reverb: 0, loop: true }),
+  ambRoom: def('roomToneLoop', 'world', 0.5, { variants: 1, limit: 1, reverb: 0, loop: true }),
+} satisfies Record<string, SoundDef>;
+
+export type SoundId = keyof typeof SOUNDS;
+
+/** Bus levels (linear) before the user's volume settings. */
+export const BUS_GAIN: Record<Bus, number> = { music: 0.8, weapons: 1, impacts: 1, foley: 0.8, voices: 0.8, world: 0.6, ui: 0.6 };
+
+export const AUDIO = {
+  /** Variation: random pitch +-4%, volume +-2 dB. */
+  pitchJitter: 0.04,
+  gainJitterDb: 2,
+  /** Pan by screen x (+-0.8), -3 dB from the front to the back wall. */
+  panRange: 0.8,
+  depthDb: -3,
+  /** Ducking: music -4 dB under explosions, boss attacks and kill cams, 300 ms release. */
+  duckDb: -4,
+  duckRelease: 0.3,
+  /** Kill cam / slow-mo: low-pass ~1.2 kHz + playback rate 0.6. */
+  killCamLowpass: 1200,
+  killCamRate: 0.6,
+  /** Room reverb size classes: impulse length (s) and wet level. Outdoor is nearly dry. */
+  reverb: {
+    small: { length: 0.5, wet: 0.25 },
+    medium: { length: 0.9, wet: 0.3 },
+    large: { length: 1.8, wet: 0.35 },
+    outdoor: { length: 0.25, wet: 0.08 },
+  },
+} as const;
+
+export type ReverbSize = keyof typeof AUDIO.reverb;
