@@ -62,7 +62,8 @@ export class WaveDirector {
   /** Doors opening for a pending spawn: door index -> seconds until the enemy steps through. */
   private pendingDoors: { door: number; t: number; kind: ActorKind; held: HeldItem; opts?: SpawnOpts }[] = [];
 
-  constructor(readonly script: RoomScript, startWave = 0) {
+  /** `announce`: emit `roomCleared` when done (a stage script's waves leave that to the script). */
+  constructor(readonly script: RoomScript, startWave = 0, private announce = true) {
     this.wave = startWave - 1;
   }
 
@@ -92,7 +93,7 @@ export class WaveDirector {
       if (!next) {
         if (aliveEnemies === 0) {
           this.state = 'done';
-          world.events.emit('roomCleared', { kills: world.kills });
+          if (this.announce) world.events.emit('roomCleared', { kills: world.kills });
         }
         return;
       }

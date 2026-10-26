@@ -29,6 +29,10 @@ export class UIScene extends Phaser.Scene {
   /** Kill counter pop: frames left of the 1.3 -> 1.0 scale (design/art-direction.md). */
   private counterPop = 0;
   private card!: Phaser.GameObjects.Container;
+  /** M8 script cards: title on black / caption line, shown until this world time. */
+  private titleCard!: Phaser.GameObjects.Container;
+  private caption!: Phaser.GameObjects.Text;
+  private scriptCardUntil = 0;
 
   constructor() {
     super('ui');
@@ -56,6 +60,24 @@ export class UIScene extends Phaser.Scene {
     this.lastKills = 0;
     this.counterPop = 0;
     this.card = this.buildCard().setVisible(false);
+    this.buildScriptCards();
+    game.world.events.on('card', (e) => {
+      this.scriptCardUntil = game.world.time + e.seconds;
+      this.titleCard.setVisible(e.style === 'title');
+      this.caption.setVisible(e.style === 'caption');
+      (e.style === 'title' ? (this.titleCard.getByName('text') as Phaser.GameObjects.Text) : this.caption).setText(e.text);
+    });
+  }
+
+  /** M8 script cards (sequencer `card`): a title on black, or a caption line at the bottom. */
+  private buildScriptCards(): void {
+    const bg = this.add.rectangle(0, 0, 1920, 1080, 0x000000, 1).setOrigin(0, 0);
+    const text = this.add.text(960, 540, '', { fontFamily: 'Anton', fontSize: '72px', color: '#ffffff', align: 'center', wordWrap: { width: 1500 } }).setOrigin(0.5).setName('text');
+    this.titleCard = this.add.container(0, 0, [bg, text]).setDepth(90).setVisible(false);
+    this.caption = this.add.text(960, 1080 - 150, '', {
+      fontFamily: 'Inter', fontSize: '30px', color: '#ffffff', backgroundColor: '#000000cc', padding: { x: 18, y: 10 }, align: 'center', wordWrap: { width: 1400 },
+    }).setOrigin(0.5, 1).setDepth(90).setVisible(false);
+    this.scriptCardUntil = 0;
   }
 
   /** End-of-room card: plain text on black, like an episode title card (own wording). */
@@ -73,6 +95,7 @@ export class UIScene extends Phaser.Scene {
     this.drawPips(game, delta / 1000);
     this.drawAmmo(game);
     this.drawCounter(game);
+    if (game.world.time >= this.scriptCardUntil) { this.titleCard.setVisible(false); this.caption.setVisible(false); }
     if (game.lab) {
       const b = p?.body;
       const speed = b ? Math.hypot(b.vel.x, b.vel.z).toFixed(2) : '-';

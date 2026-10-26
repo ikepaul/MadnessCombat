@@ -26,6 +26,8 @@ export class MusicSystem {
   private ambience?: number;
   private layers: GainNode[] = [];
   private switcher?: LayerSwitcher;
+  /** Bumped on every track change, so a slow decode can't start a stale track. */
+  private trackGen = 0;
 
   constructor(private engine: AudioEngine) {}
 
@@ -35,10 +37,23 @@ export class MusicSystem {
     const cue = CUES.rooms[roomId];
     if (!cue) return;
     if (cue.ambience) this.ambience = this.engine.play(cue.ambience);
-    const track = cue.combat ? CUES.tracks[cue.combat] : undefined;
+    await this.setTrack(cue.combat);
+  }
+
+  /**
+   * M8 scripted cue (sequencer `music`): swap the combat track, keeping the ambience. A cue whose
+   * track isn't delivered yet leaves the ambience playing alone.
+   */
+  async setTrack(trackId: string | null): Promise<void> {
+    const gen = ++this.trackGen;
+    this.layers.forEach((g) => g.disconnect());
+    this.layers = [];
+    this.switcher = undefined;
+    const track = trackId ? CUES.tracks[trackId] : undefined;
     if (!track) return;
     const c = this.engine.ctx;
     const buffers = await Promise.all(track.stems.map(async (f) => c.decodeAudioData(await (await fetch(STEM_URLS[f])).arrayBuffer())));
+    if (gen !== this.trackGen) return; // another cue came in while this one was decoding
     const start = c.currentTime + 0.1;
     this.layers = buffers.map((buf) => {
       const src = c.createBufferSource();
@@ -74,6 +89,7 @@ export class MusicSystem {
   stop(): void {
     if (this.ambience !== undefined) this.engine.stop(this.ambience, 0.5);
     this.ambience = undefined;
+    this.trackGen++;
     this.layers.forEach((g) => g.disconnect());
     this.layers = [];
     this.switcher = undefined;

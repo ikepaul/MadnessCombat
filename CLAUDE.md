@@ -25,6 +25,7 @@ Node 26 via nvm (`nvm use`; the system Node is too old for Vite 8).
 - Routes: `/` = stage 1 arena, wave A (`/?stage=1&room=arena&wave=A`); `/?coop=host` / `/?coop=join` = co-op; `/?room=test` = the M0 style-frame room.
 - `src/sim/ai.ts` grunt AI (attack tokens for melee; gun grunts keep 3-5 H, 0.4 s aim telegraph, friendly fire, scavenging, one grenade per wave, table flips; squads, bodyguards, VIP), `src/sim/waves.ts` spawn points + wave scripts (entries take `SpawnOpts`: variant, squad, unaware placement), `src/data/stages/` room and wave data.
 - M7: `src/sim/stealth.ts` (unaware/alert rules, E takedowns from behind, drop kills from above), `src/sim/cover.ts` (kicked-over tables), `src/sim/zombies.ts` (raise rule, rise, zombie damage, headless). Co-op guests set `world.puppet` so replayed events don't re-run sim rules.
+- M8: `src/sim/sequencer.ts` (`world.seq`): generator scripts for intros/cutscenes/set pieces, stepped first in `World.step`. They yield seconds or a condition and use `wait/until/join/moveTo/act/steer/lockInput/spawn/place/giveItem/drop/card/cameraShake/music/waves/clear`. Scripted commands (`world.scripted`) override brains and player input; `card`/`music`/`cameraShake` are events (HUD, `MusicSystem.setTrack`, feel).
 - Labs: `/?lab` lists them, `/?lab=<slug>` opens one (`src/labs/registry.ts`). Every mechanic gets a replica lab compared against its reference frames.
 
 ## Co-op (2 laptops, same Wi-Fi)

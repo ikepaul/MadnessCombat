@@ -63,6 +63,8 @@ export class FeelDirector {
       this.sink.shake(FEEL.shake.explosion, FEEL.shake.decayMax);
       this.sink.chromatic(FEEL.chromatic.kill.px, FEEL.chromatic.kill.frames);
     });
+    // M8: scripted shakes (a landing boss, a falling cannon)
+    world.events.on('cameraShake', (e) => this.sink.shake(e.px, e.seconds));
     world.events.on('wallHit', (e) => {
       if (e.speed > 2) this.sink.shake(FEEL.shake.wall, FEEL.shake.decayMin + 0.1);
     });

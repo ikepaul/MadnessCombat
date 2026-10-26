@@ -109,6 +109,14 @@ export interface GameEvents {
   zombieHeadless: At;
   /** enemy-squad-leader: the leader died, his squad charges (one per member). */
   squadCharge: At;
+
+  // M8: scripted beats (src/sim/sequencer.ts)
+  /** A text card from a script: `title` = full screen on black, `caption` = a line at the bottom. */
+  card: { text: string; seconds: number; style: 'title' | 'caption' };
+  /** A script switched the music cue (assets/music/cues.json track id; null = ambience only). */
+  music: { cue: string | null };
+  /** A scripted screen shake (a landing boss, a falling cannon). */
+  cameraShake: { px: number; seconds: number };
 }
 
 export type HitKind =

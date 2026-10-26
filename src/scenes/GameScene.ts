@@ -148,6 +148,7 @@ export class GameScene extends Phaser.Scene {
       hookWorldAudio(this.world, engine);
       music ??= new MusicSystem(engine);
       void music.setRoom(this.world.room.id);
+      this.world.events.on('music', (e) => void music?.setTrack(e.cue));
     }
     this.vfx = new Vfx(this.world, () => this.blood);
     this.decals = new Decals(this.world, this.decalLayer, () => this.blood);
