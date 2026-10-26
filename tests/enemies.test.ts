@@ -6,6 +6,8 @@ import { TEST_ROOM } from '../src/data/rooms/testRoom';
 import { TUNING } from '../src/data/tuning';
 import { type Actor, createActor, type HeldItem, newHand } from '../src/sim/actor';
 import { gruntBrain, newAiState } from '../src/sim/ai';
+import { spawnEnemy } from '../src/sim/waves';
+import { raiseAll, raiseCorpse } from '../src/sim/zombies';
 import { IDLE_COMMAND, type PlayerCommand } from '../src/sim/command';
 import type { GameEvents } from '../src/sim/events';
 import type { RoomDef } from '../src/sim/room';
@@ -253,5 +255,119 @@ describe('enemy behaviours (enemy-behaviours, combat-cover)', () => {
     const pins = record(world, 'grenadePin');
     tick(world, {}, 60 * 25);
     expect(pins.length).toBe(1);
+  });
+});
+
+const ZT = TUNING.zombie;
+
+/** A settled grunt corpse at x. */
+function corpse(world: World, x: number): Actor {
+  const c = createActor('grunt', x, Z, -1, { dead: true });
+  world.actors.push(c);
+  return c;
+}
+
+describe('zombies (enemy-zombie)', () => {
+  it('an intact corpse rises in 1.0 s and comes for the player at ~0.8 H/s', () => {
+    const { world, hero } = setup(EMPTY, -3);
+    hero.hp = 999;
+    const c = corpse(world, 2);
+    expect(raiseCorpse(world, c)).toBe(true);
+    expect(c.kind).toBe('zombie');
+    tick(world, {}, Math.round(ZT.rise * 60) - 2);
+    expect(c.state).toBe('rising');
+    tick(world, {}, 3);
+    expect(c.state).toBe('free');
+    const x0 = c.pos.x;
+    tick(world, {}, 60);
+    const speed = Math.abs(c.pos.x - x0);
+    expect(speed).toBeGreaterThan(0.6);
+    expect(speed).toBeLessThan(1.0);
+  });
+
+  it('the raise rule: gibbed and headless corpses stay down; dead zombies too', () => {
+    const { world } = setup(EMPTY, -3);
+    const gibbed = corpse(world, 0), headless = corpse(world, 1), fine = corpse(world, 2);
+    gibbed.corpse!.gibbed = true;
+    gibbed.corpse!.raisable = false;
+    headless.pose.headless = true;
+    expect(raiseAll(world)).toBe(1);
+    expect(fine.kind).toBe('zombie');
+    expect(gibbed.state).toBe('dead');
+    expect(headless.state).toBe('dead');
+  });
+
+  it('takes 3 body shots; a head shot takes the head off and it keeps going for one more hit', () => {
+    const { world, hero } = setup(EMPTY, -3);
+    const z1 = corpse(world, 1), z2 = corpse(world, 2.5);
+    raiseAll(world);
+    tick(world, {}, 65);
+    const shoot = (o: Actor, part: 'head' | 'body') => world.hitBullet(hero, o, part === 'head' ? 4 : 2, part, 1, false, { ...o.pos });
+    shoot(z1, 'body'); shoot(z1, 'body');
+    expect(z1.state).not.toBe('dead');
+    shoot(z1, 'body');
+    expect(z1.state).toBe('dead');
+    shoot(z2, 'head');
+    expect(z2.state).not.toBe('dead');
+    expect(z2.pose.headless).toBe(true);
+    tick(world, {}, 30);
+    shoot(z2, 'body');
+    expect(z2.state).toBe('dead');
+    // a zombie corpse doesn't rise again
+    tick(world, {}, 120);
+    expect(raiseCorpse(world, z1)).toBe(false);
+  });
+
+  it('two melee-weapon hits put one down; light punches only make it twitch', () => {
+    const { world, hero } = setup(EMPTY, -3);
+    const z = corpse(world, 1);
+    raiseAll(world);
+    tick(world, {}, 65);
+    world.hitActor(hero, z, 'light', 1, 0, { ...z.pos });
+    expect(z.state).toBe('stun');
+    expect(z.stunFor).toBe(ZT.flinch);
+    world.hitActor(hero, z, 'smash', 1, 0, { ...z.pos });
+    tick(world, {}, 30);
+    expect(z.state).not.toBe('dead');
+    world.hitActor(hero, z, 'smash', 1, 0, { ...z.pos });
+    expect(z.state).toBe('dead');
+  });
+});
+
+describe('squad leader and bodyguards', () => {
+  it('the squad waits by its leader and charges when he dies', () => {
+    const { world, hero } = setup(EMPTY, -3);
+    hero.hp = 999;
+    const leader = spawnEnemy(world, 'grunt', 'pistol', 2.5, Z, { variant: 'leader', squad: 'S' });
+    const squad = [1, 2, 3].map((i) => spawnEnemy(world, 'grunt', 'knife', 2.5 + i * 0.1, 8.6 + i * 0.3, { squad: 'S' }));
+    tick(world, {}, 60 * 3);
+    for (const g of squad) {
+      expect(world.tokens.has(g.id)).toBe(false);
+      expect(Math.abs(g.pos.x - leader.pos.x)).toBeLessThanOrEqual(2.2);
+    }
+    const charges = record(world, 'squadCharge');
+    world.hitBullet(hero, leader, 4, 'head', 1, false, { ...leader.pos });
+    tick(world, {}, 2);
+    expect(charges.length).toBe(3);
+    // the whole squad gets to attack at once (no token wait)
+    expect(squad.every((g) => world.tokens.has(g.id) || g.state !== 'free')).toBe(true);
+  });
+
+  it('bodyguards stay by the VIP and take 2 hits (1 to the head)', () => {
+    const { world, hero } = setup(EMPTY, -3);
+    hero.hp = 999;
+    const vip = spawnEnemy(world, 'grunt', null, 2, 10, { variant: 'vip', squad: 'V' });
+    const g1 = spawnEnemy(world, 'grunt', 'smg', 1, 9.2, { variant: 'bodyguard', squad: 'V' });
+    const g2 = spawnEnemy(world, 'grunt', 'rifle', 3, 9.2, { variant: 'bodyguard', squad: 'V' });
+    tick(world, {}, 60 * 3);
+    for (const g of [g1, g2]) expect(Math.abs(g.pos.x - vip.pos.x)).toBeLessThan(1.2);
+    expect(Math.sign(g1.pos.x - vip.pos.x)).not.toBe(Math.sign(g2.pos.x - vip.pos.x));
+    world.hitBullet(hero, g1, 4, 'body', 1, false, { ...g1.pos });
+    expect(g1.state).not.toBe('dead');
+    tick(world, {}, 30);
+    world.hitBullet(hero, g1, 2, 'body', 1, false, { ...g1.pos });
+    expect(g1.state).toBe('dead');
+    world.hitBullet(hero, g2, 4, 'head', 1, false, { ...g2.pos });
+    expect(g2.state).toBe('dead');
   });
 });

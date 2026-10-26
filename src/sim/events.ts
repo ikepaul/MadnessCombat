@@ -103,6 +103,12 @@ export interface GameEvents {
   /** A grunt kicked a table over for cover (combat-cover); `tableLand` = it hit the floor. */
   tableFlip: At & { prop: number };
   tableLand: { x: number; y: number; z: number };
+  /** A corpse started rising as a zombie, or is up. */
+  zombieRise: At & { phase: 'start' | 'up' };
+  /** A zombie lost its head and keeps coming. */
+  zombieHeadless: At;
+  /** enemy-squad-leader: the leader died, his squad charges (one per member). */
+  squadCharge: At;
 }
 
 export type HitKind =

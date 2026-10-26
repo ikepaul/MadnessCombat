@@ -59,6 +59,12 @@ export interface AiState {
   flipper?: boolean;
   /** Cooking the encounter's grenade: seconds since the pin. */
   nadeT?: number;
+  /** enemy-squad-leader: the leader this grunt sticks to; `charge` once he's dead. */
+  leader?: number;
+  charge?: boolean;
+  /** enemy-elite-bodyguard: the VIP this guard stays next to, and on which side. */
+  guard?: number;
+  guardSide?: 1 | -1;
 }
 
 export function newAiState(world: World): AiState {
@@ -76,7 +82,15 @@ export function gunHand(a: Actor): { h: Hand; w: WeaponDef; i: 0 | 1 } | undefin
 }
 
 /** Melee fighters share the attack tokens; gun grunts shoot from range instead. Unaware ones don't fight yet. */
-const usesTokens = (a: Actor) => !gunHand(a) && a.ai?.aware !== false && a.takenBy === undefined;
+function usesTokens(world: World, a: Actor): boolean {
+  if (gunHand(a) || a.ai?.aware === false || a.takenBy !== undefined || a.variant === 'vip') return false;
+  // a squad sticks to its living leader unless a player walks right up to it
+  const l = a.ai?.leader !== undefined ? world.actorById(a.ai.leader) : undefined;
+  return !l || !alive(l) || world.activePlayers.some((p) => dist(a, p) < AI.squadEngage);
+}
+
+/** Zombies and a charging squad don't wait for a token. */
+const uncapped = (a: Actor) => a.kind === 'zombie' || !!a.ai?.charge;
 
 /** Can be shot at: standing (no get-up i-frames, not knocked flat). */
 const shootable = (p: Actor) => p.state === 'free' || p.state === 'attack' || p.state === 'stun';
@@ -107,7 +121,7 @@ export function assignTokens(world: World): void {
   for (const id of [...tokens]) {
     const a = world.actorById(id);
     const target = a?.ai?.target !== undefined ? world.actorById(a.ai.target) : undefined;
-    if (!a || !ableToFight(a) || !usesTokens(a) || !target || !standing.includes(target)) {
+    if (!a || !ableToFight(a) || !usesTokens(world, a) || !target || !standing.includes(target)) {
       tokens.delete(id);
       // a freed token waits before the next grunt steps in, so knockdowns buy breathing room
       if (target) world.tokenFreeAt.push({ player: target.id, t: world.time + AI.tokenCooldown });
@@ -118,12 +132,18 @@ export function assignTokens(world: World): void {
   for (const a of world.actors) {
     if (a.ai && !tokens.has(a.id)) a.ai.target = nearestPlayer(world, a)?.id;
   }
+  for (const a of world.actors) {
+    if (a.ai && uncapped(a) && !tokens.has(a.id) && a.ai.target !== undefined && a.state === 'free' && !a.entering && usesTokens(world, a)) {
+      tokens.add(a.id);
+      a.ai.ready = 0;
+    }
+  }
   for (const p of standing) {
     let used = world.tokenFreeAt.filter((f) => f.player === p.id).length;
     for (const id of tokens) if (world.actorById(id)?.ai?.target === p.id) used++;
     if (used >= AI.maxAttackers) continue;
     const waiting = world.actors
-      .filter((a) => a.ai && usesTokens(a) && !tokens.has(a.id) && a.ai.target === p.id && a.state === 'free' && !a.entering)
+      .filter((a) => a.ai && usesTokens(world, a) && !tokens.has(a.id) && a.ai.target === p.id && a.state === 'free' && !a.entering)
       .sort((a, b) => dist(a, p) - dist(b, p));
     for (const a of waiting) {
       if (used >= AI.maxAttackers) break;
@@ -146,6 +166,15 @@ export function gruntBrain(world: World): Brain {
     // being taken down: held still
     if (checkHeld(world, a)) return { ...IDLE_COMMAND };
     if (ai.aware === false) return unawareStep(world, a, dt);
+    // enemy-squad-leader: the leader is down, the squad charges
+    if (ai.leader !== undefined) {
+      const l = world.actorById(ai.leader);
+      if (!l || !alive(l)) {
+        ai.leader = undefined;
+        ai.charge = true;
+        world.events.emit('squadCharge', { actorId: a.id, ...a.pos });
+      }
+    }
     const p = ai.target !== undefined ? world.actorById(ai.target) : undefined;
     const face = (p && p.pos.x < a.pos.x ? -1 : 1) as 1 | -1;
     if (!p || !alive(p) || p.state === 'downed') { stopAiming(world, a); return { ...IDLE_COMMAND, face }; }
@@ -155,11 +184,13 @@ export function gruntBrain(world: World): Brain {
       ai.cooldown = Math.max(ai.cooldown, R.settle);
       return { ...IDLE_COMMAND, moveX: -Math.sign(a.pos.x) * AI.speed, face: (-Math.sign(a.pos.x) || 1) as 1 | -1 };
     }
+    // the VIP (a stage's target) stays put, watching
+    if (a.variant === 'vip') return { ...IDLE_COMMAND, face };
     const gun = gunHand(a);
     if (gun) return rangedStep(world, a, p, gun, face, dt);
     stopAiming(world, a);
     // enemy-behaviours: empty-handed grunts go for a weapon on the floor nearby
-    const loot = !a.hands[0] && !a.hands[1] ? scavenge(world, a) : undefined;
+    const loot = !a.hands[0] && !a.hands[1] && a.kind !== 'zombie' ? scavenge(world, a) : undefined;
     if (loot) return loot;
     return meleeStep(world, a, p, face, dt);
   };
@@ -331,6 +362,9 @@ function positionFor(world: World, a: Actor, p: Actor, w: WeaponDef, face: 1 | -
   const room = world.room, inside = room.halfWidth - 0.6;
   const [k0, k1] = keepRange(w);
   if (ai.keep === undefined || ai.keep < k0 || ai.keep > k1) ai.keep = k0 + world.rng() * (k1 - k0);
+  // enemy-elite-bodyguard: stays at the VIP's side instead of chasing
+  const vip = ai.guard !== undefined ? world.actorById(ai.guard) : undefined;
+  if (vip && alive(vip)) return steer(a, clamp(vip.pos.x + (ai.guardSide ?? 1) * AI.guardGap, -inside, inside), vip.pos.z + (ai.guardSide ?? 1) * 0.25, 0.1);
   let tx = clamp(p.pos.x - face * ai.keep, -inside, inside);
   // no room on our side: go round to the other side
   if (Math.abs(tx - p.pos.x) < k0 * 0.6) tx = clamp(p.pos.x + face * ai.keep, -inside, inside);
@@ -367,7 +401,7 @@ function meleeStep(world: World, a: Actor, p: Actor, face: 1 | -1, dt: number): 
   const stand = weapon ? Math.max(AI.punchDistance, weapon.reach - AI.weaponMargin) : AI.punchDistance;
 
   // enemy-behaviours: a knife grunt throws it from range now and then (then fights barehanded)
-  if (weapon?.id === 'knife' && a.state === 'free') {
+  if (weapon?.id === 'knife' && a.state === 'free' && a.kind !== 'zombie') {
     ai.throwT = (ai.throwT ?? AI.knifeThrowEvery * world.rng()) - dt;
     const dx = Math.abs(p.pos.x - a.pos.x), dz = Math.abs(p.pos.z - a.pos.z);
     const [r0, r1] = AI.knifeThrowRange;
@@ -408,6 +442,12 @@ function meleeStep(world: World, a: Actor, p: Actor, face: 1 | -1, dt: number): 
     }
     tx = p.pos.x - face * ai.ring;
     tz = ai.waitZ;
+    // enemy-squad-leader: the squad waits grouped round its leader (cohesion 2 H)
+    const l = ai.leader !== undefined ? world.actorById(ai.leader) : undefined;
+    if (l && alive(l)) {
+      tx = l.pos.x + (ai.ring - 2) * AI.squadSpread * 2;
+      tz = l.pos.z + (ai.waitZ - (room.zFront + room.zBack) / 2) * 0.4;
+    }
   }
   tx = clamp(tx, -inside, inside);
   return { ...steer(a, tx, tz, world.tokens.has(a.id) ? 0.06 : 0.2), face };
@@ -418,8 +458,9 @@ function steer(a: Actor, tx: number, tz: number, deadZone: number): PlayerComman
   const dx = tx - a.pos.x, dz = (tz - a.pos.z) / TUNING.move.depthFactor;
   const d = Math.hypot(dx, dz);
   if (d < deadZone) return { ...IDLE_COMMAND };
-  const slow = easeIn(d);
-  return { ...IDLE_COMMAND, moveX: (dx / d) * AI.speed * slow, moveZ: (dz / d) * AI.speed * slow };
+  // enemy-zombie: the slow shuffle
+  const slow = easeIn(d) * (a.kind === 'zombie' ? TUNING.zombie.speed : AI.speed);
+  return { ...IDLE_COMMAND, moveX: (dx / d) * slow, moveZ: (dz / d) * slow };
 }
 
 /** Ease off when close to the target so grunts don't jitter around it. */

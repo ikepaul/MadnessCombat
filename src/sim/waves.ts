@@ -2,8 +2,8 @@
 // list of (delay, spawn point, enemy type, weapon) entries; it trickles in, holding back while
 // too many are alive, and the next wave starts once the alive count drops below its threshold.
 import { TUNING } from '../data/tuning';
-import { type ActorKind, alive, createActor, type HeldItem } from './actor';
-import { gruntBrain, newAiState } from './ai';
+import { type Actor, type ActorKind, alive, createActor, type HeldItem } from './actor';
+import { type AiState, gruntBrain, newAiState } from './ai';
 import type { World } from './world';
 
 const W = TUNING.waves;
@@ -13,8 +13,21 @@ export type SpawnPoint =
   | { id: string; kind: 'edge'; side: -1 | 1; z: number }
   | { id: string; kind: 'door'; door: number };
 
-/** [delay after the previous entry (s), spawn point id, enemy type, weapon] */
-export type WaveEntry = [number, string, ActorKind, HeldItem];
+/**
+ * M7 options for an entry: a variant (squad leader, bodyguard, VIP); a squad name tying a leader
+ * or VIP to its members/guards (spawn the leader or VIP first); unaware placement for stealth.
+ */
+export interface SpawnOpts {
+  variant?: Actor['variant'];
+  squad?: string;
+  aware?: false;
+  idle?: AiState['idle'];
+  patrol?: [number, number];
+  face?: 1 | -1;
+}
+
+/** [delay after the previous entry (s), spawn point id, enemy type, weapon, options] */
+export type WaveEntry = [number, string, ActorKind, HeldItem, SpawnOpts?];
 
 export interface WaveDef {
   id: string;
@@ -47,7 +60,7 @@ export class WaveDirector {
   state: DirectorState = 'waiting';
   spawned = 0;
   /** Doors opening for a pending spawn: door index -> seconds until the enemy steps through. */
-  private pendingDoors: { door: number; t: number; kind: ActorKind; held: HeldItem }[] = [];
+  private pendingDoors: { door: number; t: number; kind: ActorKind; held: HeldItem; opts?: SpawnOpts }[] = [];
 
   constructor(readonly script: RoomScript, startWave = 0) {
     this.wave = startWave - 1;
@@ -91,24 +104,24 @@ export class WaveDirector {
     }
     this.timer -= dt;
     if (this.timer > 0 || aliveEnemies >= w.maxAlive) return;
-    const [, spawnId, kind, held] = w.entries[this.entry];
-    this.spawn(world, spawnId, kind, held);
+    const [, spawnId, kind, held, opts] = w.entries[this.entry];
+    this.spawn(world, spawnId, kind, held, opts);
     this.entry++;
     this.timer = w.entries[this.entry]?.[0] ?? 0;
   }
 
-  private spawn(world: World, spawnId: string, kind: ActorKind, held: HeldItem): void {
+  private spawn(world: World, spawnId: string, kind: ActorKind, held: HeldItem, opts?: SpawnOpts): void {
     const sp = this.script.spawns.find((s) => s.id === spawnId);
     if (!sp) throw new Error(`unknown spawn point ${spawnId}`);
     this.spawned++;
     if (sp.kind === 'door') {
       // enemy-spawning: the door opens visibly ~0.3 s before anyone steps through
       world.openDoor(sp.door);
-      this.pendingDoors.push({ door: sp.door, t: W.doorOpen, kind, held });
+      this.pendingDoors.push({ door: sp.door, t: W.doorOpen, kind, held, opts });
       return;
     }
     const x = sp.side * (world.room.halfWidth + W.edgeOffset);
-    spawnEnemy(world, kind, held, x, sp.z);
+    spawnEnemy(world, kind, held, x, sp.z, opts);
   }
 
   private stepDoors(world: World, dt: number): void {
@@ -117,18 +130,47 @@ export class WaveDirector {
       if (d.t > 0) continue;
       const door = world.room.doors[d.door];
       const side = door.wall === 'left' ? -1 : 1;
-      spawnEnemy(world, d.kind, d.held, side * (world.room.halfWidth + 0.2), (door.z0 + door.z1) / 2);
+      spawnEnemy(world, d.kind, d.held, side * (world.room.halfWidth + 0.2), (door.z0 + door.z1) / 2, d.opts);
     }
     this.pendingDoors = this.pendingDoors.filter((d) => d.t > 0);
   }
 }
 
-export function spawnEnemy(world: World, kind: ActorKind, held: HeldItem, x: number, z: number) {
-  const a = createActor(kind, x, z, x > 0 ? -1 : 1, { held });
+export function spawnEnemy(world: World, kind: ActorKind, held: HeldItem, x: number, z: number, opts: SpawnOpts = {}) {
+  const a = createActor(kind, x, z, opts.face ?? (x > 0 ? -1 : 1), { held });
   a.ai = newAiState(world);
   a.brain = gruntBrain(world);
   a.entering = Math.abs(x) > world.room.halfWidth - TUNING.move.radius;
+  applySpawnOpts(world, a, opts);
   world.actors.push(a);
   world.events.emit('spawn', { actorId: a.id, x, y: 0, z });
   return a;
+}
+
+/** Squads: the leader or VIP each squad name points to (spawned first). */
+const squadHeads = new WeakMap<World, Map<string, number>>();
+
+/** Variant, squad membership and unaware placement (M7). */
+export function applySpawnOpts(world: World, a: Actor, opts: SpawnOpts): void {
+  const ai = a.ai!;
+  a.variant = opts.variant;
+  // enemy-elite-bodyguard: 2 hits (a head shot: 1)
+  if (opts.variant === 'bodyguard') a.hp = a.maxHp = TUNING.ai.bodyguardHits;
+  if (opts.aware === false) {
+    ai.aware = false;
+    ai.idle = opts.idle ?? 'stand';
+    ai.patrol = opts.patrol;
+  }
+  if (!opts.squad) return;
+  let heads = squadHeads.get(world);
+  if (!heads) squadHeads.set(world, (heads = new Map()));
+  if (opts.variant === 'leader' || opts.variant === 'vip') { heads.set(opts.squad, a.id); return; }
+  const head = heads.get(opts.squad);
+  if (head === undefined) return;
+  if (opts.variant === 'bodyguard') {
+    // guards take alternate sides of the VIP
+    const taken = world.actors.filter((o) => o.ai?.guard === head).length;
+    ai.guard = head;
+    ai.guardSide = taken % 2 ? 1 : -1;
+  } else ai.leader = head;
 }

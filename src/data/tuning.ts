@@ -71,6 +71,22 @@ export const TUNING = {
     patrolSpeed: 0.35,
     patrolWait: 1.2,
   },
+  /** M7 zombies (enemy-zombie). */
+  zombie: {
+    /** enemy-zombie: bolt -> standing ~1.0 s (ep1 f1485-f1520). */
+    rise: 1.0,
+    /** enemy-zombie: walk 0.7-0.9 H/s (ep1 f1525-f1555), as a share of the calm walk (zombies never combat-walk). */
+    speed: 0.8 / 1.1,
+    /** enemy-zombie: ~3 bullet hits; a melee weapon takes 2 (the note's 1-3 axe hits). invented split */
+    hp: 3,
+    weaponHit: 1.5,
+    /** Headless, it takes one more hit (enemy-zombie, invented). */
+    headlessHp: 0.5,
+    /** Light hits only make it twitch (no stun lock). invented */
+    flinch: 0.12,
+    /** A melee weapon within this distance is taken up on rising. invented */
+    weaponReach: 0.6,
+  },
   health: {
     /** decided with the user (2026-10-26): 4 light or 2 heavy hits (light 1, heavy 2). */
     grunt: 4,
@@ -234,6 +250,13 @@ export const TUNING = {
     grenadeClear: 2.2,
     /** Cook before the lob (s). invented */
     grenadeCook: 0.35,
+    /** enemy-squad-leader: the squad waits within this of its leader (half-width), fights anyone within `squadEngage`. invented */
+    squadSpread: 1,
+    squadEngage: 1.4,
+    /** enemy-elite-bodyguard: distance from the VIP (each guard on one side). invented */
+    guardGap: 0.8,
+    /** enemy-elite-bodyguard: hits to kill (invented; a head shot always kills). */
+    bodyguardHits: 2,
     /** M7 ranged grunts (enemy-grunt-armed). */
     ranged: {
       /** Keep this far from the player in x (H): pistols/rifles, and shotguns (close range). invented within the note's 3-5 H */

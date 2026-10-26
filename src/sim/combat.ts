@@ -8,6 +8,7 @@ import { GUNS, isWeapon, WEAPONS } from '../data/weapons';
 import { stepHands } from './guns';
 import { blastFlight } from './explosives';
 import { tryTakedown } from './stealth';
+import { stepRising, zombieDamage, zombieLosesHead } from './zombies';
 import { ACTION_KINDS, actionTiming, disarm, dropCooking, holdsLong, lobHeldGrenade, startAction, startMeleeAction, stealTarget, stepAction, stepGrenade } from './melee';
 import { project, unprojectFloor } from '../render/camera';
 import { type Actor, type AttackKind, alive, type Flight } from './actor';
@@ -124,6 +125,9 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
       break; // positioned by the holder (World.updateHeld)
     case 'dead':
       stepCorpse(world, a, dt);
+      break;
+    case 'rising':
+      stepRising(world, a);
       break;
   }
   a.pose.dead = a.state === 'dead';
@@ -305,9 +309,12 @@ export function applyHit(
   const corpse = o.state === 'dead';
   const base = bullet ? bullet.damage : kind === 'gun' && part === 'head' ? GUNS.throwHead : kind === 'finisher' && heavy ? M.finisher.heavyDamage : DAMAGE[kind];
   const combo = !corpse && base > 0 && o.kind !== 'hero' && MELEE_KINDS.includes(kind) && chainBonus(world, by, o, kind);
-  const damage = corpse || base <= 0 ? 0 : o.kind === 'hero' ? 1 : base + (combo ? C_.bonus : 0);
+  const damage = corpse || base <= 0 ? 0 : o.kind === 'hero' ? 1 : o.kind === 'zombie' ? zombieDamage(kind, base)
+    : o.variant === 'bodyguard' ? (part === 'head' || base >= 99 ? o.hp : 1) : base + (combo ? C_.bonus : 0);
   o.hp = Math.max(0, o.hp - damage);
-  const killed = !corpse && o.hp <= 0;
+  let killed = !corpse && o.hp <= 0;
+  // enemy-zombie: the head comes off and it keeps going (one more hit)
+  if (!corpse && damage < 99 && (killed || part === 'head') && zombieLosesHead(world, o, kind, part, killed, dirX, dirZ)) killed = false;
   if (o.corpse?.phase !== 'frozen') o.pose.impact = H.impact;
   if (o.kind === 'hero' && damage > 0) o.pose.hurt = H.hurtFlash;
   if ((damage > 0 || corpse) && o.corpse?.phase !== 'frozen') addWound(o, at, part);
@@ -338,6 +345,8 @@ export function applyHit(
   switch (airborne && kind === 'light' ? 'heavy' : kind) {
     case 'light':
     case 'stab':
+      // enemy-zombie: light hits only make a zombie twitch
+      if (o.kind === 'zombie') { o.state = 'stun'; o.stateT = 0; o.stunFor = TUNING.zombie.flinch; o.pose.lean = -0.2; setClip(o, 'stun'); break; }
       // combat-disarm: a punch knocks the weapon away 30% of the time (kicks and sweeps always: knockdowns drop it)
       if (kind === 'light' && o.kind !== 'hero' && (o.hands[0] || o.hands[1]) && world.rng() < DISARM.punchChance) disarm(world, by, o, 'knock', dirX);
       o.state = 'stun';
@@ -454,7 +463,8 @@ function die(world: World, o: Actor, by: Actor | undefined, kind: HitKind, dirX:
   o.state = 'dead';
   o.stateT = 0;
   o.hp = 0;
-  o.corpse = { phase: 'tumble', t: 0, raisable: true, gibbed: false, slumped: false };
+  // a zombie that falls again stays down (enemy-zombie: only fresh corpses rise)
+  o.corpse = { phase: 'tumble', t: 0, raisable: o.kind === 'grunt', gibbed: false, slumped: false };
   world.events.emit('kill', { actorId: o.id, byId: by?.id ?? 0, kind, decap, ...o.pos });
   creditKill(world, by?.id);
   if (decap) {
