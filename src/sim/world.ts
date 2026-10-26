@@ -9,6 +9,13 @@ import { EventBus, type HitKind } from './events';
 import { type Item, type ItemKind, spawnItem, stepItems } from './items';
 import type { RoomDef } from './room';
 import type { WaveDirector } from './waves';
+import { stepProps } from './cover';
+import { installAlertRules } from './stealth';
+
+/** Props can change in play (a kicked-over table), so each World gets its own copies. */
+function ownProps(room: RoomDef): RoomDef {
+  return { ...room, props: room.props.map((p) => ({ ...p })) };
+}
 
 /** Door animation state: `open` 0 (closed) .. 1 (open), moving toward `target`. */
 export interface DoorState { open: number; target: 0 | 1; hold: number }
@@ -42,8 +49,14 @@ export class World {
   /** Seeded RNG so the sim stays reproducible in tests. */
   private seed = 0x2f6b1c3d;
 
+  /** PLAN.md M7: grenades the enemies may still lob this encounter (one per wave). */
+  enemyGrenades = 1;
+
   constructor(public room: RoomDef) {
+    this.room = ownProps(room);
     this.resetDoors();
+    installAlertRules(this);
+    this.events.on('waveStart', () => { this.enemyGrenades = 1; });
     // world-kill-counter: every enemy death counts
     this.events.on('kill', (e) => {
       const kind = this.actorById(e.actorId)?.kind;
@@ -117,7 +130,8 @@ export class World {
   }
 
   setRoom(room: RoomDef): void {
-    this.room = room;
+    this.room = ownProps(room);
+    this.enemyGrenades = 1;
     this.resetDoors();
     this.events.emit('roomChanged', { roomId: room.id });
   }
@@ -166,6 +180,7 @@ export class World {
     this.separate();
     stepItems(this, this.dt);
     stepCannons(this, this.dt);
+    stepProps(this, this.dt);
     this.director?.step(this, this.dt);
     this.stepDoors();
     this.events.emit('tick', { tick: this.tick });

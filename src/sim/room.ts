@@ -13,6 +13,11 @@ export interface TableDef {
   kind: 'table';
   x0: number; x1: number; z0: number; z1: number;
   top: number;
+  /**
+   * Kicked over onto its side toward the camera (combat-cover, M7): the original footprint and
+   * the tip progress 0..1. Once tipped the table's own fields describe the upright top (cover).
+   */
+  tip?: { t: number; z0: number; z1: number; top: number };
 }
 
 /**

@@ -90,12 +90,27 @@ export interface GameEvents {
   shieldHit: At & { holderId: number; broke: boolean };
   /** A long-weapon thrust pinned a body to a wall or prop (melee-environment-weapon). */
   pin: At & { targetId: number };
+
+  // M7: armed enemies, stealth, zombies
+  /** An enemy raised its gun at a player: the aim telegraph (shot follows after TUNING.ai.ranged.telegraph). */
+  aimStart: At & { targetId: number; weapon: WeaponId };
+  /** The telegraph was broken off (the target got out of reach or the shooter was hit). */
+  aimCancel: At;
+  /** An unaware enemy noticed something (head snap, "!" mark). */
+  alert: At;
+  /** A stealth takedown started (victim grabbed) or finished (silent kill). */
+  takedown: At & { targetId: number; how: 'knife' | 'wire'; phase: 'start' | 'kill' };
+  /** A grunt kicked a table over for cover (combat-cover); `tableLand` = it hit the floor. */
+  tableFlip: At & { prop: number };
+  tableLand: { x: number; y: number; z: number };
 }
 
 export type HitKind =
   | 'light' | 'heavy' | 'uppercut' | 'finisher' | 'sweep' | 'body' | 'head' | 'wall' | 'bullet' | 'gun'
   // M6: knife stab, blade swing, blunt swing, thrown blade, explosion, long-weapon pin
-  | 'stab' | 'slash' | 'smash' | 'knife' | 'blast' | 'pin';
+  | 'stab' | 'slash' | 'smash' | 'knife' | 'blast' | 'pin'
+  // M7: silent stealth kill
+  | 'takedown';
 
 /** Melee hits (combos chain these). */
 export const MELEE_KINDS: HitKind[] = ['light', 'heavy', 'uppercut', 'finisher', 'stab', 'slash', 'smash'];

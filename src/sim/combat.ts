@@ -7,7 +7,8 @@ import { DISARM, GRENADE, MELEE, SHIELD } from '../data/melee';
 import { GUNS, isWeapon, WEAPONS } from '../data/weapons';
 import { stepHands } from './guns';
 import { blastFlight } from './explosives';
-import { ACTION_KINDS, actionTiming, disarm, dropCooking, holdsLong, lobHeldGrenade, startMeleeAction, stealTarget, stepAction, stepGrenade } from './melee';
+import { tryTakedown } from './stealth';
+import { ACTION_KINDS, actionTiming, disarm, dropCooking, holdsLong, lobHeldGrenade, startAction, startMeleeAction, stealTarget, stepAction, stepGrenade } from './melee';
 import { project, unprojectFloor } from '../render/camera';
 import { type Actor, type AttackKind, alive, type Flight } from './actor';
 import { clamp, moveWithCollision, surfaceBelow } from './collision';
@@ -45,6 +46,8 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
 
   // throw-catch-return: F opens a short window to catch a thrown weapon
   if (cmd.grab) a.catchAt = world.time;
+  // M7: E behind an unaware enemy is a takedown (before E picks anything up)
+  if (a.state === 'free' && tryTakedown(world, a, cmd)) cmd = { ...cmd, pickup: false };
   // a hand holding a gun fires instead of punching (M5): LMB = hand 0, RMB = hand 1
   if (a.state === 'free' || a.state === 'attack') {
     cmd = withoutGunPunches(a, cmd);
@@ -60,6 +63,8 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
         cmd = { ...cmd, attack: a.queued.kind, aim: a.queued.aim };
       }
       a.queued = undefined;
+      // M7: a grunt kicks a table over for cover
+      if (cmd.flip !== undefined && b.state === 'ground' && !a.holding) { startAction(world, a, 'flip', cmd, { prop: cmd.flip }); break; }
       // M6: a melee weapon in the hand swings / stabs / is thrown instead of punching
       if (a.cook === undefined && startMeleeAction(world, a, cmd)) break;
       cmd = withoutItemPunches(a, cmd);
@@ -83,7 +88,7 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
       // in the air the jump carries on; on the ground keep walking through a swing
       // (finishers, item throws, pulls and steals are planted)
       if (a.body.state === 'air') stepAirborneAction(world, a, cmd, dt);
-      else if (k !== 'finisher' && k !== 'toss' && k !== 'lob' && k !== 'pull' && k !== 'steal') stepAttackMove(world, a, cmd, dt);
+      else if (k !== 'finisher' && k !== 'toss' && k !== 'lob' && k !== 'pull' && k !== 'steal' && k !== 'flip' && k !== 'takedown') stepAttackMove(world, a, cmd, dt);
       else a.pose.walkPhase = undefined;
       stepAttack(world, a);
       break;
@@ -279,6 +284,8 @@ const DAMAGE: Record<HitKind, number> = {
   // M6: melee weapons and thrown blades are one-hit kills on grunts (melee-weapons, throw-knives);
   // the explosion and the pin kill outright
   stab: MELEE.knife.damage, slash: 4, smash: 4, knife: 4, blast: 99, pin: 99,
+  // M7: the stealth kill always kills
+  takedown: 99,
 };
 
 /**
@@ -399,6 +406,8 @@ function launch(kind: HitKind, dirX: number, dirZ: number): Pick<Flight, 'vx' | 
     return { vx: ux * v, vz: uz * v, vy, airtime };
   }
   if (kind === 'finisher') return { vx: 0, vz: 0, vy: 0, airtime: 0.01 };
+  // a takedown victim slumps forward where he stood
+  if (kind === 'takedown') { dist = 0.25; airtime = 0.4; skid = 0.1; }
   if (kind === 'blast') return blastFlight(dirX, dirZ);
   // distance covered in the air at constant speed plus a linearly decelerating skid
   const v = dist / (airtime + skid / 2);
