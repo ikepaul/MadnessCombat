@@ -40,6 +40,8 @@ export interface Item {
   /** Grenades: lit (fuse running) and seconds left. */
   live?: boolean;
   fuse?: number;
+  /** World time it was thrown (your own throw can be caught back after a moment). */
+  thrownAt?: number;
   /** Stuck in this actor at this actor-local point, at this angle relative to the body. */
   stuckTo?: number;
   stuckLocal?: [number, number];
@@ -81,6 +83,8 @@ export function stepItems(world: World, dt: number): void {
     }
     if (it.state === 'stuck') { followStuck(world, it); continue; }
     if (it.state !== 'air') continue;
+    // throw-catch-return: F with a free hand snatches a weapon flying past the hands (your own too)
+    if (snatch(world, it)) continue;
     const before = project(it.pos.x, it.pos.y, it.pos.z);
     it.pos.x += it.vel.x * dt;
     it.pos.z += it.vel.z * dt;
@@ -197,6 +201,20 @@ export function stickInBody(world: World, it: Item, o: Actor, part: 'head' | 'bo
 /** throw-catch-return: F pressed with a free hand just before the object arrives. */
 export function canCatch(world: World, o: Actor): boolean {
   return o.catchAt !== undefined && world.time - o.catchAt <= THROWN.catchWindow + 1e-6 && alive(o) && (o.state === 'free' || o.state === 'attack') && (!o.hands[0] || !o.hands[1]);
+}
+
+/** A weapon in the air within reach of someone's hands who just pressed F. */
+function snatch(world: World, it: Item): boolean {
+  if (it.kind === 'head' || it.kind === 'grenade') return false;
+  for (const o of world.actors) {
+    if (!canCatch(world, o)) continue;
+    if (o.id === it.thrownBy && world.time - (it.thrownAt ?? -Infinity) < THROWN.ownCatchDelay) continue;
+    const hx = o.pos.x + o.facing * 0.25, hy = o.pos.y + 0.6;
+    if (Math.abs(it.pos.z - o.pos.z) > 0.3 || Math.hypot(it.pos.x - hx, it.pos.y - hy) > THROWN.catchReach) continue;
+    catchItem(world, o, it);
+    return true;
+  }
+  return false;
 }
 
 function catchItem(world: World, o: Actor, it: Item): void {

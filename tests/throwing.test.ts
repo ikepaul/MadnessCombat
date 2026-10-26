@@ -202,6 +202,41 @@ describe('catching (throw-catch-return)', () => {
   });
 });
 
+describe('catching your own weapon', () => {
+  it('a gun thrown at the wall bounces back and can be caught with F', () => {
+    const { world, hero } = setup(EMPTY, 2.6);
+    hero.hands = [newHand('pistol', 0, 0), null];
+    tick(world, { throwGun: true, aim: project(5, 0.6, Z) });
+    const gun = world.items.find((i) => i.kind === 'pistol')!;
+    // wait until it has hit the wall and is on its way back
+    let n = 0;
+    while (gun.vel.x >= 0 && n++ < 120) tick(world);
+    expect(gun.vel.x).toBeLessThan(0);
+    const catches = record(world, 'catch');
+    n = 0;
+    while (catches.length === 0 && n++ < 60) tick(world, { grab: gun.pos.x < hero.pos.x + 0.7 });
+    expect(catches).toHaveLength(1);
+    expect(hero.hands[0]?.item).toBe('pistol');
+  });
+
+  it('without F it flies past you', () => {
+    const { world, hero } = setup(EMPTY, 2.6);
+    hero.hands = [newHand('pistol', 0, 0), null];
+    tick(world, { throwGun: true, aim: project(5, 0.6, Z) });
+    tick(world, {}, 90);
+    expect(hero.hands[0]).toBeNull();
+  });
+
+  it('your own throw is not caught right out of your hand', () => {
+    const { world, hero } = setup();
+    hero.hands = [newHand('knife'), null];
+    tick(world, { attack: 'light', aim: project(3, 0.6, Z) });
+    tick(world, { grab: true }, ticksFor(world, THROWN.windup) + 3);
+    expect(hero.hands[0]).toBeNull();
+    expect(world.items.some((i) => i.kind === 'knife')).toBe(true);
+  });
+});
+
 describe('disarming (combat-disarm)', () => {
   it('F on an armed grunt steals the weapon in 0.4 s', () => {
     const { world, hero } = setup();

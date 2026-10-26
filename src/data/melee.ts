@@ -71,6 +71,10 @@ export const THROWN = {
   pullRange: 0.6,
   /** throw-catch-return: F with an empty hand within this long before a thrown object arrives. invented */
   catchWindow: 0.15,
+  /** F also snatches any weapon flying within this reach of the hands, your own included. invented */
+  catchReach: 0.5,
+  /** Your own throw can't be caught back for this long after it leaves the hand. invented */
+  ownCatchDelay: 0.25,
 } as const;
 
 /** throw-grenade, throw-grenade-return. */

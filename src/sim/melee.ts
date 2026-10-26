@@ -184,6 +184,7 @@ export function tossHeld(world: World, a: Actor, i: 0 | 1, aim?: ScreenPoint): I
   // knives spin end over end; long things tumble slower
   const it = world.spawnItem(h.item, 'grunt', from, { x: dx * speed, y: dy * speed, z: 0 }, Math.sign(dx) * (knife ? 24 : 14));
   it.thrownBy = a.id;
+  it.thrownAt = world.time;
   it.straight = THROWN.maxFlight;
   it.drop = blade ? THROWN.gravityShare : 0;
   it.ammo = h.ammo;
@@ -206,6 +207,7 @@ function lobGrenade(world: World, a: Actor, fuse: number, aim?: ScreenPoint): vo
   it.live = true;
   it.fuse = Math.max(0.05, fuse);
   it.thrownBy = a.id;
+  it.thrownAt = world.time;
   world.events.emit('throw', { actorId: a.id, itemId: it.id, ...from, vx: it.vel.x, vz: it.vel.z });
 }
 
@@ -254,6 +256,7 @@ export function dropCooking(world: World, a: Actor): void {
   it.live = true;
   it.fuse = fuse;
   it.thrownBy = a.id;
+  it.thrownAt = world.time;
 }
 
 // ---------- pulling stuck blades and the planted sign ----------

@@ -177,6 +177,7 @@ export function throwGun(world: World, a: Actor, i: 0 | 1, cmd: PlayerCommand): 
   if (Math.abs(dx) < 0.2) dx = a.facing * 0.2;
   const it = world.spawnItem(h.item, 'grunt', from, { x: dx * GUNS.throwSpeed, y: dy * GUNS.throwSpeed, z: 0 }, Math.sign(dx) * 22);
   it.thrownBy = a.id;
+  it.thrownAt = world.time;
   it.straight = 0.6;
   it.ammo = h.ammo;
   it.spare = h.spare;
