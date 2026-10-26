@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { INK } from '../data/palettes';
 import '../labs/aiLabs';
+import '../labs/gunLabs';
 import '../labs/meleeLabs';
 import '../labs/movementLabs';
 import '../labs/toolLabs';

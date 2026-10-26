@@ -1,7 +1,7 @@
 // Co-op networking (PLAN.md M4b): the relay's routing and the host -> guest snapshots.
 import { describe, expect, it } from 'vitest';
 import { STAGE1 } from '../src/data/stages/stage1';
-import { createActor } from '../src/sim/actor';
+import { createActor, newHand } from '../src/sim/actor';
 import { IDLE_COMMAND } from '../src/sim/command';
 import { CoopRelay, type RelayClient } from '../src/net/relay';
 import { applySnapshot, type Snapshot, SnapshotWriter } from '../src/net/snapshot';
@@ -116,5 +116,21 @@ describe('snapshots', () => {
     expect(writer.take().actors.filter((a) => a.corpse === 'frozen')).toHaveLength(0);
     writer.needFull = true;
     expect(writer.take().actors.filter((a) => a.corpse === 'frozen')).toHaveLength(5);
+  });
+});
+
+describe('snapshots carry guns (M5)', () => {
+  it('player 2 sees the hands, the ammo and every shot', () => {
+    const { host, puppet, send } = hostAndPuppet();
+    send();
+    const shots: number[] = [];
+    puppet.events.on('shot', (e) => shots.push(e.hand));
+    host.players[1].hands[0] = newHand('pistol');
+    host.commands = [{ ...IDLE_COMMAND }, { ...IDLE_COMMAND, press: [true, false], aim: [1600, 700] }];
+    host.step();
+    send();
+    expect(shots).toEqual([0]);
+    expect(puppet.players[1].hands[0]).toMatchObject({ item: 'pistol', ammo: 7 });
+    expect(puppet.players[1].pose.held).toBe('pistol');
   });
 });

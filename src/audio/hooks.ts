@@ -1,6 +1,7 @@
 // Sim events -> sounds (PLAN.md M4: hook all M1-M3 events). The sim never calls audio; this
 // subscribes to a world's events. Layering follows design/audio-direction.md.
 import { type SoundId } from '../data/audio';
+import type { WeaponId } from '../data/weapons';
 import { project } from '../render/camera';
 import type { HitKind } from '../sim/events';
 import type { World } from '../sim/world';
@@ -53,6 +54,30 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
   world.events.on('grab', (e) => play('grab', at(e.x, e.y, e.z)));
   world.events.on('throw', (e) => play('whooshThrow', at(e.x, e.y, e.z)));
   world.events.on('heal', () => play('heal', {}));
+  // guns (M5)
+  const SHOT: Record<WeaponId, SoundId> = {
+    pistol: 'shotPistol', pistolSuppressed: 'shotSuppressed', deagle: 'shotDeagle', smg: 'shotSmg',
+    rifle: 'shotRifle', mg: 'shotMg', shotgun: 'shotShotgun', sawedoff: 'shotShotgun',
+  };
+  world.events.on('shot', (e) => {
+    const p = at(e.x, e.y + 0.5, e.z);
+    play(SHOT[e.weapon], p);
+    // the casing lands a moment later; the pump shotgun racks after its shot
+    play('casing', { ...p, delay: 0.3 + Math.random() * 0.15 });
+    if (e.weapon === 'shotgun') play('slideRack', { ...p, delay: 0.3 });
+    for (const r of e.rays) {
+      if (!r.impact || r.surface === 'flesh' || r.surface === 'sky') continue;
+      const q = at(r.impact.x, r.impact.y, r.impact.z, { gain: 0.6 / Math.max(1, e.rays.length / 2) });
+      play(r.surface === 'prop' ? 'hitWood' : world.room.outdoor && r.surface === 'floor' ? 'stepDirt' : 'hitConcrete', q);
+    }
+  });
+  world.events.on('dryFire', (e) => play('dryFire', at(e.x, e.y + 0.5, e.z)));
+  world.events.on('reload', (e) => {
+    const p = at(e.x, e.y + 0.5, e.z);
+    if (e.phase === 'start') play('magOut', p);
+    else { play('magOut', { ...p, rate: 1.25 }); play('slideRack', { ...p, delay: 0.08 }); }
+  });
+  world.events.on('pickup', (e) => { play('grab', at(e.x, e.y + 0.4, e.z)); play('magOut', at(e.x, e.y + 0.4, e.z, { rate: 1.4, gain: 0.5 })); });
   world.events.on('doorOpen', (e) => {
     const d = world.room.doors[e.door];
     if (d) play('door', at(d.wall === 'left' ? -world.room.halfWidth : world.room.halfWidth, 1, (d.z0 + d.z1) / 2));

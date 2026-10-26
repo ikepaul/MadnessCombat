@@ -1,6 +1,7 @@
 // Loose items on the floor or in flight: dropped weapons and severed heads (own design: the
 // head is our character's round top shape, melee-decapitation).
 import { BLOOD_DARK, INK, type Palette } from '../../data/palettes';
+import { isWeapon, WEAPONS } from '../../data/weapons';
 import type { Item } from '../../sim/items';
 import { project, scaleAt } from '../camera';
 import { actorColors, paintHead, paintHeld } from './characterPainter';
@@ -34,7 +35,8 @@ export function paintItem(ctx: Ctx, it: Item, pal: Palette, blood: boolean): voi
     ctx.fillStyle = blood ? BLOOD_DARK : '#5d5e63'; ctx.fill();
     ctx.lineWidth = 0.01; ctx.strokeStyle = INK; ctx.stroke();
   } else {
-    ctx.translate(it.kind === 'baton' ? -0.2 : -0.08, 0);
+    // centre the weapon on its floor point
+    ctx.translate(isWeapon(it.kind) ? -WEAPONS[it.kind].length / 2 + 0.05 : -0.2, 0);
     paintHeld(ctx, it.kind);
   }
   ctx.restore();

@@ -1,11 +1,14 @@
-// Persistent blood decals (world-persistence-decals, style-frame code): wall splatter where a
-// body slams into a wall and pools growing under corpses. Baked into a layer that only grows
-// during a room; capped at 500 (invented). Stages without blood (stage 1) make none.
+// Persistent decals (world-persistence-decals, style-frame code), baked into a layer that only
+// grows during a room, capped at 500 (invented). Blood (stages 2+ only): wall splatter where a
+// body slams into a wall or behind a body a bullet hits, and pools under corpses. Everywhere:
+// bullet holes and the casings and magazines that land on the floor (M5). Rooms are fixed
+// screens, so one screen-space layer serves every surface.
 import { BLOOD, BLOOD_DARK } from '../data/palettes';
 import type { World } from '../sim/world';
 import { project, scaleAt } from './camera';
 import { type Ctx, mulberry32 } from './canvas/draw';
 import type { CanvasLayer } from './canvasLayer';
+import { paintDebris, type SettledDebris } from './gunFx';
 
 const MAX_DECALS = 500;
 /** Pool growth time; shorter than the corpse freeze delay so it bakes first. invented */
@@ -13,7 +16,12 @@ const POOL_GROW = 1.2;
 
 type Decal =
   | { kind: 'splat'; x: number; y: number; dx: number; dy: number; seed: number; scale: number }
-  | { kind: 'pool'; x: number; z: number; rx: number; rz: number; seed: number };
+  | { kind: 'pool'; x: number; z: number; rx: number; rz: number; seed: number }
+  | { kind: 'hole'; x: number; y: number; s: number; flat: boolean; seed: number }
+  | ({ kind: 'debris' } & Omit<SettledDebris, 'kind'> & { item: SettledDebris['kind'] });
+
+/** Blood decals hide on stages without blood; the rest always show. */
+const isBlood = (d: Decal) => d.kind === 'splat' || d.kind === 'pool';
 
 interface Growing { x: number; z: number; rx: number; rz: number; seed: number; t: number }
 
@@ -38,13 +46,29 @@ export class Decals {
       const r = mulberry32(this.seed++ * 7);
       this.growing.push({ x: e.x, z: e.z, rx: 0.45 + r() * 0.3, rz: 0.13 + r() * 0.07, seed: this.seed * 11, t: 0 });
     });
+    world.events.on('shot', (e) => {
+      for (const r of e.rays) {
+        const at = r.impact;
+        if (!at) continue;
+        const [x, y] = project(at.x, at.y, at.z), s = scaleAt(at.z);
+        if (r.surface === 'flesh') {
+          // blood sprays onto whatever is behind the body, along the shot
+          if (this.blood()) this.add({ kind: 'splat', x, y, dx: Math.cos(e.angle), dy: Math.sin(e.angle), seed: this.seed++ * 13, scale: 0.45 * (s / 230) });
+        } else this.add({ kind: 'hole', x, y, s, flat: at.surface === 'floor' || at.surface === 'ceiling', seed: this.seed++ });
+      }
+    });
     world.events.on('tick', () => this.step(world.dt));
+  }
+
+  /** A casing or magazine that landed (GunFx). */
+  addDebris(d: SettledDebris): void {
+    this.add({ kind: 'debris', item: d.kind, x: d.x, y: d.y, angle: d.angle, s: d.s });
   }
 
   private add(d: Decal): void {
     if (this.baked.length >= MAX_DECALS) return;
     this.baked.push(d);
-    paintDecal(this.layer.ctx, d);
+    if (!isBlood(d) || this.blood()) paintDecal(this.layer.ctx, d);
     this.layer.markDirty();
   }
 
@@ -68,7 +92,8 @@ export class Decals {
   /** Re-bake everything (room or blood toggle changed). */
   rebake(): void {
     this.layer.clear();
-    if (this.blood()) for (const d of this.baked) paintDecal(this.layer.ctx, d);
+    const blood = this.blood();
+    for (const d of this.baked) if (!isBlood(d) || blood) paintDecal(this.layer.ctx, d);
     this.layer.upload();
   }
 
@@ -79,7 +104,27 @@ export class Decals {
 
 function paintDecal(ctx: Ctx, d: Decal): void {
   if (d.kind === 'splat') splatter(ctx, d.x, d.y, d.dx, d.dy, d.seed, d.scale);
-  else bloodPool(ctx, d.x, d.z, d.rx, d.rz, d.seed);
+  else if (d.kind === 'pool') bloodPool(ctx, d.x, d.z, d.rx, d.rz, d.seed);
+  else if (d.kind === 'hole') bulletHole(ctx, d.x, d.y, d.s / 230, d.flat, d.seed);
+  else paintDebris(ctx, d.item, d.x, d.y, d.angle, d.s);
+}
+
+/** Ported from the style frame: dark hole, light rim, a few cracks (flattened on the floor/ceiling). */
+function bulletHole(ctx: Ctx, x: number, y: number, k: number, flat: boolean, seed: number): void {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(k, flat ? k * 0.45 : k);
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.beginPath(); ctx.arc(1, 1, 6, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#18181a';
+  ctx.beginPath(); ctx.arc(0, 0, 4.5, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(20,20,22,0.6)';
+  ctx.lineWidth = 1.2;
+  for (let i = 0; i < 4; i++) {
+    const a = i * 1.7 + seed;
+    ctx.beginPath(); ctx.moveTo(Math.cos(a) * 5, Math.sin(a) * 5); ctx.lineTo(Math.cos(a) * 11, Math.sin(a) * 11); ctx.stroke();
+  }
+  ctx.restore();
 }
 
 /** Ported from the style frame: blob + droplets in the spray direction + drips. */

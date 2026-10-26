@@ -2,22 +2,19 @@
 // the feet, +x = facing direction, -y = up. Measured proportions (design/art-direction.md):
 // head 0.45 x 0.40 H, body 0.30 -> 0.40 H wide, hands 0.12 H, feet 0.19 x 0.05 H.
 // Parts are placed by the pose skeleton (src/anim), the whole body by the root transform.
+import { aimRig, type Rig } from '../../anim/aim';
 import { buildSkeleton } from '../../anim/layers';
 import { flatness, ROOT_PIVOT, type Root, type Skeleton } from '../../anim/skeleton';
 import { FEEL } from '../../data/feel';
-import { BLOOD, BLOOD_DARK, FLASH_GLOW, INK, type Palette, ZOMBIE, ZOMBIE_HI } from '../../data/palettes';
+import { BLOOD, BLOOD_DARK, INK, type Palette, ZOMBIE, ZOMBIE_HI } from '../../data/palettes';
+import { isWeapon, WEAPONS, type WeaponDef } from '../../data/weapons';
 import type { Actor, ActorKind, HeldItem } from '../../sim/actor';
 import { project, type ScreenPoint, scaleAt } from '../camera';
 import { burst, type Ctx } from './draw';
+import { paintGun } from './weaponPainter';
 
-const SHOULDER: [number, number] = [0.03, -0.5];
-
-export interface PaintedCharacter {
-  /** Screen position of the gun muzzle, if a gun is aimed. */
-  muzzle?: ScreenPoint;
-  /** Screen position of the ejection port. */
-  eject?: ScreenPoint;
-}
+/** Where a long gun's support hand grips the barrel (hand space). */
+const FOREGRIP: [number, number] = [0.25, 0.02];
 
 /** Where to draw: the actor's floor point projected, or an explicit screen placement (sheets). */
 export interface Placement { x: number; y: number; scale: number }
@@ -55,7 +52,7 @@ export function applyRoot(ctx: Ctx, root: Root): void {
   ctx.translate(-ROOT_PIVOT[0], -ROOT_PIVOT[1]);
 }
 
-export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, opts: PaintOptions): PaintedCharacter {
+export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, opts: PaintOptions): void {
   const { pose } = a;
   const { placement } = opts;
   let fx: number, fy: number, s: number, shadowY: number;
@@ -70,7 +67,6 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
   const col = actorColors(a.kind, pal);
   const layered = buildSkeleton(a, time);
   const sk = opts.skeleton ?? layered.skeleton;
-  const bob = opts.skeleton ? 0 : layered.bob;
   const root = pose.root;
   const flat = flatness(root);
 
@@ -93,17 +89,21 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
 
-  // aim angle from the shoulder toward the target, in local units (standing only)
-  let aim: number | undefined;
-  if (pose.aimAt && flat < 0.5) {
-    const [tx, ty] = project(pose.aimAt.x, pose.aimAt.y, pose.aimAt.z);
-    const lx = ((tx - fx) / s) * a.facing, ly = (ty - fy) / s;
-    aim = Math.atan2(ly - (SHOULDER[1] - bob), lx - SHOULDER[0]);
-  }
+  // aim rig (PLAN.md M5): gun hands sit on a circle around the shoulder, toward the aim point
+  // (standing only; the sim uses the same rig for the hitscan, so the shots leave these muzzles)
+  const gunF = gunDef(pose.held), gunB = gunDef(pose.heldB);
+  const target: ScreenPoint | undefined = pose.aim ?? (pose.aimAt ? project(pose.aimAt.x, pose.aimAt.y, pose.aimAt.z) : undefined);
+  const canAim = !opts.skeleton && !pose.dead && flat < 0.5 && target !== undefined;
+  const rigF = canAim && gunF ? aimRig([fx, fy], s, a.facing, 0, target!, gunF, pose.kick?.[0]) : undefined;
+  const rigB = canAim && gunB ? aimRig([fx, fy], s, a.facing, 1, pose.aimB ?? target!, gunB, pose.kick?.[1]) : undefined;
+  const aim = rigF?.angle ?? rigB?.angle;
+  // a long gun held alone takes both hands: the back hand grips the barrel
+  const support = rigF && gunF && !gunF.oneHanded && !pose.heldB;
 
   // back hand (behind the body unless it swings out in front, as in a cross punch), feet
   const backInFront = sk.handB[0] > 0.2;
-  if (!backInFront) hand(ctx, sk.handB, col.hand);
+  if (rigB && gunB) gunInHand(ctx, rigB, gunB, col.hand, true);
+  else if (!backInFront && !support) hand(ctx, sk.handB, col.hand);
   foot(ctx, sk.footB, col.shoe);
   foot(ctx, sk.footF, col.shoe);
 
@@ -140,29 +140,15 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
     ctx.restore();
   }
 
-  if (backInFront) hand(ctx, sk.handB, col.hand);
+  if (backInFront && !rigB && !support) hand(ctx, sk.handB, col.hand);
 
   // front hand + held item
-  const out: PaintedCharacter = {};
-  if (aim !== undefined && pose.held === 'pistol') {
-    const reach = 0.36;
-    const hx = SHOULDER[0] + Math.cos(aim) * reach, hy = SHOULDER[1] - bob + Math.sin(aim) * reach;
-    ctx.save();
-    ctx.translate(hx, hy);
-    ctx.rotate(aim);
-    const g = paintHeld(ctx, 'pistol');
-    const m = ctx.getTransform();
-    if (g.muzzle) {
-      const p = m.transformPoint(new DOMPoint(g.muzzle[0], g.muzzle[1]));
-      out.muzzle = [p.x, p.y];
-      if (pose.flash) muzzleFlash(ctx, g.muzzle);
+  if (rigF && gunF) {
+    gunInHand(ctx, rigF, gunF, col.hand, false);
+    if (support) {
+      const c = Math.cos(rigF.angle), n = Math.sin(rigF.angle);
+      hand(ctx, [rigF.hand[0] + FOREGRIP[0] * c - FOREGRIP[1] * n, rigF.hand[1] + FOREGRIP[0] * n + FOREGRIP[1] * c, rigF.angle], col.hand);
     }
-    if (g.eject) {
-      const p = m.transformPoint(new DOMPoint(g.eject[0], g.eject[1]));
-      out.eject = [p.x, p.y];
-    }
-    hand(ctx, [0, 0, 0], col.hand);
-    ctx.restore();
   } else {
     if (pose.held) {
       ctx.save();
@@ -174,7 +160,24 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
     hand(ctx, sk.handF, col.hand);
   }
   ctx.restore();
-  return out;
+}
+
+function gunDef(h: HeldItem | undefined): WeaponDef | undefined {
+  return h && isWeapon(h) ? WEAPONS[h] : undefined;
+}
+
+/** A gun at its rig: the gun, then the mitten over the grip (back-hand guns are a shade darker). */
+function gunInHand(ctx: Ctx, rig: Rig, w: WeaponDef, handCol: string, back: boolean): void {
+  ctx.save();
+  ctx.translate(rig.hand[0], rig.hand[1]);
+  ctx.rotate(rig.angle);
+  // pointing behind the body: mirror so the grip still hangs under the barrel
+  if (rig.flip) ctx.scale(1, -1);
+  if (back) ctx.filter = 'brightness(0.85)';
+  paintGun(ctx, w.id);
+  ctx.filter = 'none';
+  hand(ctx, [0, 0, 0], handCol);
+  ctx.restore();
 }
 
 /** Head at the origin of its own transform. */
@@ -255,39 +258,12 @@ function bodyPath(ctx: Ctx): void {
   ctx.closePath();
 }
 
-/** Held item in hand space (grip at the origin, pointing +x). */
-export function paintHeld(ctx: Ctx, item: Exclude<HeldItem, null>): { muzzle?: [number, number]; eject?: [number, number] } {
+/** Held item in hand space (grip at the origin, pointing +x): guns, or the baton. */
+export function paintHeld(ctx: Ctx, item: Exclude<HeldItem, null>): void {
+  if (isWeapon(item)) { paintGun(ctx, item); return; }
   ctx.lineWidth = 0.011;
   ctx.strokeStyle = INK;
   ctx.lineJoin = 'round';
-  if (item === 'pistol') {
-    ctx.beginPath();
-    ctx.moveTo(-0.05, -0.1); ctx.lineTo(0.2, -0.1); ctx.lineTo(0.2, -0.055); ctx.lineTo(0.035, -0.055);
-    ctx.lineTo(0.03, 0.045); ctx.lineTo(-0.035, 0.045); ctx.lineTo(-0.05, -0.055); ctx.closePath();
-    ctx.fillStyle = '#3b3c41'; ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#6c6d72'; ctx.fillRect(-0.03, -0.094, 0.21, 0.013);
-    return { muzzle: [0.2, -0.078], eject: [0.05, -0.1] };
-  }
   ctx.beginPath(); ctx.roundRect(-0.02, -0.022, 0.42, 0.044, 0.02);
   ctx.fillStyle = '#2f3034'; ctx.fill(); ctx.stroke();
-  return {};
-}
-
-/** 1-frame muzzle flash: white star + warm glow (measured 1 frame in ep1). */
-function muzzleFlash(ctx: Ctx, at: [number, number]): void {
-  const [mx, my] = at;
-  const g = ctx.createRadialGradient(mx + 0.05, my, 0, mx + 0.05, my, 0.3);
-  g.addColorStop(0, `rgba(${FLASH_GLOW},0.85)`);
-  g.addColorStop(1, `rgba(${FLASH_GLOW},0)`);
-  ctx.fillStyle = g;
-  ctx.beginPath(); ctx.arc(mx + 0.05, my, 0.3, 0, Math.PI * 2); ctx.fill();
-  ctx.save();
-  ctx.translate(mx + 0.07, my);
-  ctx.beginPath();
-  for (let i = 0; i < 18; i++) {
-    const ang = (i / 18) * Math.PI * 2, rr = i % 2 ? 0.04 : i % 4 === 0 ? 0.15 : 0.1;
-    ctx.lineTo(Math.cos(ang) * rr * (Math.cos(ang) > 0 ? 1.4 : 0.8), Math.sin(ang) * rr);
-  }
-  ctx.closePath(); ctx.fillStyle = '#ffffff'; ctx.fill();
-  ctx.restore();
 }

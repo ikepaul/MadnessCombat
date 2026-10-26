@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { TEST_ROOM } from '../src/data/rooms/testRoom';
 import { TUNING } from '../src/data/tuning';
-import { type Actor, createActor, stateLabel } from '../src/sim/actor';
+import { type Actor, createActor, newHand, stateLabel } from '../src/sim/actor';
 import { attackTiming } from '../src/sim/combat';
 import { IDLE_COMMAND, type PlayerCommand } from '../src/sim/command';
 import type { GameEvents } from '../src/sim/events';
@@ -337,10 +337,10 @@ describe('knockback and knockdown (move-knockdown-getup)', () => {
   it('a knockdown drops the held item 0.5-1 H away', () => {
     const { world, hero } = setup();
     const d = dummy(world, hero.pos.x + 0.5, Z, TUNING.health.tough);
-    d.pose.held = 'baton';
+    d.hands[0] = newHand('baton');
     press(world, { attack: 'heavy', face: 1 });
     idle(world, 1.5);
-    expect(d.pose.held).toBeNull();
+    expect(d.hands[0]).toBeNull();
     expect(world.items).toHaveLength(1);
     const it = world.items[0];
     expect(it.state).toBe('floor');
@@ -416,14 +416,14 @@ describe('low sweep (melee-low-sweep)', () => {
   it('diving into an adjacent enemy knocks him down and drops his item', () => {
     const { world, hero } = setup();
     const d = dummy(world, hero.pos.x + 0.7, Z, TUNING.health.tough);
-    d.pose.held = 'pistol';
+    d.hands[0] = newHand('pistol');
     world.command = { ...IDLE_COMMAND, moveX: 1, dive: true };
     world.step();
     expect(hero.body.sweep).toBe(true);
     let downed = false;
     until(world, () => (downed ||= d.state === 'knockback'), 30);
     expect(downed).toBe(true);
-    expect(d.pose.held).toBeNull();
+    expect(d.hands[0]).toBeNull();
     expect(world.items.map((i) => i.kind)).toEqual(['pistol']);
   });
 });

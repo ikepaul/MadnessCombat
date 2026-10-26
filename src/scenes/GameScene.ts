@@ -4,6 +4,7 @@ import { TEST_ROOM } from '../data/rooms/testRoom';
 import { bindDebugKeys } from '../input/debugKeys';
 import { PlayerInput } from '../input/playerInput';
 import '../labs/aiLabs';
+import '../labs/gunLabs';
 import '../labs/meleeLabs';
 import '../labs/movementLabs';
 import { getLab, type Lab } from '../labs/registry';
@@ -15,6 +16,8 @@ import { paintDoor, paintProp, paintRoom } from '../render/canvas/roomPainter';
 import { Decals } from '../render/decals';
 import { PostFx } from '../render/post';
 import { Vfx } from '../render/vfx';
+import { GunFx } from '../render/gunFx';
+import { WEAPON_IDS, WEAPONS } from '../data/weapons';
 import { lyingAt } from '../anim/skeleton';
 import { type Actor, createActor } from '../sim/actor';
 import { FixedClock } from '../sim/clock';
@@ -75,6 +78,7 @@ export class GameScene extends Phaser.Scene {
   private post!: PostFx;
   feelFx!: FeelFx;
   private vfx!: Vfx;
+  private gunFx!: GunFx;
   private decals!: Decals;
   private input_!: PlayerInput;
   private deadFor = 0;
@@ -144,6 +148,8 @@ export class GameScene extends Phaser.Scene {
     }
     this.vfx = new Vfx(this.world, () => this.blood);
     this.decals = new Decals(this.world, this.decalLayer, () => this.blood);
+    // casings and magazines that land stay on the floor (baked with the decals)
+    this.gunFx = new GunFx(this.world, (d) => this.decals.addDebris(d));
     this.input_ = new PlayerInput(this);
     this.world.events.on('roomChanged', () => this.bakeRoom());
     this.world.events.on('cannonHit', () => this.cannonHits++);
@@ -172,6 +178,7 @@ export class GameScene extends Phaser.Scene {
       setPalette: (i) => this.setPalette(STAGE_PALETTE[i]),
       togglePost: () => this.post.setEnabled(!this.post.enabled),
       spawnCorpses: () => { if (host) this.world.spawnCorpses(20); },
+      dropGuns: () => { if (host) this.dropGuns(); },
       cycleEffects: () => cycleEffects(),
       toggleMute: () => {
         SETTINGS.master = SETTINGS.master > 0 ? 0 : 0.8;
@@ -192,6 +199,16 @@ export class GameScene extends Phaser.Scene {
   /** Corpses frozen into the baked layer so far. */
   get frozenCorpses(): number {
     return this.world.actors.filter((a) => a.corpse?.phase === 'frozen').length;
+  }
+
+  /** Debug (L): a random loaded gun at each player's feet. */
+  private dropGuns(): void {
+    for (const p of this.world.players) {
+      const kind = WEAPON_IDS[Math.floor(Math.random() * WEAPON_IDS.length)];
+      const it = this.world.spawnItem(kind, 'grunt', { x: p.pos.x + p.facing * 0.3, y: 0.6, z: p.pos.z }, { x: 0, y: 1, z: 0 }, 6);
+      it.ammo = WEAPONS[kind].mag;
+      it.spare = 1;
+    }
   }
 
   /** Restart the room from its start (checkpoint per room; to confirm with the user in M13). */
@@ -341,6 +358,7 @@ export class GameScene extends Phaser.Scene {
     for (const d of list) d.draw();
     for (const p of this.world.players) if (p.state === 'downed') paintReviveBar(ctx, p);
     this.vfx.draw(ctx);
+    this.gunFx.draw(ctx);
     this.actorLayer.upload();
     this.decalLayer.flush();
     this.corpseLayer.flush();

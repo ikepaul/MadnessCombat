@@ -2,9 +2,31 @@
 // hit points and the pose (clip + root) the painter draws.
 import { type Root, STANDING } from '../anim/skeleton';
 import { TUNING } from '../data/tuning';
+import { isWeapon, WEAPONS, type WeaponId } from '../data/weapons';
 
 export type ActorKind = 'hero' | 'grunt' | 'zombie';
-export type HeldItem = 'pistol' | 'baton' | null;
+/** What a hand holds: a gun (src/data/weapons.ts) or a melee weapon (M6). */
+export type HeldItem = WeaponId | 'baton' | null;
+
+/** One hand's weapon state (PLAN.md M5: two hands, LMB / RMB). */
+export interface Hand {
+  item: Exclude<HeldItem, null>;
+  /** Rounds in the magazine and spare magazines (at most 1, design-decisions: throw & scavenge). */
+  ammo: number;
+  spare: number;
+  /** Seconds until the next shot is allowed. */
+  cooldown: number;
+  /** Seconds of reload left (0 = not reloading). */
+  reload: number;
+  /** The empty trigger clicked once: the next press throws the gun (gun-empty-throw). */
+  clicked: boolean;
+}
+
+/** A full hand for `item`: guns come loaded with one spare magazine. */
+export function newHand(item: Exclude<HeldItem, null>, ammo?: number, spare?: number): Hand {
+  const mag = isWeapon(item) ? WEAPONS[item].mag : 0;
+  return { item, ammo: ammo ?? mag, spare: spare ?? (isWeapon(item) ? 1 : 0), cooldown: 0, reload: 0, clicked: false };
+}
 
 export interface Vec3 { x: number; y: number; z: number }
 
@@ -14,9 +36,16 @@ export interface Pose {
   walkPhase?: number;
   /** Extra body lean in radians (hit reactions), on top of the clip. */
   lean: number;
-  /** World point the gun hand aims at. */
+  /** World point the gun hand aims at (dummies without a cursor). */
   aimAt?: Vec3;
+  /** Front hand (hand 0, LMB) and back hand (hand 1, RMB) items, mirrored from Actor.hands for the painter. */
   held: HeldItem;
+  heldB?: HeldItem;
+  /** Screen points the front / back gun hand aim at (the cursor; split aim moves the back one). */
+  aim?: [number, number];
+  aimB?: [number, number];
+  /** Recoil kick per hand (H), decaying. */
+  kick?: [number, number];
   /** Scenery corpses placed lying (no sim history). */
   lying: boolean;
   dead: boolean;
@@ -143,6 +172,10 @@ export interface Actor {
   queued?: { kind: Exclude<AttackKind, 'finisher' | 'throw'>; aim?: [number, number]; at: number };
   /** Combo chain being landed on this actor (src/sim/combat.ts chainBonus). */
   chain?: { by: number; count: number; t: number; last: string };
+  /** Walk speed factor this tick (the machine gun slows you while firing). */
+  walkFactor?: number;
+  /** Hand 0 (front, LMB) and hand 1 (back, RMB). */
+  hands: [Hand | null, Hand | null];
   /** Length of the current stun (s). */
   stunFor: number;
   /** Root rotation the get-up starts from. */
@@ -174,6 +207,9 @@ export function newId(): number {
   return nextId++;
 }
 
+/** Dummies created with `held` get that item loaded in their front hand. */
+const handFor = (h: HeldItem | undefined): Hand | null => (h ? newHand(h) : null);
+
 export function createActor(kind: ActorKind, x: number, z: number, facing: 1 | -1, pose: Partial<Pose> = {}): Actor {
   const hp = kind === 'hero' ? TUNING.health.hero : TUNING.health.grunt;
   const a: Actor = {
@@ -194,6 +230,7 @@ export function createActor(kind: ActorKind, x: number, z: number, facing: 1 | -
     hp,
     maxHp: hp,
     stunFor: 0,
+    hands: [handFor(pose.held), null],
   };
   // scenery corpses (style-frame cast): already dead and settled
   if (a.pose.dead) {

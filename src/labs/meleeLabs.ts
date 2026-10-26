@@ -10,20 +10,21 @@ import { registerLab } from './registry';
 
 const CONTROLS = 'LMB light · RMB heavy (aim up = uppercut) · F grab/throw · Ctrl dive · K +20 corpses · 2/3 blood on';
 
-function hero(world: World, x: number, z: number): Actor {
-  world.room = { ...world.room, props: [] };
+export function hero(world: World, x: number, z: number, keepProps = false): Actor {
+  if (!keepProps) world.room = { ...world.room, props: [] };
   const a = createActor('hero', x, z, 1);
   world.actors.push(a);
   world.player = a;
   return a;
 }
 
-interface DummySpec { x: number; z: number; hp?: number; held?: HeldItem; facing?: 1 | -1 }
+export interface DummySpec { x: number; z: number; hp?: number; held?: HeldItem; facing?: 1 | -1; ammo?: number }
 
 /** Dummies face the player and stand still. */
-function dummy(world: World, s: DummySpec): Actor {
+export function dummy(world: World, s: DummySpec): Actor {
   const d = createActor('grunt', s.x, s.z, s.facing ?? -1, { held: s.held ?? null });
   if (s.hp) d.hp = d.maxHp = s.hp;
+  if (s.ammo !== undefined && d.hands[0]) d.hands[0].ammo = s.ammo;
   d.brain = () => ({ ...IDLE_COMMAND, face: faceToward(world, d) });
   world.actors.push(d);
   return d;
@@ -38,7 +39,7 @@ function faceToward(world: World, a: Actor): 1 | -1 {
  * When every dummy of the wave is dead, a new wave stands up after `delay` s at the same
  * spots. The corpses stay, so bodies pile up as in the episodes.
  */
-function respawner(specs: DummySpec[], delay = 1.5) {
+export function respawner(specs: DummySpec[], delay = 1.5) {
   let wave: Actor[] = [];
   let clearedAt = -1;
   return {
