@@ -6,6 +6,7 @@ import { PlayerInput } from '../input/playerInput';
 import '../labs/aiLabs';
 import '../labs/gunLabs';
 import '../labs/meleeLabs';
+import '../labs/throwLabs';
 import '../labs/movementLabs';
 import { getLab, type Lab } from '../labs/registry';
 import { CanvasLayer } from '../render/canvasLayer';
@@ -156,7 +157,7 @@ export class GameScene extends Phaser.Scene {
     // world-persistence-decals: settled bodies are baked once; picking one up re-bakes the rest
     this.world.events.on('corpseFrozen', (e) => {
       const a = this.world.actorById(e.actorId);
-      if (a) this.paintCorpse(a);
+      if (a && !a.corpse?.gibbed) this.paintCorpse(a);
       this.corpseLayer.markDirty();
     });
     this.world.events.on('corpseThawed', () => this.bakeCorpses());
@@ -289,7 +290,7 @@ export class GameScene extends Phaser.Scene {
   /** Repaint every frozen corpse, far to near. */
   private bakeCorpses(): void {
     this.corpseLayer.clear();
-    const frozen = this.world.actors.filter((a) => a.corpse?.phase === 'frozen').sort((a, b) => b.pos.z - a.pos.z);
+    const frozen = this.world.actors.filter((a) => a.corpse?.phase === 'frozen' && !a.corpse.gibbed).sort((a, b) => b.pos.z - a.pos.z);
     for (const a of frozen) this.paintCorpse(a);
     this.corpseLayer.upload();
   }
@@ -345,12 +346,13 @@ export class GameScene extends Phaser.Scene {
     for (const p of this.world.players) if (p.state === 'downed') paintReviveCircle(ctx, p);
     const list: { z: number; draw: () => void }[] = [];
     for (const a of this.world.actors) {
-      if (a.corpse?.phase === 'frozen') continue;
+      // gibbed bodies are gone (throw-grenade): only the pieces (VFX) remain
+      if (a.corpse?.phase === 'frozen' || a.corpse?.gibbed) continue;
       // at equal depth the attacker draws in front, so the punching fist is visible
       const bias = a.state === 'attack' ? 0.002 : a.state === 'grabbed' ? -0.001 : 0;
       list.push({ z: a.pos.z - bias, draw: () => paintCharacter(ctx, a, pal, this.world.time, { blood, flashes }) });
     }
-    for (const it of this.world.items) list.push({ z: it.pos.z, draw: () => paintItem(ctx, it, pal, blood) });
+    for (const it of this.world.items) list.push({ z: it.pos.z, draw: () => paintItem(ctx, it, pal, blood, this.world.time) });
     for (const p of this.world.room.props) list.push({ z: p.z0, draw: () => paintProp(ctx, p, pal) });
     for (const c of this.world.cannons) list.push({ z: c.z, draw: () => paintCannon(ctx, c) });
     for (const b of this.world.balls) list.push({ z: b.z - 0.01, draw: () => paintBall(ctx, b) });

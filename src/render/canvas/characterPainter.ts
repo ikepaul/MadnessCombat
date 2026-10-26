@@ -11,7 +11,8 @@ import { isWeapon, WEAPONS, type WeaponDef } from '../../data/weapons';
 import type { Actor, ActorKind, HeldItem } from '../../sim/actor';
 import { project, type ScreenPoint, scaleAt } from '../camera';
 import { burst, type Ctx } from './draw';
-import { paintGun } from './weaponPainter';
+import { paintGrenade, paintGun, paintMelee } from './weaponPainter';
+import { isMelee } from '../../data/melee';
 
 /** Where a long gun's support hand grips the barrel (hand space). */
 const FOREGRIP: [number, number] = [0.25, 0.02];
@@ -103,7 +104,19 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
   // back hand (behind the body unless it swings out in front, as in a cross punch), feet
   const backInFront = sk.handB[0] > 0.2;
   if (rigB && gunB) gunInHand(ctx, rigB, gunB, col.hand, true);
-  else if (!backInFront && !support) hand(ctx, sk.handB, col.hand);
+  else if (!backInFront && !support) {
+    // a melee weapon in the back hand (the second knife), held like the front one
+    if (pose.heldB && isMelee(pose.heldB)) {
+      ctx.save();
+      ctx.translate(sk.handB[0] + sk.item[0], sk.handB[1] + sk.item[1]);
+      ctx.rotate(sk.item[2]);
+      ctx.filter = 'brightness(0.85)';
+      paintMelee(ctx, pose.heldB);
+      ctx.filter = 'none';
+      ctx.restore();
+    }
+    hand(ctx, sk.handB, col.hand);
+  }
   foot(ctx, sk.footB, col.shoe);
   foot(ctx, sk.footF, col.shoe);
 
@@ -150,6 +163,13 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
       hand(ctx, [rigF.hand[0] + FOREGRIP[0] * c - FOREGRIP[1] * n, rigF.hand[1] + FOREGRIP[0] * n + FOREGRIP[1] * c, rigF.angle], col.hand);
     }
   } else {
+    if (pose.grenade && !pose.held) {
+      // a cooked grenade in the front hand
+      ctx.save();
+      ctx.translate(sk.handF[0] + 0.02, sk.handF[1] - 0.05);
+      paintGrenade(ctx, true, Math.floor(time * 8) % 2 === 0);
+      ctx.restore();
+    }
     if (pose.held) {
       ctx.save();
       ctx.translate(sk.handF[0] + sk.item[0], sk.handF[1] + sk.item[1]);
@@ -258,12 +278,8 @@ function bodyPath(ctx: Ctx): void {
   ctx.closePath();
 }
 
-/** Held item in hand space (grip at the origin, pointing +x): guns, or the baton. */
+/** Held item in hand space (grip at the origin, pointing +x): guns and melee weapons. */
 export function paintHeld(ctx: Ctx, item: Exclude<HeldItem, null>): void {
   if (isWeapon(item)) { paintGun(ctx, item); return; }
-  ctx.lineWidth = 0.011;
-  ctx.strokeStyle = INK;
-  ctx.lineJoin = 'round';
-  ctx.beginPath(); ctx.roundRect(-0.02, -0.022, 0.42, 0.044, 0.02);
-  ctx.fillStyle = '#2f3034'; ctx.fill(); ctx.stroke();
+  paintMelee(ctx, item);
 }

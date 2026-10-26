@@ -18,6 +18,7 @@ type Decal =
   | { kind: 'splat'; x: number; y: number; dx: number; dy: number; seed: number; scale: number }
   | { kind: 'pool'; x: number; z: number; rx: number; rz: number; seed: number }
   | { kind: 'hole'; x: number; y: number; s: number; flat: boolean; seed: number }
+  | { kind: 'scorch'; x: number; z: number; r: number; seed: number }
   | ({ kind: 'debris' } & Omit<SettledDebris, 'kind'> & { item: SettledDebris['kind'] });
 
 /** Blood decals hide on stages without blood; the rest always show. */
@@ -56,6 +57,13 @@ export class Decals {
           if (this.blood()) this.add({ kind: 'splat', x, y, dx: Math.cos(e.angle), dy: Math.sin(e.angle), seed: this.seed++ * 13, scale: 0.45 * (s / 230) });
         } else this.add({ kind: 'hole', x, y, s, flat: at.surface === 'floor' || at.surface === 'ceiling', seed: this.seed++ });
       }
+    });
+    // throw-grenade: the blast leaves a scorch mark; a gibbed body leaves blood
+    world.events.on('explosion', (e) => this.add({ kind: 'scorch', x: e.x, z: e.z, r: 0.9, seed: this.seed++ * 17 }));
+    world.events.on('gib', (e) => {
+      if (!this.blood()) return;
+      const r = mulberry32(this.seed++ * 5);
+      this.add({ kind: 'pool', x: e.x, z: e.z, rx: 0.5 + r() * 0.3, rz: 0.15 + r() * 0.08, seed: this.seed * 11 });
     });
     world.events.on('tick', () => this.step(world.dt));
   }
@@ -106,7 +114,28 @@ function paintDecal(ctx: Ctx, d: Decal): void {
   if (d.kind === 'splat') splatter(ctx, d.x, d.y, d.dx, d.dy, d.seed, d.scale);
   else if (d.kind === 'pool') bloodPool(ctx, d.x, d.z, d.rx, d.rz, d.seed);
   else if (d.kind === 'hole') bulletHole(ctx, d.x, d.y, d.s / 230, d.flat, d.seed);
+  else if (d.kind === 'scorch') scorch(ctx, d.x, d.z, d.r, d.seed);
   else paintDebris(ctx, d.item, d.x, d.y, d.angle, d.s);
+}
+
+/** Grenade scorch on the floor (throw-grenade: "dark scorch decal stays"): soft dark blot with rays. */
+function scorch(ctx: Ctx, x: number, z: number, r: number, seed: number): void {
+  const rnd = mulberry32(seed);
+  ctx.save();
+  ctx.beginPath();
+  for (let i = 0; i < 24; i++) {
+    const a = (i / 24) * Math.PI * 2, k = (i % 2 ? 0.55 : 0.9) * (0.75 + rnd() * 0.4);
+    const [px, py] = project(x + Math.cos(a) * r * k, 0, z + Math.sin(a) * r * 0.35 * k);
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(22,22,24,0.45)';
+  ctx.fill();
+  const [cx, cy] = project(x, 0, z);
+  ctx.beginPath(); ctx.ellipse(cx, cy, r * 0.45 * scaleAt(z), r * 0.15 * scaleAt(z), 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(18,18,20,0.55)';
+  ctx.fill();
+  ctx.restore();
 }
 
 /** Ported from the style frame: dark hole, light rim, a few cracks (flattened on the floor/ceiling). */

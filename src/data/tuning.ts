@@ -144,7 +144,7 @@ export const TUNING = {
     /** "contact range": same reach as a punch. invented */
     range: 0.6,
     /** Walk speed while carrying a body. invented */
-    carrySpeed: 0.7,
+    carrySpeed: 0.6, // combat-human-shield: you move at 0.6x while holding a body (invented, PLAN.md M6)
     /** Throw: wind-up to release, then recovery (matches the "throw" clip). invented */
     windup: 5 / 30,
     recovery: 7 / 30,

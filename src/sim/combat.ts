@@ -3,8 +3,11 @@
 // research/mechanics/melee-* and move-knockdown-getup.
 import { aboutFeet, lyingAt, rootToWorld, STANDING } from '../anim/skeleton';
 import { GRAVITY, TUNING } from '../data/tuning';
-import { GUNS, isWeapon } from '../data/weapons';
+import { DISARM, GRENADE, MELEE, SHIELD } from '../data/melee';
+import { GUNS, isWeapon, WEAPONS } from '../data/weapons';
 import { stepHands } from './guns';
+import { blastFlight } from './explosives';
+import { ACTION_KINDS, actionTiming, disarm, dropCooking, holdsLong, lobHeldGrenade, startMeleeAction, stealTarget, stepAction, stepGrenade } from './melee';
 import { project, unprojectFloor } from '../render/camera';
 import { type Actor, type AttackKind, alive, type Flight } from './actor';
 import { clamp, moveWithCollision, surfaceBelow } from './collision';
@@ -16,14 +19,15 @@ import { DIVE_TIME, stepAttackMove, stepLocomotion, sweepTarget } from './moveme
 import type { World } from './world';
 
 const M = TUNING.melee, H = TUNING.hit, G = TUNING.grab, C = TUNING.corpse, C_ = TUNING.combo;
-const PUNCH_CLIP: Record<AttackKind, string> = {
+const PUNCH_CLIP: Partial<Record<AttackKind, string>> = {
   light: 'punchLight', heavy: 'punchHeavy', uppercut: 'uppercut', finisher: 'finisher', throw: 'throw',
 };
 
-/** Startup / active / recovery of each attack (s). */
-export function attackTiming(kind: AttackKind): { startup: number; active: number; recovery: number } {
+/** Startup / active / recovery of each attack (s). `weapon` = the melee weapon of a swing. */
+export function attackTiming(kind: AttackKind, weapon?: string): { startup: number; active: number; recovery: number } {
   if (kind === 'throw') return { startup: G.windup, active: 0, recovery: G.recovery };
-  return M[kind];
+  if (ACTION_KINDS.includes(kind)) return actionTiming(kind, weapon);
+  return M[kind as 'light' | 'heavy' | 'uppercut' | 'finisher'];
 }
 
 /** Timer reached a duration (tolerates float drift from summing 1/60 s ticks). */
@@ -39,10 +43,13 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
   a.pose.hurt = Math.max(0, a.pose.hurt - dt);
   a.pose.lean *= Math.exp(-8 * dt);
 
+  // throw-catch-return: F opens a short window to catch a thrown weapon
+  if (cmd.grab) a.catchAt = world.time;
   // a hand holding a gun fires instead of punching (M5): LMB = hand 0, RMB = hand 1
   if (a.state === 'free' || a.state === 'attack') {
     cmd = withoutGunPunches(a, cmd);
     stepHands(world, a, cmd, dt);
+    stepGrenade(world, a, cmd, dt);
   }
 
   switch (a.state) {
@@ -53,26 +60,30 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
         cmd = { ...cmd, attack: a.queued.kind, aim: a.queued.aim };
       }
       a.queued = undefined;
-      if (b.state === 'ground' && !a.holding && cmd.attack) { startAttack(world, a, cmd); break; }
-      // grabbing takes both hands (guns stay in them otherwise)
-      const handsFree = !a.hands[0] && !a.hands[1];
-      if (b.state === 'ground' && ((cmd.grab && (handsFree || a.holding)) || (a.holding && cmd.attack))) {
+      // M6: a melee weapon in the hand swings / stabs / is thrown instead of punching
+      if (a.cook === undefined && startMeleeAction(world, a, cmd)) break;
+      cmd = withoutItemPunches(a, cmd);
+      if (b.state === 'ground' && !a.holding && cmd.attack && a.cook === undefined) { startAttack(world, a, cmd); break; }
+      // grabbing takes the front hand (a one-handed gun may stay in the back hand: human shield)
+      if (b.state === 'ground' && a.cook === undefined && ((cmd.grab && (canGrab(a) || a.holding)) || (a.holding && cmd.attack))) {
         if (a.holding) startThrow(a, cmd);
         else tryGrab(world, a);
         if (a.state !== 'free') break;
       }
       stepLocomotion(world, a, cmd, dt);
       if (b.state === 'diving' && b.sweep) sweepContact(world, a);
-      setClip(a, a.holding ? 'carry' : 'idle');
+      setClip(a, a.cook !== undefined ? 'cook' : a.holding ? 'carry' : holdsLong(a) ? 'holdLong' : 'idle');
       break;
     }
-    case 'attack':
-      if (cmd.attack && a.attack?.kind !== 'throw') a.queued = { kind: cmd.attack, aim: cmd.aim, at: world.time };
-      // keep walking through the swing (the finisher is planted)
-      if (a.attack?.kind !== 'finisher') stepAttackMove(world, a, cmd, dt);
+    case 'attack': {
+      const k = a.attack?.kind;
+      if (cmd.attack && (k === 'light' || k === 'heavy' || k === 'uppercut' || k === 'finisher')) a.queued = { kind: cmd.attack, aim: cmd.aim, at: world.time };
+      // keep walking through a swing; finishers, throws of items, pulls and steals are planted
+      if (k !== 'finisher' && k !== 'toss' && k !== 'lob' && k !== 'pull' && k !== 'steal') stepAttackMove(world, a, cmd, dt);
       else a.pose.walkPhase = undefined;
       stepAttack(world, a);
       break;
+    }
     case 'stun':
       if (reached(a.stateT, a.stunFor)) enter(a, 'free');
       break;
@@ -120,7 +131,22 @@ function withoutGunPunches(a: Actor, cmd: PlayerCommand): PlayerCommand {
   return cmd;
 }
 
-function enter(a: Actor, s: Actor['state']): void {
+/** Same for melee weapons and the long weapon (which takes both hands). */
+function withoutItemPunches(a: Actor, cmd: PlayerCommand): PlayerCommand {
+  if (!cmd.attack) return cmd;
+  const busy = (i: 0 | 1) => !!a.hands[i] || (i === 1 && holdsLong(a));
+  if (cmd.attack === 'light' && busy(0)) return { ...cmd, attack: null };
+  if ((cmd.attack === 'heavy' || cmd.attack === 'uppercut') && busy(1)) return { ...cmd, attack: null };
+  return cmd;
+}
+
+/** Grab needs the front hand; the back hand may keep a one-handed gun (fire it past the shield). */
+function canGrab(a: Actor): boolean {
+  const back = a.hands[1];
+  return !a.hands[0] && (!back || (isWeapon(back.item) && WEAPONS[back.item].oneHanded));
+}
+
+export function enter(a: Actor, s: Actor['state']): void {
   a.state = s;
   a.stateT = 0;
   if (s === 'free') {
@@ -132,7 +158,7 @@ function enter(a: Actor, s: Actor['state']): void {
   }
 }
 
-function setClip(a: Actor, clip: string): void {
+export function setClip(a: Actor, clip: string): void {
   if (a.pose.clip !== clip) {
     a.pose.clip = clip;
     a.pose.clipT = 0;
@@ -150,7 +176,7 @@ function startAttack(world: World, a: Actor, cmd: PlayerCommand): void {
   a.state = 'attack';
   a.stateT = 0;
   a.attack = { kind, heavy: cmd.attack === 'heavy', t: 0, done: false };
-  setClip(a, PUNCH_CLIP[kind]);
+  setClip(a, PUNCH_CLIP[kind] ?? 'idle');
 }
 
 /** Heavy punch with the cursor steeply above the shoulder = uppercut. */
@@ -199,17 +225,18 @@ function downedInReach(world: World, a: Actor): boolean {
 function stepAttack(world: World, a: Actor): void {
   const atk = a.attack!;
   atk.t += world.dt;
-  const tm = attackTiming(atk.kind);
-  if (atk.kind === 'throw') {
+  const tm = attackTiming(atk.kind, atk.weapon);
+  if (ACTION_KINDS.includes(atk.kind)) stepAction(world, a);
+  else if (atk.kind === 'throw') {
     if (!atk.done && reached(atk.t, tm.startup)) { atk.done = true; releaseThrow(world, a); }
   } else if (reached(atk.t, tm.startup) && !reached(atk.t, tm.startup + tm.active)) {
     if (!atk.done && !reached(atk.t - world.dt, tm.startup)) {
       const f = fistPoint(a, atk.kind);
-      world.events.emit('punch', { actorId: a.id, x: f.x, y: f.y, z: a.pos.z, kind: atk.kind, facing: a.facing });
+      world.events.emit('punch', { actorId: a.id, x: f.x, y: f.y, z: a.pos.z, kind: atk.kind as HitKind, facing: a.facing });
     }
     if (!atk.done) connect(world, a, atk.kind) && (atk.done = true);
   }
-  if (reached(atk.t, tm.startup + tm.active + tm.recovery)) enter(a, 'free');
+  if (a.attack === atk && reached(atk.t, tm.startup + tm.active + tm.recovery)) enter(a, 'free');
 }
 
 /** Active frames: hit the nearest hurtbox the fist touches. */
@@ -240,6 +267,9 @@ const DAMAGE: Record<HitKind, number> = {
   sweep: TUNING.sweep.damage, body: G.damage, head: 0, wall: 99,
   // guns: the weapon sets bullet damage per hit (src/data/weapons.ts); a thrown gun's body hit
   bullet: 2, gun: GUNS.throwBody,
+  // M6: melee weapons and thrown blades are one-hit kills on grunts (melee-weapons, throw-knives);
+  // the explosion and the pin kill outright
+  stab: MELEE.knife.damage, slash: 4, smash: 4, knife: 4, blast: 99, pin: 99,
 };
 
 /**
@@ -254,6 +284,8 @@ export function applyHit(
   bullet?: { damage: number; pointBlank: boolean },
 ): void {
   if (o.state === 'getUp' || o.state === 'downed') return; // i-frames (invented); downed heroes are out of the fight
+  // combat-human-shield: a body held up as a shield takes what was meant for its holder
+  if (o.grabbedBy !== undefined && by?.id !== o.grabbedBy && kind !== 'blast') { shieldHit(world, by, o, kind, at, part); return; }
   const corpse = o.state === 'dead';
   const base = bullet ? bullet.damage : kind === 'gun' && part === 'head' ? GUNS.throwHead : kind === 'finisher' && heavy ? M.finisher.heavyDamage : DAMAGE[kind];
   const combo = !corpse && base > 0 && o.kind !== 'hero' && MELEE_KINDS.includes(kind) && chainBonus(world, by, o, kind);
@@ -266,6 +298,7 @@ export function applyHit(
   world.events.emit('hit', { actorId: o.id, attackerId: by?.id ?? 0, kind, part, damage, killed, dirX, dirZ, combo, chain: o.chain?.count ?? 0, ...at });
   if (corpse) return;
 
+  dropCooking(world, o);
   if (o.state === 'attack') o.attack = undefined;
   if (o.holding) releaseHeld(world, o);
   if (o.grabbedBy !== undefined) releaseFrom(world, o);
@@ -280,7 +313,7 @@ export function applyHit(
     // melee-decapitation: a killing blow from a heavy attack knocks the head off (decided with the
     // user); so do a point-blank shotgun to the head (gun-shotgun) and a thrown gun to the head
     const pointBlank = !!bullet?.pointBlank;
-    const decap = o.kind === 'grunt' && (kind === 'heavy' || kind === 'uppercut' || (kind === 'finisher' && heavy) || ((pointBlank || kind === 'gun') && part === 'head'));
+    const decap = o.kind === 'grunt' && (kind === 'heavy' || kind === 'uppercut' || kind === 'slash' || (kind === 'finisher' && heavy) || ((pointBlank || kind === 'gun') && part === 'head'));
     die(world, o, by, kind, dirX, dirZ, decap, pointBlank ? 'heavy' : kind);
     return;
   }
@@ -288,6 +321,9 @@ export function applyHit(
   const airborne = o.pos.y > o.pose.groundY + 0.05;
   switch (airborne && kind === 'light' ? 'heavy' : kind) {
     case 'light':
+    case 'stab':
+      // combat-disarm: a punch knocks the weapon away 30% of the time (kicks and sweeps always: knockdowns drop it)
+      if (kind === 'light' && o.kind !== 'hero' && (o.hands[0] || o.hands[1]) && world.rng() < DISARM.punchChance) disarm(world, by, o, 'knock', dirX);
       o.state = 'stun';
       o.stateT = 0;
       o.stunFor = o.kind === 'hero' ? H.heroFlinch : H.stun;
@@ -345,7 +381,8 @@ function launch(kind: HitKind, dirX: number, dirZ: number): Pick<Flight, 'vx' | 
   const n = Math.hypot(dirX, dirZ) || 1, ux = dirX / n, uz = dirZ / n;
   let dist: number = H.knockbackDistance, airtime: number = H.knockbackAirtime, skid: number = H.skid;
   if (kind === 'sweep') { dist = TUNING.sweep.distance; airtime = TUNING.sweep.airtime; skid = H.skid * 0.5; }
-  if (kind === 'bullet') { dist = GUNS.knockback; airtime = GUNS.knockbackAirtime; skid = H.skid * 0.5; }
+  // bullets and blades drop the body where it stands rather than throwing it
+  if (kind === 'bullet' || kind === 'knife' || kind === 'stab') { dist = GUNS.knockback; airtime = GUNS.knockbackAirtime; skid = H.skid * 0.5; }
   if (kind === 'uppercut') {
     const vy = Math.sqrt(2 * GRAVITY * H.uppercutHeight);
     airtime = (2 * vy) / GRAVITY;
@@ -353,6 +390,7 @@ function launch(kind: HitKind, dirX: number, dirZ: number): Pick<Flight, 'vx' | 
     return { vx: ux * v, vz: uz * v, vy, airtime };
   }
   if (kind === 'finisher') return { vx: 0, vz: 0, vy: 0, airtime: 0.01 };
+  if (kind === 'blast') return blastFlight(dirX, dirZ);
   // distance covered in the air at constant speed plus a linearly decelerating skid
   const v = dist / (airtime + skid / 2);
   return { vx: ux * v, vz: uz * v, vy: (GRAVITY * airtime) / 2, airtime };
@@ -530,6 +568,35 @@ function creditKill(world: World, byId: number | undefined): void {
   world.events.emit('heal', { actorId: p.id, hp: p.hp });
 }
 
+// ---------- human shield (combat-human-shield) ----------
+
+/**
+ * A held body absorbs the hit: a live one dies on the first hit but keeps blocking; after
+ * SHIELD.hits hits the body falls apart and the holder lets go.
+ */
+function shieldHit(world: World, by: Actor | undefined, o: Actor, kind: HitKind, at: { x: number; y: number; z: number }, part: 'head' | 'body'): void {
+  const holder = world.actorById(o.grabbedBy!);
+  o.shieldHits = (o.shieldHits ?? 0) + 1;
+  o.pose.impact = H.impact;
+  addWound(o, at, part);
+  const wasAlive = alive(o);
+  if (wasAlive) {
+    o.hp = 0;
+    o.state = 'dead';
+    o.stateT = 0;
+    o.corpse = { phase: 'tumble', t: 0, raisable: true, gibbed: false, slumped: false };
+  }
+  world.events.emit('hit', { actorId: o.id, attackerId: by?.id ?? 0, kind, part, damage: wasAlive ? 1 : 0, killed: wasAlive, dirX: 0, dirZ: 0, combo: false, chain: 0, ...at });
+  if (wasAlive) world.events.emit('kill', { actorId: o.id, byId: by?.id ?? 0, kind, decap: false, ...o.pos });
+  const broke = o.shieldHits >= SHIELD.hits;
+  world.events.emit('shieldHit', { actorId: o.id, holderId: holder?.id ?? 0, broke, ...at });
+  if (broke) {
+    if (holder) holder.holding = undefined;
+    o.grabbedBy = undefined;
+    dropBody(o);
+  }
+}
+
 // ---------- co-op revive ----------
 
 /**
@@ -579,13 +646,24 @@ function sweepContact(world: World, a: Actor): void {
 
 function tryGrab(world: World, a: Actor): void {
   const R = G.range;
+  // throw-grenade-return: a live grenade nearby comes first
+  for (const it of world.items) {
+    if (it.kind !== 'grenade' || !it.live || it.state === 'held' || Math.abs(it.pos.z - a.pos.z) > 0.35) continue;
+    if (Math.hypot(it.pos.x - a.pos.x, it.pos.y - a.pos.y) > GRENADE.pickRange + 0.2) continue;
+    it.state = 'held';
+    it.heldBy = a.id;
+    it.vel = { x: 0, y: 0, z: 0 };
+    a.holding = { kind: 'item', id: it.id };
+    world.events.emit('grab', { actorId: a.id, itemId: it.id, ...it.pos });
+    return;
+  }
   let best: { score: number; act?: Actor; itemId?: number } | undefined;
   const consider = (score: number, act?: Actor, itemId?: number) => {
     if (!best || score < best.score) best = { score, act, itemId };
   };
   for (const o of world.actors) {
     if (o === a || o.grabbedBy !== undefined || o.state === 'getUp' || o.state === 'downed' || Math.abs(o.pos.z - a.pos.z) > M.depthBand) continue;
-    if (o.state === 'dead' && (o.corpse?.phase === 'headless' || o.flight)) continue;
+    if (o.state === 'dead' && (o.corpse?.phase === 'headless' || o.flight || o.corpse?.pinned || o.corpse?.gibbed)) continue;
     if (o.state === 'knockback') continue;
     const d = (o.pos.x - a.pos.x) * a.facing;
     // lying bodies are long: measure to the nearer end
@@ -602,6 +680,8 @@ function tryGrab(world: World, a: Actor): void {
   const pick = best as { act?: Actor; itemId?: number };
   if (pick.act) {
     const o = pick.act;
+    // combat-disarm: F on an armed enemy steals the weapon instead of grabbing the body
+    if (alive(o) && stealTarget(world, a, o)) return;
     if (o.corpse?.phase === 'frozen') world.events.emit('corpseThawed', { actorId: o.id });
     if (o.corpse) { o.corpse.phase = 'tumble'; o.corpse.slumped = false; }
     if (alive(o)) {
@@ -626,6 +706,7 @@ function tryGrab(world: World, a: Actor): void {
 }
 
 function startThrow(a: Actor, cmd: PlayerCommand): void {
+  const aim = cmd.aim;
   // toward the floor point under the cursor (free aim across depth), else straight ahead
   let dx = a.facing, dz = 0;
   const p = cmd.aim ? unprojectFloor(cmd.aim[0], cmd.aim[1]) : undefined;
@@ -636,7 +717,7 @@ function startThrow(a: Actor, cmd: PlayerCommand): void {
   if (Math.abs(dx) > 0.05) a.facing = dx > 0 ? 1 : -1;
   a.state = 'attack';
   a.stateT = 0;
-  a.attack = { kind: 'throw', heavy: false, t: 0, done: false };
+  a.attack = { kind: 'throw', heavy: false, t: 0, done: false, aim };
   a.throwDir = { x: dx, z: dz };
   a.body.vel = { x: 0, y: 0, z: 0 };
   setClip(a, 'throw');
@@ -651,6 +732,8 @@ function releaseThrow(world: World, a: Actor): void {
   if (h.kind === 'item') {
     const it = world.items.find((i) => i.id === h.id);
     if (!it) return;
+    // a live grenade is lobbed to the floor point under the cursor, not thrown at head height
+    if (it.kind === 'grenade') { lobHeldGrenade(world, a, it, a.attack?.aim); return; }
     it.state = 'air';
     it.heldBy = undefined;
     it.thrownBy = a.id;

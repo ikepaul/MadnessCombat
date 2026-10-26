@@ -69,12 +69,36 @@ export interface GameEvents {
   waveStart: { wave: string };
   /** Every wave of the room's script ran and every enemy is dead. */
   roomCleared: { kills: number };
+
+  // M6: throwing, explosives, disarms, shields, melee weapons
+  /** A weapon left a hand without its holder dying: stolen, knocked away, shot out of the hand. */
+  disarm: At & { byId: number; how: 'steal' | 'knock' | 'shot'; item: string };
+  /** A thrown weapon was caught out of the air (throw-catch-return). */
+  catch: At & { itemId: number; item: string };
+  /** A thrown blade stuck in a body or a wall (throw-knives, melee-weapons). */
+  stick: { itemId: number; surface: 'flesh' | 'wall'; x: number; y: number; z: number };
+  /** Pulling a stuck blade or the planted sign out: started, done. */
+  pull: At & { itemId: number; phase: 'start' | 'end'; item: string };
+  /** A grenade's pin came out (cooking started; the pin drops as debris). */
+  grenadePin: At;
+  grenadeBounce: { itemId: number; x: number; y: number; z: number };
+  /** A blast at a floor point: kills in `radius`, scorch decal, breakable floors (M9). */
+  explosion: { x: number; y: number; z: number; radius: number; byId: number };
+  /** A corpse was blown apart (can't be raised any more). */
+  gib: At;
+  /** A held body took a hit meant for its holder (combat-human-shield); `broke` = it fell apart. */
+  shieldHit: At & { holderId: number; broke: boolean };
+  /** A long-weapon thrust pinned a body to a wall or prop (melee-environment-weapon). */
+  pin: At & { targetId: number };
 }
 
-export type HitKind = 'light' | 'heavy' | 'uppercut' | 'finisher' | 'sweep' | 'body' | 'head' | 'wall' | 'bullet' | 'gun';
+export type HitKind =
+  | 'light' | 'heavy' | 'uppercut' | 'finisher' | 'sweep' | 'body' | 'head' | 'wall' | 'bullet' | 'gun'
+  // M6: knife stab, blade swing, blunt swing, thrown blade, explosion, long-weapon pin
+  | 'stab' | 'slash' | 'smash' | 'knife' | 'blast' | 'pin';
 
 /** Melee hits (combos chain these). */
-export const MELEE_KINDS: HitKind[] = ['light', 'heavy', 'uppercut', 'finisher'];
+export const MELEE_KINDS: HitKind[] = ['light', 'heavy', 'uppercut', 'finisher', 'stab', 'slash', 'smash'];
 
 type Handler<T> = (payload: T) => void;
 

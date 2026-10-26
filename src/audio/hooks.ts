@@ -7,7 +7,8 @@ import type { HitKind } from '../sim/events';
 import type { World } from '../sim/world';
 import type { AudioEngine, PlayOptions } from './mixer';
 
-const HEAVY: HitKind[] = ['heavy', 'uppercut', 'finisher', 'sweep', 'body', 'wall'];
+const HEAVY: HitKind[] = ['heavy', 'uppercut', 'finisher', 'sweep', 'body', 'wall', 'smash', 'slash', 'blast', 'pin'];
+const BLADE: HitKind[] = ['slash', 'stab', 'knife', 'pin'];
 
 export function hookWorldAudio(world: World, engine: AudioEngine): void {
   const at = (x: number, y: number, z: number, extra: PlayOptions = {}): PlayOptions => {
@@ -37,6 +38,10 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
       if (e.kind !== 'head') play('impact', { ...p, gain: 0.5 }); // punching a corpse
       return;
     }
+    // blades cut (and knives thunk in); blunt weapons hit like heavy punches
+    if (BLADE.includes(e.kind)) play('slash', p);
+    if (e.kind === 'knife' || e.kind === 'stab') play('knifeFlesh', p);
+    if (e.kind === 'blast') return; // the explosion itself carries it
     // punch = whoosh (on the swing) + flesh impact + low thump; heavy hits add a bone crack
     const heavy = HEAVY.includes(e.kind) || e.damage >= 2;
     play(heavy ? 'impactHeavy' : 'impact', { ...p, gain: e.combo ? 1.2 : 1 });
@@ -78,6 +83,25 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
     else { play('magOut', { ...p, rate: 1.25 }); play('slideRack', { ...p, delay: 0.08 }); }
   });
   world.events.on('pickup', (e) => { play('grab', at(e.x, e.y + 0.4, e.z)); play('magOut', at(e.x, e.y + 0.4, e.z, { rate: 1.4, gain: 0.5 })); });
+  // M6
+  world.events.on('explosion', (e) => {
+    play('explosion', at(e.x, Math.max(0.3, e.y), e.z));
+    engine.duck(0.4);
+  });
+  world.events.on('grenadePin', (e) => { play('pin', at(e.x, e.y, e.z)); play('fuse', at(e.x, e.y, e.z)); });
+  world.events.on('grenadeBounce', (e) => play('bounce', at(e.x, e.y, e.z)));
+  world.events.on('stick', (e) => play(e.surface === 'flesh' ? 'knifeFlesh' : 'knifeWall', at(e.x, e.y, e.z)));
+  world.events.on('pull', (e) => play(e.phase === 'start' ? 'cloth' : 'pullOut', at(e.x, e.y + 0.4, e.z)));
+  world.events.on('catch', (e) => play('catchSlap', at(e.x, e.y, e.z)));
+  world.events.on('disarm', (e) => {
+    const p = at(e.x, e.y + 0.5, e.z);
+    if (e.how === 'shot') play('hitMetal', p);
+    else if (e.how === 'steal') play('grab', p);
+    // the weapon clatters away
+    play('hitMetal', { ...p, gain: 0.5, delay: 0.35 });
+  });
+  world.events.on('pin', (e) => { play('clang', at(e.x, e.y + 0.5, e.z)); play('wall', at(e.x, e.y + 0.5, e.z)); });
+  world.events.on('gib', (e) => play('bodyFall', at(e.x, e.y, e.z, { gain: 0.8, rate: 1.3 })));
   world.events.on('doorOpen', (e) => {
     const d = world.room.doors[e.door];
     if (d) play('door', at(d.wall === 'left' ? -world.room.halfWidth : world.room.halfWidth, 1, (d.z0 + d.z1) / 2));
