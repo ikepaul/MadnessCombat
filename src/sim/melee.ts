@@ -64,7 +64,7 @@ export function startAction(world: World, a: Actor, kind: AttackKind, cmd: Pick<
   a.state = 'attack';
   a.stateT = 0;
   a.attack = { kind, heavy: false, t: 0, done: false, hand: extra.hand, hits: [], aim: cmd.aim, weapon: weapon ?? undefined, itemId: extra.itemId, targetId: extra.targetId, fuse: extra.fuse };
-  if (kind === 'toss' || kind === 'lob' || kind === 'pull' || kind === 'steal') a.body.vel = { x: 0, y: 0, z: 0 };
+  if ((kind === 'toss' || kind === 'lob' || kind === 'pull' || kind === 'steal') && a.body.state !== 'air') a.body.vel = { x: 0, y: 0, z: 0 };
   setClip(a, clipFor(kind, weapon ?? undefined));
   if (kind === 'pull') {
     const it = world.items.find((i) => i.id === extra.itemId);
@@ -78,7 +78,8 @@ export function startAction(world: World, a: Actor, kind: AttackKind, cmd: Pick<
  * on LMB and thrusts on RMB; Q throws the front-most melee weapon. Returns true if it acted.
  */
 export function startMeleeAction(world: World, a: Actor, cmd: PlayerCommand): boolean {
-  if (a.body.state !== 'ground' || a.holding) return false;
+  // swings, stabs and throws work on the ground and in the air
+  if ((a.body.state !== 'ground' && a.body.state !== 'air') || a.holding) return false;
   const d0 = meleeIn(a, 0), d1 = meleeIn(a, 1);
   if (cmd.throwGun) {
     const i = d0 ? 0 : !gunIn(a, 0) && d1 ? 1 : -1;
@@ -104,7 +105,8 @@ function swingTargets(world: World, a: Actor, def: MeleeDef, reach: number, alre
       if (a.playerIndex !== undefined && o.playerIndex !== undefined) return false; // no friendly fire in co-op
       const ahead = (o.pos.x - a.pos.x) * a.facing;
       if (ahead < -0.1 || ahead > reach || Math.abs(o.pos.z - a.pos.z) > def.depthBand) return false;
-      return o.pos.y <= a.pos.y + 1 && o.pos.y + o.body.height >= a.pos.y + 0.2;
+      // a swing from a jump comes down on whoever is below
+      return o.pos.y <= a.pos.y + 1 && o.pos.y + o.body.height >= a.pos.y - 0.2;
     })
     .sort((p, q) => Math.abs(p.pos.x - a.pos.x) - Math.abs(q.pos.x - a.pos.x));
 }
@@ -231,14 +233,14 @@ export function stepGrenade(world: World, a: Actor, cmd: PlayerCommand, dt: numb
       explode(world, { x: a.pos.x + a.facing * 0.3, y: a.pos.y + 0.5, z: a.pos.z }, a.id);
       return;
     }
-    if (!cmd.grenade && a.state === 'free' && a.body.state === 'ground') {
+    if (!cmd.grenade && a.state === 'free' && (a.body.state === 'ground' || a.body.state === 'air')) {
       const fuse = GRENADE.fuse - a.cook;
       a.cook = undefined;
       startAction(world, a, 'lob', cmd, { fuse });
     }
     return;
   }
-  if (cmd.grenade && a.grenades > 0 && a.state === 'free' && a.body.state === 'ground' && !a.holding && (!a.hands[0] || !a.hands[1]) && !holdsLong(a)) {
+  if (cmd.grenade && a.grenades > 0 && a.state === 'free' && (a.body.state === 'ground' || a.body.state === 'air') && !a.holding && (!a.hands[0] || !a.hands[1]) && !holdsLong(a)) {
     a.grenades--;
     a.cook = 0;
     a.pose.grenade = true;

@@ -416,3 +416,87 @@ describe('melee weapons and the street sign (melee-weapons, melee-environment-we
     expect(g.pos.x).toBeCloseTo(1.0 - 0.22, 5);
   });
 });
+
+describe('actions in the air (punch, shoot, swing, throw, grenade)', () => {
+  /** Jump, wait `delay` s, do `cmd` once, then count ticks to landing. Returns airtime and the peak height. */
+  function airAction(world: World, hero: Actor, cmd: Partial<PlayerCommand>, delay = 0.2) {
+    let apex = 0, t = 0;
+    tick(world, { jump: true }); t++;
+    for (let i = 0; i < ticksFor(world, delay); i++) { tick(world); t++; apex = Math.max(apex, hero.pos.y); }
+    const yAt = hero.pos.y;
+    tick(world, cmd); t++;
+    while (hero.pos.y > 1e-6 && t < 200) { tick(world, cmd.grenade ? { grenade: true } : {}); t++; apex = Math.max(apex, hero.pos.y); }
+    return { airtime: t * world.dt, apex, yAt };
+  }
+
+  it('a punch mid-jump: the jump carries on and lands on time', () => {
+    const { world, hero } = setup();
+    const r = airAction(world, hero, { attack: 'light' });
+    expect(hero.attack?.kind === 'light' || hero.state === 'free').toBe(true);
+    expect(Math.abs(r.airtime - 0.63)).toBeLessThanOrEqual(FRAME * 1.5);
+    expect(r.apex).toBeGreaterThan(1.1);
+  });
+
+  it('a mid-air punch hits someone at that height', () => {
+    const { world, hero } = setup();
+    const g = grunt(world, hero.pos.x + 0.55);
+    const hits = record(world, 'hit');
+    airAction(world, hero, { attack: 'light' }, 0.05);
+    expect(hits.some((h) => h.actorId === g.id)).toBe(true);
+  });
+
+  it('shooting at the top of a jump', () => {
+    const { world, hero } = setup();
+    hero.hands = [newHand('pistol'), null];
+    const shots = record(world, 'shot');
+    const r = airAction(world, hero, { press: [true, false], attack: 'light', aim: project(2, 1.4, Z) }, 0.3);
+    expect(shots).toHaveLength(1);
+    expect(shots[0].y).toBeGreaterThan(1);
+    expect(Math.abs(r.airtime - 0.63)).toBeLessThanOrEqual(FRAME * 1.5);
+  });
+
+  it('throwing a knife mid-jump: it leaves from up high and the jump carries on', () => {
+    const { world, hero } = setup();
+    hero.hands = [newHand('knife'), null];
+    const throws = record(world, 'throw');
+    const r = airAction(world, hero, { attack: 'light', aim: project(3, 1.2, Z) }, 0.15);
+    expect(throws).toHaveLength(1);
+    expect(throws[0].y).toBeGreaterThan(1.2);
+    expect(Math.abs(r.airtime - 0.63)).toBeLessThanOrEqual(FRAME * 1.5);
+  });
+
+  it('swinging a melee weapon in the air', () => {
+    const { world, hero } = setup();
+    hero.hands = [newHand('bat'), null];
+    const g = grunt(world, hero.pos.x + 0.8);
+    airAction(world, hero, { attack: 'light' }, 0.05);
+    tick(world, {}, 20);
+    expect(g.state).toBe('dead');
+  });
+
+  it('cooking and lobbing a grenade during a jump', () => {
+    const { world, hero } = setup();
+    hero.grenades = 1;
+    const pins = record(world, 'grenadePin'), throws = record(world, 'throw');
+    tick(world, { jump: true });
+    tick(world, { grenade: true }, 8);
+    expect(pins).toHaveLength(1);
+    expect(hero.body.state).toBe('air');
+    tick(world, { aim: project(2, 0, Z) }, 10);
+    expect(throws).toHaveLength(1);
+    expect(throws[0].y).toBeGreaterThan(0.9);
+  });
+
+  it('throwing a carried body from a jump', () => {
+    const { world, hero } = setup();
+    const g = grunt(world, hero.pos.x + 0.45);
+    tick(world, { grab: true });
+    expect(hero.holding?.id).toBe(g.id);
+    const throws = record(world, 'throw');
+    tick(world, { jump: true });
+    // carrying a body you can't jump (M2 rule), so this stays a ground throw
+    tick(world, { attack: 'light', aim: project(2, 0.5, Z) });
+    tick(world, {}, 12);
+    expect(throws).toHaveLength(1);
+  });
+});

@@ -15,7 +15,7 @@ import type { PlayerCommand } from './command';
 import { type HitKind, MELEE_KINDS } from './events';
 import { circleHits } from './hurtbox';
 import { dropHeld } from './items';
-import { DIVE_TIME, stepAttackMove, stepLocomotion, sweepTarget } from './movement';
+import { DIVE_TIME, stepAirborneAction, stepAttackMove, stepLocomotion, sweepTarget } from './movement';
 import type { World } from './world';
 
 const M = TUNING.melee, H = TUNING.hit, G = TUNING.grab, C = TUNING.corpse, C_ = TUNING.combo;
@@ -63,11 +63,13 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
       // M6: a melee weapon in the hand swings / stabs / is thrown instead of punching
       if (a.cook === undefined && startMeleeAction(world, a, cmd)) break;
       cmd = withoutItemPunches(a, cmd);
-      if (b.state === 'ground' && !a.holding && cmd.attack && a.cook === undefined) { startAttack(world, a, cmd); break; }
+      // actions work in the air too (a jump carries on under them)
+      const canAct = b.state === 'ground' || b.state === 'air';
+      if (canAct && !a.holding && cmd.attack && a.cook === undefined) { startAttack(world, a, cmd); break; }
       // grabbing takes the front hand (a one-handed gun may stay in the back hand: human shield)
-      if (b.state === 'ground' && a.cook === undefined && ((cmd.grab && (canGrab(a) || a.holding)) || (a.holding && cmd.attack))) {
+      if (canAct && a.cook === undefined && ((cmd.grab && (canGrab(a) || a.holding)) || (a.holding && cmd.attack))) {
         if (a.holding) startThrow(a, cmd);
-        else tryGrab(world, a);
+        else if (b.state === 'ground') tryGrab(world, a);
         if (a.state !== 'free') break;
       }
       stepLocomotion(world, a, cmd, dt);
@@ -78,8 +80,10 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
     case 'attack': {
       const k = a.attack?.kind;
       if (cmd.attack && (k === 'light' || k === 'heavy' || k === 'uppercut' || k === 'finisher')) a.queued = { kind: cmd.attack, aim: cmd.aim, at: world.time };
-      // keep walking through a swing; finishers, throws of items, pulls and steals are planted
-      if (k !== 'finisher' && k !== 'toss' && k !== 'lob' && k !== 'pull' && k !== 'steal') stepAttackMove(world, a, cmd, dt);
+      // in the air the jump carries on; on the ground keep walking through a swing
+      // (finishers, item throws, pulls and steals are planted)
+      if (a.body.state === 'air') stepAirborneAction(world, a, cmd, dt);
+      else if (k !== 'finisher' && k !== 'toss' && k !== 'lob' && k !== 'pull' && k !== 'steal') stepAttackMove(world, a, cmd, dt);
       else a.pose.walkPhase = undefined;
       stepAttack(world, a);
       break;
@@ -151,8 +155,11 @@ export function enter(a: Actor, s: Actor['state']): void {
   a.stateT = 0;
   if (s === 'free') {
     a.attack = undefined;
-    a.body.state = 'ground';
-    a.body.stateTime = 0;
+    // an action that ends mid-jump leaves you falling, not standing in the air
+    if (a.body.state !== 'air' || a.pos.y <= a.body.groundY + 1e-6) {
+      a.body.state = 'ground';
+      a.body.stateTime = 0;
+    }
     a.body.height = 1;
     a.pose.root = { ...STANDING };
   }
@@ -171,7 +178,7 @@ function startAttack(world: World, a: Actor, cmd: PlayerCommand): void {
   let kind: AttackKind = cmd.attack!;
   if (kind === 'heavy' && cmd.aim && aimedUp(a, cmd.aim)) kind = 'uppercut';
   // a punch at a downed body with nobody standing in reach becomes the finisher
-  if (kind !== 'uppercut' && !standingInReach(world, a) && downedInReach(world, a)) kind = 'finisher';
+  if (kind !== 'uppercut' && a.body.state === 'ground' && !standingInReach(world, a) && downedInReach(world, a)) kind = 'finisher';
   if (cmd.face) a.facing = cmd.face;
   a.state = 'attack';
   a.stateT = 0;
@@ -188,7 +195,9 @@ function aimedUp(a: Actor, aim: [number, number]): boolean {
 function fistPoint(a: Actor, kind: AttackKind): { x: number; y: number; r: number } {
   if (kind === 'finisher') return { x: a.pos.x + a.facing * M.finisher.reach, y: a.pos.y + M.finisher.height, r: M.finisher.radius };
   const h = kind === 'uppercut' ? M.uppercut.height : M.light.height;
-  return { x: a.pos.x + a.facing * FIST_REACH, y: a.pos.y + h, r: M.fistRadius };
+  // in the air the punch comes down at whoever is below (up to 0.9 H lower). invented
+  const drop = Math.min(Math.max(0, a.pos.y - a.pose.groundY), 0.9);
+  return { x: a.pos.x + a.facing * FIST_REACH, y: a.pos.y + h - drop, r: M.fistRadius };
 }
 
 function hittable(a: Actor, o: Actor): boolean {
@@ -719,7 +728,7 @@ function startThrow(a: Actor, cmd: PlayerCommand): void {
   a.stateT = 0;
   a.attack = { kind: 'throw', heavy: false, t: 0, done: false, aim };
   a.throwDir = { x: dx, z: dz };
-  a.body.vel = { x: 0, y: 0, z: 0 };
+  if (a.body.state !== 'air') a.body.vel = { x: 0, y: 0, z: 0 };
   setClip(a, 'throw');
 }
 
