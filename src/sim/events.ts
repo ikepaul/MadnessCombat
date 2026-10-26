@@ -29,6 +29,10 @@ export interface GameEvents {
     combo: boolean; chain: number;
   };
   kill: At & { byId: number; kind: HitKind; decap: boolean };
+  /** Co-op: a hero ran out of lives and lies in a revive circle. */
+  playerDown: At;
+  /** Co-op: a teammate finished the revive; the hero gets up. */
+  revive: At;
   /** The player got a life back (a kill). */
   heal: { actorId: number; hp: number };
   /** A body landed on the floor (knockback, death, throw). */
@@ -60,6 +64,13 @@ type Handler<T> = (payload: T) => void;
 
 export class EventBus<E extends object = GameEvents> {
   private handlers = new Map<keyof E, Set<Handler<never>>>();
+  private any = new Set<(type: keyof E, payload: unknown) => void>();
+
+  /** Every event, in order (co-op: the host forwards them all to player 2). */
+  onAny(fn: (type: keyof E, payload: unknown) => void): () => void {
+    this.any.add(fn);
+    return () => this.any.delete(fn);
+  }
 
   on<K extends keyof E>(type: K, fn: Handler<E[K]>): () => void {
     let set = this.handlers.get(type);
@@ -69,6 +80,7 @@ export class EventBus<E extends object = GameEvents> {
   }
 
   emit<K extends keyof E>(type: K, payload: E[K]): void {
+    for (const fn of this.any) fn(type, payload);
     const set = this.handlers.get(type);
     if (!set) return;
     for (const fn of set) (fn as Handler<E[K]>)(payload);

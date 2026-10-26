@@ -117,7 +117,7 @@ export function stepLocomotion(world: World, a: Actor, cmd: PlayerCommand, dt: n
 export function sweepTarget(world: World, a: Actor, dir: 1 | -1, reach: number): Actor | undefined {
   let best: Actor | undefined, bestD = Infinity;
   for (const o of world.actors) {
-    if (o === a || o.state === 'dead' || o.state === 'grabbed' || o.state === 'down' || o.state === 'getUp' || o.state === 'knockback') continue;
+    if (o === a || o.state === 'dead' || o.state === 'grabbed' || o.state === 'down' || o.state === 'downed' || o.state === 'getUp' || o.state === 'knockback') continue;
     if (o.body.height < 0.9 || Math.abs(o.pos.z - a.pos.z) > TUNING.melee.depthBand) continue;
     const d = (o.pos.x - a.pos.x) * dir;
     if (d >= -0.1 && d <= reach && d < bestD) { best = o; bestD = d; }

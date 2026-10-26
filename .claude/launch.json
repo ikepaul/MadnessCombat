@@ -17,6 +17,12 @@
       "port": 5174
     },
     {
+      "name": "dev-lan",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:lan"],
+      "port": 5173
+    },
+    {
       "name": "style-frame",
       "runtimeExecutable": "python3",
       "runtimeArgs": [

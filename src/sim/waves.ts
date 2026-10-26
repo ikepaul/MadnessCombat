@@ -23,6 +23,13 @@ export interface WaveDef {
   /** Entries wait while this many enemies are alive (keeps it a trickle). invented per wave */
   maxAlive: number;
   entries: WaveEntry[];
+  /** Co-op (2 players): replaces maxAlive / entries. invented per wave */
+  coop?: { maxAlive: number; entries: WaveEntry[] };
+}
+
+/** The wave as played with this many players. */
+function forPlayers(w: WaveDef, players: number): { maxAlive: number; entries: WaveEntry[] } {
+  return players > 1 && w.coop ? w.coop : w;
 }
 
 export interface RoomScript {
@@ -48,8 +55,10 @@ export class WaveDirector {
 
   /** Every enemy of the current wave has spawned and none is left alive (the kill cam's "last kill of a wave"). */
   waveFinished(world: World): boolean {
-    const w = this.script.waves[this.wave];
-    if (!w || this.entry < w.entries.length || this.pendingDoors.length > 0) return false;
+    const def = this.script.waves[this.wave];
+    if (!def) return false;
+    const w = forPlayers(def, world.players.length);
+    if (this.entry < w.entries.length || this.pendingDoors.length > 0) return false;
     return !world.actors.some((a) => a.ai && alive(a));
   }
 
@@ -70,12 +79,12 @@ export class WaveDirector {
       if (this.wave >= 0 && aliveEnemies >= next.threshold) return;
       this.wave++;
       this.entry = 0;
-      this.timer = next.entries[0]?.[0] ?? 0;
+      this.timer = forPlayers(next, world.players.length).entries[0]?.[0] ?? 0;
       this.state = 'running';
       world.events.emit('waveStart', { wave: next.id });
       return;
     }
-    const w = waves[this.wave];
+    const w = forPlayers(waves[this.wave], world.players.length);
     if (this.entry >= w.entries.length) {
       this.state = 'waiting';
       return;

@@ -1,7 +1,10 @@
 import { writeFileSync } from 'node:fs';
+import type { AddressInfo } from 'node:net';
+import { networkInterfaces } from 'node:os';
 import { resolve } from 'node:path';
 import type { Plugin } from 'vite';
 import { defineConfig } from 'vitest/config';
+import { CoopRelay, type CoopRole } from './src/net/relay';
 
 /** Dev only: the pose editor lab (/?lab=pose-editor) saves src/data/poses.json through this. */
 function poseSaver(): Plugin {
@@ -29,8 +32,34 @@ function poseSaver(): Plugin {
   };
 }
 
+/**
+ * Dev only: co-op relay on the dev server's websocket (PLAN.md M4b). Start the server with
+ * `npm run dev:lan` so the other laptop can reach it.
+ */
+function coopRelay(): Plugin {
+  return {
+    name: 'coop-relay',
+    apply: 'serve',
+    configureServer(server) {
+      const joinUrls = () => {
+        const port = (server.httpServer?.address() as AddressInfo | null)?.port ?? 5173;
+        return Object.values(networkInterfaces()).flat()
+          .filter((n) => n && n.family === 'IPv4' && !n.internal)
+          .map((n) => `http://${n!.address}:${port}/?coop=join`);
+      };
+      const relay = new CoopRelay(joinUrls);
+      server.ws.on('coop:hello', (data: { role: CoopRole }, client) => {
+        relay.hello(client, data.role);
+        client.socket.once('close', () => relay.closed(client));
+      });
+      server.ws.on('coop:input', (data, client) => relay.input(client, data));
+      server.ws.on('coop:snap', (data, client) => relay.snap(client, data));
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [poseSaver()],
+  plugins: [poseSaver(), coopRelay()],
   server: { port: 5173, strictPort: true },
   build: { target: 'es2022', chunkSizeWarningLimit: 2000 },
   test: { environment: 'node', include: ['tests/**/*.test.ts'] },

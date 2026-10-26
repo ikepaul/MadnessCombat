@@ -119,6 +119,13 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
     ctx.beginPath(); ctx.moveTo(0.02, -0.565); ctx.lineTo(0.11, -0.565); ctx.lineTo(0.06, -0.47); ctx.closePath();
     ctx.fillStyle = '#d9d9dc'; ctx.fill(); ctx.lineWidth = 0.008; ctx.stroke();
   }
+  if (a.playerIndex === 1) {
+    // co-op player 2 (style-frame sheet): a light strap across the body, shoulder to hip
+    ctx.save(); bodyPath(ctx); ctx.clip();
+    ctx.beginPath(); ctx.moveTo(-0.2, -0.5); ctx.lineTo(-0.12, -0.56); ctx.lineTo(0.22, -0.16); ctx.lineTo(0.22, -0.06); ctx.closePath();
+    ctx.fillStyle = '#d9d9dc'; ctx.fill(); ctx.lineWidth = 0.008; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.restore();
+  }
   if (pose.headless) neckStump(ctx, opts.blood);
   if (opts.blood) for (const [wx, wy] of pose.wounds) if (wy > -0.6) burst(ctx, wx, wy, 0.035, BLOOD, 7);
   ctx.restore();

@@ -189,7 +189,7 @@ export const TUNING = {
     speed: 0.8,
     /** A freed attack token (holder knocked down or killed) is handed out again after this. invented */
     tokenCooldown: 1.0,
-    /** No two grunt swings closer than this, across all grunts (keeps a crowd fair). invented */
+    /** No two grunt swings at the same player closer than this (keeps a crowd fair). invented */
     swingGap: 0.45,
     /** Time a grunt stands in punch range before its first swing (a beat to strike first). invented */
     windUp: 0.5,
@@ -203,6 +203,18 @@ export const TUNING = {
     doorHold: 1.0,
     /** Off-screen distance past the side bounds where edge entries start. invented */
     edgeOffset: 1.6,
+  },
+
+  /** Co-op (decided with the user 2026-10-26): 2 players on the same Wi-Fi, revive by standing in the circle. */
+  coop: {
+    /** Standing inside the circle charges the revive bar over 5 s (decided). */
+    reviveTime: 5,
+    /** Outside the circle a full bar drains in this many seconds ("goes down quickly"). invented */
+    reviveDrain: 1.0,
+    /** Revive circle radius on the floor, around the downed body's middle. invented */
+    reviveRadius: 0.75,
+    /** Lives after a revive. invented */
+    reviveHp: 1,
   },
 
   /** Soft push-apart between standing actors. invented */

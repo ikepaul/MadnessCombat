@@ -68,10 +68,18 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
       break;
     case 'knockback':
       if (stepFlight(world, a, dt) === 'stopped') {
-        enter(a, 'down');
+        // a co-op hero out of lives stays down in a revive circle instead of getting up
+        enter(a, a.goingDown ? 'downed' : 'down');
+        if (a.goingDown) {
+          a.goingDown = false;
+          a.revive = 0;
+          world.events.emit('playerDown', { actorId: a.id, ...a.pos });
+        }
         setClip(a, 'lying');
       }
       break;
+    case 'downed':
+      break; // revived by a teammate (stepRevives)
     case 'down':
       if (reached(a.stateT, a.kind === 'hero' ? H.lie : H.enemyLie)) startGetUp(a);
       break;
@@ -137,7 +145,7 @@ function fistPoint(a: Actor, kind: AttackKind): { x: number; y: number; r: numbe
 }
 
 function hittable(a: Actor, o: Actor): boolean {
-  return o !== a && alive(o) && o.state !== 'grabbed' && o.state !== 'getUp' && Math.abs(o.pos.z - a.pos.z) <= M.depthBand;
+  return o !== a && alive(o) && o.state !== 'grabbed' && o.state !== 'getUp' && o.state !== 'downed' && Math.abs(o.pos.z - a.pos.z) <= M.depthBand;
 }
 
 function standingInReach(world: World, a: Actor): boolean {
@@ -220,7 +228,7 @@ export function applyHit(
   world: World, by: Actor | undefined, o: Actor, kind: HitKind, dirX: number, dirZ: number,
   at: { x: number; y: number; z: number }, part: 'head' | 'body' = 'body', heavy = false,
 ): void {
-  if (o.state === 'getUp') return; // i-frames (invented)
+  if (o.state === 'getUp' || o.state === 'downed') return; // i-frames (invented); downed heroes are out of the fight
   const corpse = o.state === 'dead';
   const base = kind === 'finisher' && heavy ? M.finisher.heavyDamage : DAMAGE[kind];
   const combo = !corpse && base > 0 && o.kind !== 'hero' && chainBonus(world, by, o, kind);
@@ -237,6 +245,12 @@ export function applyHit(
   if (o.holding) releaseHeld(world, o);
   if (o.grabbedBy !== undefined) releaseFrom(world, o);
 
+  if (killed && o.kind === 'hero' && world.activePlayers.some((p) => p !== o)) {
+    // co-op: out of lives with a teammate still standing -> knocked down into a revive circle
+    o.goingDown = true;
+    knockDown(world, o, kind === 'light' || kind === 'head' ? 'heavy' : kind, dirX, dirZ);
+    return;
+  }
   if (killed) {
     // melee-decapitation: a killing blow from a heavy attack knocks the head off (decided with the user)
     const decap = o.kind === 'grunt' && (kind === 'heavy' || kind === 'uppercut' || (kind === 'finisher' && heavy));
@@ -438,7 +452,7 @@ function wallImpact(world: World, a: Actor, wall: 'left' | 'right' | 'back', spe
 function thrownBodyHits(world: World, a: Actor): void {
   const f = a.flight!;
   for (const o of world.actors) {
-    if (o === a || o.id === f.thrownBy || f.hit.includes(o.id) || !alive(o) || o.state === 'grabbed' || o.state === 'getUp' || o.state === 'down') continue;
+    if (o === a || o.id === f.thrownBy || f.hit.includes(o.id) || !alive(o) || o.state === 'grabbed' || o.state === 'getUp' || o.state === 'down' || o.state === 'downed') continue;
     if (Math.abs(o.pos.z - a.pos.z) > 0.25 || Math.abs(o.pos.x - a.pos.x) > G.hitRadius) continue;
     if (a.pos.y > o.pos.y + o.body.height || a.pos.y + 0.4 < o.pos.y) continue;
     f.hit.push(o.id);
@@ -466,10 +480,32 @@ function damageThrown(world: World, a: Actor): void {
 
 /** Every kill the player makes heals a life, up to the max (decided with the user). */
 function creditKill(world: World, byId: number | undefined): void {
-  const p = world.player;
-  if (!p || byId !== p.id || !alive(p) || p.hp >= p.maxHp) return;
+  const p = world.players.find((h) => h.id === byId);
+  if (!p || !alive(p) || p.state === 'downed' || p.hp >= p.maxHp) return;
   p.hp = Math.min(p.maxHp, p.hp + TUNING.health.healPerKill);
   world.events.emit('heal', { actorId: p.id, hp: p.hp });
+}
+
+// ---------- co-op revive ----------
+
+/**
+ * Co-op revive (decided with the user): a teammate standing in a downed hero's circle charges
+ * the revive over TUNING.coop.reviveTime; stepping out drains it quickly. Full -> they get up
+ * with TUNING.coop.reviveHp lives (and the get-up i-frames).
+ */
+export function stepRevives(world: World, dt: number): void {
+  const R = TUNING.coop;
+  for (const p of world.players) {
+    if (p.state !== 'downed') continue;
+    const helped = world.activePlayers.some((h) => h !== p && Math.hypot(h.pos.x - p.pos.x, h.pos.z - p.pos.z) <= R.reviveRadius);
+    const before = p.revive ?? 0;
+    p.revive = helped ? before + dt / R.reviveTime : Math.max(0, before - dt / R.reviveDrain);
+    if (p.revive < 1 - 1e-9) continue;
+    p.revive = undefined;
+    p.hp = R.reviveHp;
+    startGetUp(p);
+    world.events.emit('revive', { actorId: p.id, ...p.pos });
+  }
 }
 
 // ---------- get-up, sweep ----------
@@ -504,7 +540,7 @@ function tryGrab(world: World, a: Actor): void {
     if (!best || score < best.score) best = { score, act, itemId };
   };
   for (const o of world.actors) {
-    if (o === a || o.grabbedBy !== undefined || o.state === 'getUp' || Math.abs(o.pos.z - a.pos.z) > M.depthBand) continue;
+    if (o === a || o.grabbedBy !== undefined || o.state === 'getUp' || o.state === 'downed' || Math.abs(o.pos.z - a.pos.z) > M.depthBand) continue;
     if (o.state === 'dead' && (o.corpse?.phase === 'headless' || o.flight)) continue;
     if (o.state === 'knockback') continue;
     const d = (o.pos.x - a.pos.x) * a.facing;
