@@ -246,6 +246,7 @@ Look & sound:
 - [x] Grenade: pin and spoon debris, blinking/fuse spark cue, explosion (white starburst → grey smoke puffs, gib debris, scorch decal), shake 14 px, chromatic, ducking.
 - [x] Disarm: weapon spin-away arc. Human shield hold pose and gore on the shield.
 - [x] Sounds: knife draw/whoosh/thunk/twang/pull-out, grenade pin/spoon/bounce/fuse hiss/explosion layers, melee weapon swings and hits, catch slap, weapon clatter, shield impacts.
+- [x] (Added on request) Stage 1 melee-armed grunts: after the first few, about every third wave-A grunt carries a baton, knife, bat, pipe, axe, sword or scimitar. The grunt AI swings from the weapon's reach, and knife grunts sometimes throw from 1.8–4.5 H. Gun-armed grunts wait for M7.
 
 Done notes: input is LMB/RMB per hand (a knife stabs within 0.6 H and is thrown beyond it), Q throws the front-most weapon, G is held to cook (release lobs), E also pulls stuck blades / the planted sign (or stand on one with empty hands). Grab needs only the front hand, so a one-handed gun in the back hand fires past a human shield. Shots can knock a weapon out of an enemy's hand only (not the players'). Gibbed bodies disappear into flying pieces + blood; the `explosion` event is the hook for breakable floors (M9). Enemies don't use the new weapons yet (M7); lab dummies throw knives and fire the machine gun.
 

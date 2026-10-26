@@ -2,7 +2,10 @@
 // flags, a picked-up grenade keeps its fuse, catch window, steal, shield from the front only,
 // the street sign hitting two in one swing, pinning; plus disarms and melee swings.
 import { describe, expect, it } from 'vitest';
-import { GRENADE, MELEE, THROWN } from '../src/data/melee';
+import { GRENADE, isMelee, MELEE, THROWN } from '../src/data/melee';
+import { STAGE1 } from '../src/data/stages/stage1';
+import { TUNING } from '../src/data/tuning';
+import { gruntBrain, newAiState } from '../src/sim/ai';
 import { TEST_ROOM } from '../src/data/rooms/testRoom';
 import { liveGrenade } from '../src/labs/throwLabs';
 import { project, scaleAt } from '../src/render/camera';
@@ -498,5 +501,51 @@ describe('actions in the air (punch, shoot, swing, throw, grenade)', () => {
     tick(world, { attack: 'light', aim: project(2, 0.5, Z) });
     tick(world, {}, 12);
     expect(throws).toHaveLength(1);
+  });
+});
+
+describe('armed grunts (stage 1)', () => {
+  function armed(world: World, x: number, item: Parameters<typeof newHand>[0]): Actor {
+    const g = grunt(world, x, Z, newHand(item));
+    g.ai = newAiState(world);
+    g.brain = gruntBrain(world);
+    return g;
+  }
+
+  it('stage 1 wave A puts melee weapons on some grunts, solo and co-op', () => {
+    const w = STAGE1.rooms.arena.script.waves[0];
+    for (const entries of [w.entries, w.coop!.entries]) {
+      const held = entries.map((e) => e[3]).filter((h) => h !== null);
+      expect(held.length).toBeGreaterThanOrEqual(4);
+      expect(held.every((h) => isMelee(h!))).toBe(true);
+    }
+  });
+
+  it('a bat grunt fights from the bat\'s reach and lands a smash on the hero', () => {
+    const { world, hero } = setup(EMPTY, 0);
+    const g = armed(world, 2.5, 'bat');
+    const kills = record(world, 'hit');
+    let minDx = Infinity;
+    for (let i = 0; i < 60 * 8 && !kills.some((k) => k.attackerId === g.id); i++) {
+      tick(world);
+      if (g.state === 'attack') minDx = Math.min(minDx, Math.abs(g.pos.x - hero.pos.x));
+    }
+    expect(kills.some((k) => k.attackerId === g.id && k.kind === 'smash')).toBe(true);
+    // swung from farther out than a punch would reach
+    expect(minDx).toBeGreaterThan(TUNING.melee.range);
+  });
+
+  it('a knife grunt throws its knife from range', () => {
+    const { world } = setup(EMPTY, -1.5);
+    const g = armed(world, 1.5, 'knife');
+    world.tokens.clear();
+    let thrown = false;
+    for (let i = 0; i < 60 * 12 && !thrown; i++) {
+      tick(world);
+      thrown = world.items.some((it) => it.kind === 'knife' && it.state === 'air');
+      if (Math.abs(g.pos.x + 1.5) < TUNING.ai.knifeThrowRange[0]) g.pos.x = 1.5;
+    }
+    expect(thrown).toBe(true);
+    expect(g.hands[0]).toBeNull();
   });
 });

@@ -193,6 +193,13 @@ export const TUNING = {
     swingGap: 0.45,
     /** Time a grunt stands in punch range before its first swing (a beat to strike first). invented */
     windUp: 0.5,
+    /** Armed grunts stand this far inside their weapon's reach. invented */
+    weaponMargin: 0.15,
+    /** enemy-behaviours: knife grunts throw at range, between these distances (H). invented (> 2 H in the note) */
+    knifeThrowRange: [1.8, 4.5] as const,
+    /** Seconds between a knife grunt's throw attempts, and the chance per attempt. invented */
+    knifeThrowEvery: 2.5,
+    knifeThrowChance: 0.5,
   },
 
   /** enemy-spawning: wave scripts. */
