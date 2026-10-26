@@ -25,6 +25,8 @@ export interface GameEvents {
   /** Something connected. `x, y, z` = contact point; dirX/dirZ = push direction. */
   hit: At & { attackerId: number; kind: HitKind; part: 'head' | 'body'; damage: number; killed: boolean; dirX: number; dirZ: number };
   kill: At & { byId: number; kind: HitKind; decap: boolean };
+  /** The player got a life back (a kill). */
+  heal: { actorId: number; hp: number };
   /** A body landed on the floor (knockback, death, throw). */
   bodyFall: At & { speed: number };
   /** A flying body hit a wall. */

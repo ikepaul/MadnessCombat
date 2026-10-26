@@ -78,6 +78,8 @@ export type AttackKind = 'light' | 'heavy' | 'uppercut' | 'finisher' | 'throw';
 
 export interface Attack {
   kind: AttackKind;
+  /** Pressed as a heavy (RMB): sets finisher damage and decapitation. */
+  heavy: boolean;
   t: number;
   /** Already connected (one target per swing). */
   done: boolean;

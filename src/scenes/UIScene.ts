@@ -18,6 +18,8 @@ export class UIScene extends Phaser.Scene {
   private lastHp = -1;
   /** Seconds left of the pip pop after losing a hit. */
   private pipPop = 0;
+  /** Seconds left of the pip pop after a kill healed a life. */
+  private healPop = 0;
 
   constructor() {
     super('ui');
@@ -69,12 +71,15 @@ export class UIScene extends Phaser.Scene {
     g.clear();
     if (!p) return;
     if (this.lastHp >= 0 && p.hp < this.lastHp) this.pipPop = 0.25;
+    if (this.lastHp >= 0 && p.hp > this.lastHp) this.healPop = 0.3;
     this.lastHp = p.hp;
     this.pipPop = Math.max(0, this.pipPop - dt);
+    this.healPop = Math.max(0, this.healPop - dt);
     const ink = Phaser.Display.Color.HexStringToColor(INK).color;
     for (let i = 0; i < p.maxHp; i++) {
       const lost = i >= p.hp;
-      const pop = lost && i === p.hp ? 1 + this.pipPop * 1.6 : 1;
+      // the pip just lost pops out; the pip just regained (a kill) pops in
+      const pop = lost && i === p.hp ? 1 + this.pipPop * 1.6 : !lost && i === p.hp - 1 ? 1 + this.healPop * 1.4 : 1;
       const x = 48 + i * 46, y = 1080 - 120;
       g.fillStyle(ink, 1).fillCircle(x, y, 17 * pop);
       g.fillStyle(lost ? 0x5b5c61 : 0xffffff, 1).fillCircle(x, y, 12 * pop);

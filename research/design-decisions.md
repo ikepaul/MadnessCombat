@@ -8,7 +8,8 @@ Decisions taken with the user while researching (2026-10-26). The mechanic notes
 |---|---|---|
 | Scope | Episodes 1–3 only, one stage per episode. Mechanics, movement, enemy types and set pieces are copied. Art, names and characters are not. | No timestamp, no mechanic. |
 | Tech | TypeScript + Phaser, runs in the browser. | Lets us check builds side by side with the reference frames. Versions and architecture: `../PLAN.md`. |
-| Damage | Enemies die like in the show (grunts: 1 bullet / 1 good hit). The player survives about 3 hits (invented). | Zombies, brutes and bosses have their own rules. |
+| Damage | **Revised 2026-10-26:** the player has 3 lives and every hit taken (punch, bullet, anything) costs exactly 1. Every kill heals 1 life (up to 3). Grunts have 4 hp: light punch 1 (stuns), heavy 2 (knocks down), so 4 lights or 2 heavies. Guns: 1 shot to the head or 2 to the body kills a grunt (M5). A kill with a heavy attack decapitates. Hard or slow-to-do moves (fast wall slams) still kill outright. Combos that kill faster come later (M4). | Replaces "grunts die from 1 bullet / 1 good hit". Zombies, brutes and bosses have their own rules. |
+| Movement feel | **2026-10-26:** walk faster than measured (calm 1.1, combat 1.8 H/s instead of 0.8 / 1.3) and keep walking (at 70%) while punching or throwing. | Values invented and tunable in `src/data/tuning.ts`. |
 | Reference footage | Downloaded episodes and clips stay local (gitignored), never shipped. | Rebuild with `tools/research/make_clips.py`. |
 | Level layout | **Fixed-screen rooms** joined by doors, lifts, vents, ladders, holes and falls. | Ep1 = one room. Ep2/ep3 = chains of about 10 rooms (`stages.md`). |
 | Movement plane | **Beat-'em-up depth**: characters move on a floor plane (x, z) + jump (y). Melee and grabs need a matching depth band. | User: "beat em up depth but you should also be able to aim weapon freely so you can shoot on more than the current depth axis". |

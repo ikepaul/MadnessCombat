@@ -10,7 +10,7 @@ import type { PlayerCommand } from './command';
 import type { HitKind } from './events';
 import { circleHits } from './hurtbox';
 import { dropHeld } from './items';
-import { DIVE_TIME, stepLocomotion, sweepTarget } from './movement';
+import { DIVE_TIME, stepAttackMove, stepLocomotion, sweepTarget } from './movement';
 import type { World } from './world';
 
 const M = TUNING.melee, H = TUNING.hit, G = TUNING.grab, C = TUNING.corpse;
@@ -58,6 +58,9 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
     }
     case 'attack':
       if (cmd.attack && a.attack?.kind !== 'throw') a.queued = { kind: cmd.attack, aim: cmd.aim, at: world.time };
+      // keep walking through the swing (the finisher is planted)
+      if (a.attack?.kind !== 'finisher') stepAttackMove(world, a, cmd, dt);
+      else a.pose.walkPhase = undefined;
       stepAttack(world, a);
       break;
     case 'stun':
@@ -117,9 +120,7 @@ function startAttack(world: World, a: Actor, cmd: PlayerCommand): void {
   if (cmd.face) a.facing = cmd.face;
   a.state = 'attack';
   a.stateT = 0;
-  a.attack = { kind, t: 0, done: false };
-  a.body.vel = { x: 0, y: 0, z: 0 };
-  a.pose.walkPhase = undefined;
+  a.attack = { kind, heavy: cmd.attack === 'heavy', t: 0, done: false };
   setClip(a, PUNCH_CLIP[kind]);
 }
 
@@ -188,7 +189,7 @@ function connect(world: World, a: Actor, kind: AttackKind): boolean {
   if (kind === 'finisher') {
     const o = downedTarget(world, a);
     if (!o) return false;
-    applyHit(world, a, o, 'finisher', a.facing, 0, { x: f.x, y: f.y, z: o.pos.z });
+    applyHit(world, a, o, 'finisher', a.facing, 0, { x: f.x, y: f.y, z: o.pos.z }, 'body', a.attack!.heavy);
     return true;
   }
   let best: Actor | undefined, bestD = Infinity, part: 'head' | 'body' = 'body';
@@ -211,17 +212,18 @@ const DAMAGE: Record<HitKind, number> = {
 };
 
 /**
- * Resolve a hit on `o`. dirX/dirZ = push direction. Grunts die from 1 heavy or 2 light hits
- * (decided); survivors are stunned by light hits and knocked down by everything heavier.
+ * Resolve a hit on `o`. dirX/dirZ = push direction. Grunts have 4 hp: light hits do 1, heavy
+ * ones 2 (decided). The player loses exactly 1 life per hit, whatever hit him. Survivors are
+ * stunned by light hits and knocked down by everything heavier. `heavy` = the finisher was RMB.
  */
 export function applyHit(
   world: World, by: Actor | undefined, o: Actor, kind: HitKind, dirX: number, dirZ: number,
-  at: { x: number; y: number; z: number }, part: 'head' | 'body' = 'body',
+  at: { x: number; y: number; z: number }, part: 'head' | 'body' = 'body', heavy = false,
 ): void {
   if (o.state === 'getUp') return; // i-frames (invented)
   const corpse = o.state === 'dead';
-  const damage = corpse ? 0 : DAMAGE[kind];
-  const wasStunned = o.state === 'stun';
+  const base = kind === 'finisher' && heavy ? M.finisher.heavyDamage : DAMAGE[kind];
+  const damage = corpse || base <= 0 ? 0 : o.kind === 'hero' ? 1 : base;
   o.hp = Math.max(0, o.hp - damage);
   const killed = !corpse && o.hp <= 0;
   if (o.corpse?.phase !== 'frozen') o.pose.impact = H.impact;
@@ -235,8 +237,8 @@ export function applyHit(
   if (o.grabbedBy !== undefined) releaseFrom(world, o);
 
   if (killed) {
-    // melee-decapitation: a heavy blow on a stunned grunt knocks the head off (invented trigger)
-    const decap = kind === 'heavy' && wasStunned && o.kind === 'grunt' && part === 'head';
+    // melee-decapitation: a killing blow from a heavy attack knocks the head off (decided with the user)
+    const decap = o.kind === 'grunt' && (kind === 'heavy' || kind === 'uppercut' || (kind === 'finisher' && heavy));
     die(world, o, by, kind, dirX, dirZ, decap);
     return;
   }
@@ -320,6 +322,7 @@ function die(world: World, o: Actor, by: Actor | undefined, kind: HitKind, dirX:
   o.hp = 0;
   o.corpse = { phase: 'tumble', t: 0, raisable: true, gibbed: false, slumped: false };
   world.events.emit('kill', { actorId: o.id, byId: by?.id ?? 0, kind, decap, ...o.pos });
+  creditKill(world, by?.id);
   if (decap) {
     o.pose.headless = true;
     o.corpse.phase = 'headless';
@@ -429,13 +432,23 @@ function thrownBodyHits(world: World, a: Actor): void {
 
 /** A thrown living body takes a hit when it first lands or hits someone. */
 function damageThrown(world: World, a: Actor): void {
+  const by = a.flight?.thrownBy;
   a.flight?.hit.push(-1);
-  a.hp = Math.max(0, a.hp - G.damage);
+  a.hp = Math.max(0, a.hp - (a.kind === 'hero' ? 1 : G.damage));
   if (a.hp <= 0) {
     a.state = 'dead';
     a.corpse = { phase: 'tumble', t: 0, raisable: true, gibbed: false, slumped: false };
-    world.events.emit('kill', { actorId: a.id, byId: 0, kind: 'body', decap: false, ...a.pos });
+    world.events.emit('kill', { actorId: a.id, byId: by ?? 0, kind: 'body', decap: false, ...a.pos });
+    creditKill(world, by);
   }
+}
+
+/** Every kill the player makes heals a life, up to the max (decided with the user). */
+function creditKill(world: World, byId: number | undefined): void {
+  const p = world.player;
+  if (!p || byId !== p.id || !alive(p) || p.hp >= p.maxHp) return;
+  p.hp = Math.min(p.maxHp, p.hp + TUNING.health.healPerKill);
+  world.events.emit('heal', { actorId: p.id, hp: p.hp });
 }
 
 // ---------- get-up, sweep ----------
@@ -522,7 +535,7 @@ function startThrow(a: Actor, cmd: PlayerCommand): void {
   if (Math.abs(dx) > 0.05) a.facing = dx > 0 ? 1 : -1;
   a.state = 'attack';
   a.stateT = 0;
-  a.attack = { kind: 'throw', t: 0, done: false };
+  a.attack = { kind: 'throw', heavy: false, t: 0, done: false };
   a.throwDir = { x: dx, z: dz };
   a.body.vel = { x: 0, y: 0, z: 0 };
   setClip(a, 'throw');
