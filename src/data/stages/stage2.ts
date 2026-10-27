@@ -46,6 +46,54 @@ export const CORRIDOR: RoomDef = {
   boards: [],
 };
 
+/** M10 room 7, the elevator cab (world-elevator-fight): a small box in the shaft, its roof walkable. */
+const HATCH = { x0: 0.8, x1: 1.35, z0: 8.6, z1: 9.1 };
+export const ELEVATOR: RoomDef = {
+  id: 's2-elevator', halfWidth: 1.9, height: 2.3, zFront: 8.2, zBack: 9.5,
+  doors: [{ wall: 'right', z0: 8.45, z1: 9.15, height: 1.9, open: false }],
+  props: [], lamps: [], vents: [], boards: [],
+  decks: [{ x0: -1.9, x1: 1.9, z0: 8.2, z1: 9.5, y: 2.3, holes: [HATCH] }],
+  elevator: { cable: { x: 0.25, z: 9.2 }, hatch: HATCH, slot: { x0: -0.95, x1: -0.3, z0: 8.6, z1: 9.1 } },
+};
+/** Room 8, the sword room: blades from the left door and the lift on the right. */
+export const SWORDS: RoomDef = {
+  id: 's2-swords', halfWidth: 3.6, height: 3.6, zFront: 8, zBack: 10.4,
+  doors: [
+    { wall: 'left', z0: 8.6, z1: 9.35, height: 1.9, open: false },
+    { wall: 'right', z0: 8.6, z1: 9.4, height: 2.0, open: false },
+  ],
+  props: [], lamps: [{ x: 0, z: 9.4, shadeY: 2.3, poolR: 1.3 }], vents: [], boards: [{ x0: -1.6, x1: -0.2, y0: 1.3, y1: 2.0 }],
+};
+/** Room 9, the lobby: out of the lift into a crossfire from both doors. */
+export const LOBBY: RoomDef = {
+  id: 's2-lobby', halfWidth: 3.6, height: 3.8, zFront: 8, zBack: 10.67,
+  doors: [
+    { wall: 'left', z0: 8.6, z1: 9.35, height: 1.9, open: false },
+    { wall: 'right', z0: 8.6, z1: 9.4, height: 2.0, open: false },
+  ],
+  props: [{ kind: 'table', x0: -2.6, x1: -1.8, z0: 10.0, z1: 10.45, top: 0.55 }],
+  lamps: [{ x: -1.6, z: 9.8, shadeY: 2.5, poolR: 1.2 }, { x: 1.6, z: 9.8, shadeY: 2.5, poolR: 1.2 }], vents: [], boards: [],
+};
+/** Room 10, the crate room: guards dug in behind a crate facing the lift; a ceiling vent goes round. */
+export const CRATES: RoomDef = {
+  id: 's2-crates', halfWidth: 3.6, height: 3.6, zFront: 8, zBack: 10.4,
+  doors: [
+    { wall: 'left', z0: 8.6, z1: 9.4, height: 2.0, open: false },
+    { wall: 'right', z0: 8.6, z1: 9.35, height: 1.9, open: false },
+  ],
+  props: [{ kind: 'crate', x0: 1.2, x1: 2.0, z0: 9.05, z1: 9.75, top: 0.75 }],
+  lamps: [{ x: 0.4, z: 9.5, shadeY: 2.3, poolR: 1.2 }],
+  vents: [{ x0: -2.7, x1: -1.9, z0: 8.7, z1: 9.3 }, { x0: 2.7, x1: 3.4, z0: 8.7, z1: 9.3 }],
+  boards: [],
+};
+/** Room 11, the final office: the target behind his desk, two bodyguards. */
+export const FINAL: RoomDef = {
+  id: 's2-final', halfWidth: 3.6, height: 3.8, zFront: 8, zBack: 10.67,
+  doors: [{ wall: 'left', z0: 8.6, z1: 9.35, height: 1.9, open: true }],
+  props: [{ kind: 'table', x0: 1.4, x1: 2.8, z0: 9.55, z1: 10.05, top: 0.62 }],
+  lamps: [{ x: 2.1, z: 10.0, shadeY: 2.5, poolR: 1.2 }], vents: [], boards: [{ x0: -1.2, x1: 0.4, y0: 1.3, y1: 2.15 }],
+};
+
 /** Off the side of the screen (walk-out exits). */
 const EAST = { x0: 3.15, x1: 9, z0: 0, z1: 99 };
 
@@ -106,13 +154,52 @@ export const STAGE2: StageDef = {
     corridor: {
       room: CORRIDOR,
       entries: { east: { x: 2.9, z: 8.8, facing: -1, from: 'walk' } },
-      // on to the elevator (M10): the end of the built stage for now
-      exits: [{ id: 'west-door', kind: 'door', x0: -9, x1: -3.25, z0: 8.3, z1: 9.25, to: null, entry: 'east', locked: true }],
+      exits: [{ id: 'west-door', kind: 'door', x0: -9, x1: -3.25, z0: 8.3, z1: 9.25, to: 'elevator', entry: 'door', locked: true }],
       tracker: [-0.9, 0.3],
       script: stage2Scripts.corridor,
+    },
+    elevator: {
+      room: ELEVATOR,
+      entries: { door: { x: 1.2, z: 8.85, facing: -1, from: 'walk' } },
+      // taken by the script once the cab has fallen: up the cable
+      exits: [{ id: 'cable', kind: 'climb', x0: 99, x1: 99, z0: 99, z1: 99, to: 'swords', entry: 'shaft', locked: true }],
+      tracker: [0.2, -0.9],
+      script: stage2Scripts.elevator,
+    },
+    swords: {
+      room: SWORDS,
+      entries: { shaft: { x: -2.7, z: 9.3, facing: 1, from: 'vault' } },
+      exits: [{ id: 'lift', kind: 'lift', x0: 3.0, x1: 9, z0: 8.55, z1: 9.45, to: 'lobby', entry: 'lift', locked: true }],
+      tracker: [0.9, 0.2],
+      script: stage2Scripts.swords,
+    },
+    lobby: {
+      room: LOBBY,
+      entries: { lift: { x: 0, z: 9.6, facing: 1, from: 'walk' } },
+      exits: [{ id: 'lift', kind: 'lift', x0: 3.0, x1: 9, z0: 8.55, z1: 9.45, to: 'crates', entry: 'lift', locked: true }],
+      tracker: [0.7, 0.6],
+      script: stage2Scripts.lobby,
+    },
+    crates: {
+      room: CRATES,
+      entries: { lift: { x: -3.0, z: 9.0, facing: 1, from: 'walk' } },
+      exits: [
+        // research/stages.md room 10: the ceiling vent comes out behind the guards
+        { id: 'vent', kind: 'vent', x0: -2.75, x1: -1.85, z0: 8.65, z1: 9.35, to: 'crates', entry: 'lift', warp: { x: 3.05, z: 9.0, facing: -1, from: 'above' } },
+        { id: 'east-door', kind: 'door', x0: 3.25, x1: 9, z0: 8.55, z1: 9.4, to: 'final', entry: 'west', locked: true },
+      ],
+      tracker: [0.9, 0],
+      script: stage2Scripts.crates,
+    },
+    final: {
+      room: FINAL,
+      entries: { west: { x: -2.9, z: 9.0, facing: 1, from: 'walk' } },
+      exits: [],
+      tracker: [0.05, 0],
+      script: stage2Scripts.final,
     },
   },
 };
 
 /** Room order (tests, `?stage=2&room=`). */
-export const STAGE2_ROOMS = ['wall', 'corner', 'roofA', 'roofB', 'office', 'corridor'] as const;
+export const STAGE2_ROOMS = ['wall', 'corner', 'roofA', 'roofB', 'office', 'corridor', 'elevator', 'swords', 'lobby', 'crates', 'final'] as const;

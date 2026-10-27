@@ -132,6 +132,27 @@ export interface GameEvents {
   /** M9 (boss-halo clip 5): the telekinetic fling across the room; the mass raise (`count` corpses). */
   bossFling: At & { targetId: number; dir: 1 | -1 };
   massRaise: At & { count: number };
+  // M10: the elevator, the welder, interrogations, the ending
+  elevator: { phase: 'start' | 'stop' | 'fall' | 'crash' };
+  hatch: At & { phase: 'up' };
+  /** M10: came out of an in-room way round (the vent flank). */
+  warp: { exit: string };
+  /** enemy-welder: the cut started, finished (the slot is open) or stopped (he's dead). */
+  weld: At & { phase: 'start' | 'done' | 'stop' };
+  slotCut: { x: number; y: number; z: number };
+  /** Bodies thumping down onto the elevator roof. */
+  roofLanding: { x: number; y: number; z: number };
+  cableHit: { x: number; y: number; z: number; broke: boolean };
+  /** A pictogram speech bubble over an actor (world-interrogate-knockout): no words, our own icons. */
+  speech: At & { icon: 'photo' | 'question' | 'shrug' | 'hands' | 'stars'; seconds: number };
+  holdUp: At;
+  knockout: At;
+  /** Knocked silly (stars) instead of killed, for TUNING.interrogate.dazed s. */
+  dazed: At;
+  /** The target was disarmed in his last room and gives up. */
+  surrender: At;
+  /** The ending: the boss's shot from behind. */
+  bossShot: At & { targetId: number };
   /** The target ran out of the room (boss-target). */
   targetFled: At;
   /** Lightning telegraph: his hand goes up toward a corpse (the bolt follows after TUNING.boss.castTime). */

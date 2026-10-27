@@ -113,6 +113,13 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
     case 'downed':
       break; // revived by a teammate (stepRevives)
     case 'down':
+      // M10: knocked out for good (interrogation) or dazed with stars for a while
+      if (a.koed) break;
+      if (a.dazedUntil !== undefined) {
+        a.pose.dazed = world.time < a.dazedUntil;
+        if (a.pose.dazed) break;
+        a.dazedUntil = undefined;
+      }
       if (reached(a.stateT, a.kind === 'hero' ? H.lie : H.enemyLie)) startGetUp(a);
       break;
     case 'getUp': {
@@ -321,10 +328,20 @@ export function applyHit(
   const corpse = o.state === 'dead';
   const base = bullet ? bullet.damage : kind === 'gun' && part === 'head' ? GUNS.throwHead : kind === 'finisher' && heavy ? M.finisher.heavyDamage : DAMAGE[kind];
   const combo = !corpse && base > 0 && o.kind !== 'hero' && MELEE_KINDS.includes(kind) && chainBonus(world, by, o, kind);
-  const damage = corpse || base <= 0 ? 0 : o.kind === 'hero' ? 1 : o.kind === 'zombie' ? zombieDamage(kind, base)
+  const damage = corpse || base <= 0 || o.protected ? 0 : o.kind === 'hero' ? 1 : o.kind === 'zombie' ? zombieDamage(kind, base)
     : o.variant === 'bodyguard' ? (part === 'head' || base >= 99 ? o.hp : 1) : base + (combo ? C_.bonus : 0);
   o.hp = Math.max(0, o.hp - damage);
   let killed = !corpse && o.hp <= 0;
+  let dazedNow = false;
+  // M10 world-interrogate-knockout: this one gets knocked silly instead (a melee blow), stars for ~5 s
+  if (killed && o.dazeOnDefeat && MELEE_KINDS.includes(kind)) {
+    killed = false;
+    o.hp = 1;
+    o.dazeOnDefeat = false;
+    o.dazedUntil = world.time + TUNING.interrogate.dazed + H.enemyLie;
+    dazedNow = true;
+    world.events.emit('dazed', { actorId: o.id, ...o.pos });
+  }
   // enemy-zombie: the head comes off and it keeps going (one more hit)
   if (!corpse && damage < 99 && (killed || part === 'head') && zombieLosesHead(world, o, kind, part, killed, dirX, dirZ)) killed = false;
   if (o.corpse?.phase !== 'frozen') o.pose.impact = H.impact;
@@ -354,7 +371,7 @@ export function applyHit(
   }
   // a light hit in the air can't freeze you mid-jump: it knocks you down instead
   const airborne = o.pos.y > o.pose.groundY + 0.05;
-  switch (airborne && kind === 'light' ? 'heavy' : kind) {
+  switch ((airborne && kind === 'light') || dazedNow ? 'heavy' : kind) {
     case 'light':
     case 'stab':
       // enemy-zombie: light hits only make a zombie twitch

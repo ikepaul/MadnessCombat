@@ -1,5 +1,5 @@
 import { TUNING } from '../data/tuning';
-import type { PropDef, RoomDef } from './room';
+import { inZone, type PropDef, type RoomDef } from './room';
 
 const R = TUNING.move.radius;
 /** How far past the side bounds an entering enemy may be. invented */
@@ -16,6 +16,11 @@ export function surfaceBelow(room: RoomDef, x: number, z: number, feetY: number)
   for (const p of room.props) {
     const f = footprint(p);
     if (x > f.x0 && x < f.x1 && z > f.z0 && z < f.z1 && f.top <= feetY + 0.02 && f.top > best) best = f.top;
+  }
+  // M10: decks (the cab roof) hold you up except over their open holes
+  for (const d of room.decks ?? []) {
+    if (d.y > feetY + 0.02 || d.y <= best || !inZone(d, x, z) || d.holes.some((h) => inZone(h, x, z))) continue;
+    best = d.y;
   }
   return best;
 }

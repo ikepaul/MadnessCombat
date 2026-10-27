@@ -10,6 +10,7 @@ import { type Item, type ItemKind, spawnItem, stepItems } from './items';
 import type { RoomDef } from './room';
 import type { WaveDirector } from './waves';
 import { stepProps } from './cover';
+import { type ElevatorState, stepElevator } from './elevator';
 import { blastExit, checkExits, type ExitDef, type ExitState, stepTraversal, type Tracker } from './stage';
 import { Seq } from './sequencer';
 import { isBoss, stepBoss, stepSwept } from './boss';
@@ -17,7 +18,7 @@ import { installAlertRules } from './stealth';
 
 /** Props can change in play (a kicked-over table), so each World gets its own copies. */
 function ownProps(room: RoomDef): RoomDef {
-  return { ...room, props: room.props.map((p) => ({ ...p })) };
+  return { ...room, props: room.props.map((p) => ({ ...p })), decks: room.decks?.map((d) => ({ ...d, holes: d.holes.map((h) => ({ ...h })) })) };
 }
 
 /** Door animation state: `open` 0 (closed) .. 1 (open), moving toward `target`. */
@@ -56,6 +57,8 @@ export class World {
   exits: ExitState[] = [];
   exitTaken?: ExitDef;
   transition = false;
+  /** M10: the elevator cab's state while in that room (src/sim/elevator.ts). */
+  elevator?: ElevatorState;
   /** One-off story flags (a title card shown once per stage, not again after a checkpoint restart). */
   readonly flags = new Set<string>();
   /** Tracker HUD blip for this room (world-objective-radar). */
@@ -154,6 +157,7 @@ export class World {
   setRoom(room: RoomDef): void {
     this.room = ownProps(room);
     this.enemyGrenades = 1;
+    this.elevator = undefined;
     this.resetDoors();
     this.events.emit('roomChanged', { roomId: room.id });
   }
@@ -212,6 +216,7 @@ export class World {
     stepItems(this, this.dt);
     stepCannons(this, this.dt);
     stepProps(this, this.dt);
+    stepElevator(this, this.dt);
     this.director?.step(this, this.dt);
     this.stepDoors();
     this.events.emit('tick', { tick: this.tick });

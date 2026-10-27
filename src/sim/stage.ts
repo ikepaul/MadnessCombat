@@ -13,6 +13,7 @@ import type { PlayerCommand } from './command';
 import type { Beat, Seq } from './sequencer';
 import type { RoomDef } from './room';
 import type { World } from './world';
+import { stepHatchClimb } from './elevator';
 
 const T = TUNING.stage;
 
@@ -34,6 +35,11 @@ export interface ExitDef {
   entry: string;
   /** Shut until the room script opens it (world.openExit). */
   locked?: boolean;
+  /**
+   * M10: a way round inside the same room (the crate room's ceiling vent): crawl in here, drop out
+   * at this entry of the same room. The room and its fight carry on.
+   */
+  warp?: EntryDef;
 }
 
 /** Where players appear in a room, and how they arrive. */
@@ -100,6 +106,12 @@ export function blastExit(world: World, at: { x: number; z: number }): void {
 function take(world: World, e: ExitDef, by?: Actor): void {
   world.exitTaken = e;
   world.events.emit('exitTaken', { exit: e.id, kind: e.kind, byId: by?.id ?? 0 });
+}
+
+/** A script takes an exit of the current room (locked or not): the elevator's cable. */
+export function takeExit(world: World, id: string): void {
+  const x = world.exits.find((e) => e.def.id === id);
+  if (x && !world.exitTaken) take(world, x.def);
 }
 
 /** Open (or shut) an exit of the current room. */
@@ -190,6 +202,9 @@ export function stepTraversal(world: World, a: Actor, dt: number): void {
     case 'drop':
       a.pos.y -= 4 * dt;
       break;
+    case 'hatch':
+      stepHatchClimb(world, a, dt);
+      break;
   }
 }
 
@@ -241,8 +256,21 @@ export function stageRunner(def: StageDef, roomId = def.start.room, entryId = de
           a.pose.telegraph = undefined;
         }
       }
-      yield () => !!world.exitTaken;
-      const e = world.exitTaken!;
+      let e: ExitDef;
+      for (;;) {
+        yield () => !!world.exitTaken;
+        e = world.exitTaken!;
+        if (!e.warp) break;
+        // the same room from another spot: crawl in, the wipe, drop out over there
+        yield* traverse(s, e);
+        world.players.forEach((p, i) => placeAtEntry(p, e.warp!, i));
+        for (const x of world.exits) if (x.def.id === e.id) x.open = false;
+        world.exitTaken = undefined;
+        world.transition = false;
+        s.lockInput(false);
+        world.events.emit('roomTransition', { phase: 'in', kind: e.kind });
+        world.events.emit('warp', { exit: e.id });
+      }
       yield* traverse(s, e);
       for (const p of world.players) p.traversing = undefined;
       if (!e.to) {

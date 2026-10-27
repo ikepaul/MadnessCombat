@@ -11,6 +11,7 @@ import type { PlayerCommand } from './command';
 import { castRay, type Surface } from './hitscan';
 import { wardBlocked } from './boss';
 import { dropHeld } from './items';
+import { shootCables } from './elevator';
 import { disarm, pullable, startAction } from './melee';
 import type { World } from './world';
 
@@ -140,6 +141,8 @@ function fire(world: World, a: Actor, i: 0 | 1, h: Hand, w: WeaponDef, dual: boo
     const back = (w.length + 0.2) * scaleAt(a.pos.z);
     const r = castRay(world, [rig.muzzle[0] - dir[0] * back, rig.muzzle[1] - dir[1] * back], dir, a.pos.z, skip);
     if (r.hit && r.hit.t < back) r.end = rig.muzzle;
+    // M10 world-destructible: the elevator cables take shots that cross them
+    if (world.elevator && a.playerIndex !== undefined) shootCables(world, rig.muzzle, r.end);
     if (r.ward) {
       // M8: stopped on the boss's ward, sparks fly off it
       world.events.emit('wardHit', { actorId: r.ward.id, at: r.end });

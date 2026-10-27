@@ -11,6 +11,7 @@ import { openExit } from '../../sim/stage';
 import type { RoomScript, SpawnOpts, WaveEntry } from '../../sim/waves';
 import type { World } from '../../sim/world';
 import { canRaise, raiseCorpse } from '../../sim/zombies';
+import { stage2LateScripts } from './stage2Late';
 
 const dead = (a: Actor) => a.state === 'dead';
 const unaware = (opts: Partial<SpawnOpts> = {}): SpawnOpts => ({ aware: false, idle: 'stand', ...opts });
@@ -237,4 +238,4 @@ function nearest(world: World, a: Actor): Actor | undefined {
   return world.activePlayers.slice().sort((p, q) => Math.abs(p.pos.x - a.pos.x) - Math.abs(q.pos.x - a.pos.x))[0];
 }
 
-export const stage2Scripts = { wall, corner, roofA, roofB, office, corridor };
+export const stage2Scripts = { wall, corner, roofA, roofB, office, corridor, ...stage2LateScripts };

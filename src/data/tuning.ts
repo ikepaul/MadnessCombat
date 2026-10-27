@@ -50,6 +50,32 @@ export const TUNING = {
   },
 
   /** Hit points. research/design-decisions.md: grunts die from 1 good hit, the player survives ~3. */
+  /** M10 world-elevator-fight (src/sim/elevator.ts). Timings invented unless noted. */
+  elevator: {
+    /** Shaft scroll while the cab climbs (H/s), and the fall. */
+    speed: 1.6,
+    fallSpeed: 14,
+    fallAccel: 20,
+    /** The fall lasts this long before the crash (s). */
+    fallTime: 1.3,
+    /** enemy-welder: the cut takes ~2.7 s (ep2 f4410-f4490). */
+    cut: 2.7,
+    /** Hits the cables take before they part. */
+    cableHits: 3,
+    /** Pulling up through the hatch (H/s). */
+    climbSpeed: 2.2,
+  },
+  /** M10 world-interrogate-knockout. invented */
+  interrogate: {
+    /** A hold-up: the last enemy is unarmed and a player with a gun stands this close, facing him. */
+    holdUpRange: 2.4,
+    /** E this close to a surrendered enemy starts the interrogation. */
+    talkRange: 1.1,
+    /** Each speech bubble shows this long (s). */
+    bubble: 1.3,
+    /** Dazed: a non-lethal knockdown with stars (s). */
+    dazed: 5,
+  },
   /** M9 stages as room graphs (src/sim/stage.ts). */
   stage: {
     /** Ink wipe: covers the screen in this long, uncovers in the same (decided 2026-10-27: ~0.35 s). */

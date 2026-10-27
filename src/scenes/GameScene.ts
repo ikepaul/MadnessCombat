@@ -412,6 +412,8 @@ export class GameScene extends Phaser.Scene {
   /** PLAN.md M3: player death -> restart the room. Co-op: once nobody is left standing. */
   private watchPlayerDeath(dt: number): void {
     if (this.world.players.length === 0 || this.world.activePlayers.length > 0) return;
+    // M10: the stage 2 ending kills the hero on purpose (world-last-stand): the end card, not a restart
+    if (this.world.flags.has('ending') || this.cleared) return;
     this.deadFor += dt * this.clock.timeScale;
     if (this.deadFor >= RESTART_DELAY) this.restart();
   }
