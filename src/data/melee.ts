@@ -79,8 +79,12 @@ export const THROWN = {
 
 /** throw-grenade, throw-grenade-return. */
 export const GRENADE = {
-  /** decided in research/mechanics/throw-grenade: 1.1 s from the pin (measured 0.75 s after release, 1.3 s after drop). */
-  fuse: 1.1,
+  /**
+   * Seconds from the pin. research/mechanics/throw-grenade measured ~1.1 s; raised (playtest
+   * 2026-10-27) so cooking has room and an enemy grenade lands with ~1.5 s left to throw it
+   * back (enemies cook 0.35 s, the lob flies ~0.7 s). invented
+   */
+  fuse: 2.5,
   /** throw-grenade: blast radius ~2 H, ep1 f1392-f1404. */
   radius: 2.0,
   /** Corpses this close to the blast are gibbed (can't be raised). invented */
@@ -91,6 +95,8 @@ export const GRENADE = {
   launchDistance: 1.4,
   /** throw-grenade: max lob distance ~4 H (the show only lobs ~1.4 H). invented */
   maxRange: 4,
+  /** The hero throws farther, about the width of a room (playtest 2026-10-27). invented */
+  playerRange: 7,
   /** Airtime of a lob: base + per H of distance. invented */
   lobTime: 0.4,
   lobTimePerH: 0.08,
