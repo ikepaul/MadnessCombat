@@ -7,7 +7,7 @@ import { GRAVITY, TUNING } from '../data/tuning';
 import { DISARM, GRENADE, GUARD, GUN_BLOCK, isMelee, LOW_SLASH, MELEE, SHIELD, TOPPLE } from '../data/melee';
 import { GUNS, isWeapon, WEAPONS } from '../data/weapons';
 import { stepHands, stepUse } from './guns';
-import { tryPass } from './coop';
+import { isPartner, tryPass } from './coop';
 import { blastFlight } from './explosives';
 import { tryTakedown } from './stealth';
 import { ceilingBounce, knockbackScale, wallRestitution } from './improbability';
@@ -321,7 +321,7 @@ function startAttack(world: World, a: Actor, cmd: PlayerCommand): void {
   if (kind !== 'uppercut' && a.body.state === 'ground' && !standingInReach(world, a) && downedInReach(world, a)) kind = 'finisher';
   a.state = 'attack';
   a.stateT = 0;
-  a.attack = { kind, heavy: cmd.attack === 'heavy', t: 0, done: false };
+  a.attack = { kind, heavy: cmd.attack === 'heavy', t: 0, done: false, aim: cmd.aim };
   // M17: slide toward the target's depth during the wind-up
   a.attack.snapZ = snapTarget(world, a, cmd.aim, kind === 'finisher' ? M.finisher.reach : M.range, kind === 'finisher')?.pos.z;
   setClip(a, PUNCH_CLIP[kind] ?? 'idle');
@@ -442,6 +442,8 @@ function connect(world: World, a: Actor, kind: AttackKind): boolean {
     applyHit(world, a, o, 'finisher', a.facing, 0, { x: f.x, y: f.y, z: o.pos.z }, 'body', a.attack!.heavy);
     return true;
   }
+  // M18 body bat: a heavy at a body your partner threw sends it on
+  if ((kind === 'heavy' || kind === 'uppercut') && tryBat(world, a, f.x, f.y, f.r + TUNING.coop.bat.slack)) return true;
   let best: Actor | undefined, bestD = Infinity, part: 'head' | 'body' = 'body';
   for (const o of world.actors) {
     if (!hittable(a, o) || o.state === 'down') continue;
@@ -494,6 +496,7 @@ export function applyHit(
 ): void {
   if (o.state === 'getUp' || o.state === 'downed') return; // i-frames (invented); downed heroes are out of the fight
   if (o.invulnerable || o.parked) return; // M9: the target before his last room, the boss's cameo; co-op: gone ahead
+  if (by) o.lastHitBy = by.id;
   // M8: the living boss has his own damage rule (src/sim/boss.ts)
   if (o.kind === 'boss' && o.state !== 'dead') { bossHit(world, by, o, kind, part, dirX, dirZ, at); return; }
   // held up by the boss for the body slams: nobody else gets a hit in (not a human shield)
@@ -511,6 +514,11 @@ export function applyHit(
     return;
   }
   const corpse = o.state === 'dead';
+  // M18 ping-pong: a player's heavy on a grunt that already bounced off his partner bats him away to die
+  if (!corpse && by?.playerIndex !== undefined && o.flight?.juggle && o.flight.phase === 'air' && (o.flight.pings ?? 0) >= 1 && BAT_KINDS.includes(kind)) {
+    batAway(world, by, o, dirX, at);
+    return;
+  }
   const base = bullet ? bullet.damage : kind === 'gun' && part === 'head' ? GUNS.throwHead : kind === 'finisher' && heavy ? M.finisher.heavyDamage : DAMAGE[kind];
   // M10b: a launched grunt in the air (being juggled), and the uppercut that launches a stunned one
   const juggled = !corpse && !!o.flight?.juggle && o.flight.phase === 'air';
@@ -756,7 +764,7 @@ function startFlight(o: Actor, kind: HitKind, dirX: number, dirZ: number, scale 
   // M11 improbability mode: bodies fly ~2.4x as far and fast (the airtime stays, the speed scales)
   if (scale !== 1) { l.vx *= scale; l.vz *= scale; l.vy *= Math.sqrt(scale); }
   const r = o.pose.root.r;
-  o.flight = { ...l, r, r0: r, rTo: landingAngle(o, dirX), spin: 0, phase: 'air', t: 0, hit: [] };
+  o.flight = { ...l, r, r0: r, rTo: landingAngle(o, dirX), spin: 0, phase: 'air', t: 0, hit: [], by: o.lastHitBy };
   o.body.vel = { x: 0, y: 0, z: 0 };
 }
 
@@ -840,6 +848,8 @@ export function stepFlight(world: World, a: Actor, dt: number): 'air' | 'skid' |
     if (f.thrownBy !== undefined && alive(a) && (Math.abs(p.x - want.x) > 1e-6 || Math.abs(p.z - want.z) > 1e-6)) vendingSmash(world, a, want);
     a.pos.x = p.x;
     a.pos.z = p.z;
+    // M18 ping-pong: a body flying into the sender's partner bounces off him
+    if (world.coop) pingPong(world, a);
     // M10b: a juggled grunt hangs at the top of the arc for the time his jabs banked
     if (f.hang && f.hang > 0 && f.vy <= 0) { f.hang -= dt; f.vy = 0; }
     else {
@@ -907,6 +917,7 @@ function wallImpact(world: World, a: Actor, wall: 'left' | 'right' | 'back', spe
   world.events.emit('wallHit', { actorId: a.id, ...a.pos, wall, speed });
   if (bounce) popOffWall(world, a, speed);
   // melee-grab-throw: a fast wall impact kills
+  if (f.lethal && alive(a)) { f.hit.push(-1); teamKill(world, a, world.actorById(f.thrownBy ?? f.by ?? -1), -Math.sign(f.vx) || 1); return; }
   if (f.thrownBy !== undefined && alive(a) && speed >= G.wallKillSpeed) {
     f.hit.push(-1);
     applyHit(world, world.actorById(f.thrownBy), a, 'wall', -Math.sign(f.vx) || 1, 0, a.pos);
@@ -935,6 +946,94 @@ function propBounce(world: World, a: Actor, speed: number): void {
   f.vx *= -J.wallBounce;
   f.vz *= -J.wallBounce;
   popOffWall(world, a, speed);
+}
+
+// ---------- M18 ping-pong & body bat (design/coop-moves.md 3.3, 3.6) ----------
+
+const BAT_KINDS: HitKind[] = ['heavy', 'uppercut', 'slash', 'smash'];
+
+/** A team kill on a flying body (a lethal ping-pong or bat): dies where it is, flying on. */
+function teamKill(world: World, a: Actor, by: Actor | undefined, dirX: number): void {
+  die(world, a, by, 'wall', dirX, 0, false, 'wall', { team: true });
+  world.events.emit('fatality', { actorId: a.id, kind: 'pingpong', ...a.pos });
+}
+
+/**
+ * Ping-pong: a body knocked back or thrown by one player, meeting the other player standing,
+ * bounces off him airborne (a juggle starter) instead of hurting him; a batted (lethal) one dies.
+ */
+function pingPong(world: World, a: Actor): void {
+  const f = a.flight!, P = TUNING.coop.pingPong;
+  const sender = world.actorById(f.thrownBy ?? f.by ?? -1);
+  if (!sender || sender.playerIndex === undefined) return;
+  const mate = world.activePlayers.find((p) => p !== sender);
+  if (!mate || (mate.state !== 'free' && mate.state !== 'attack' && mate.state !== 'stun')) return;
+  // a heavy or a swing on its way: the bat gets the body, not the bounce
+  const k = mate.attack?.kind;
+  if (mate.state === 'attack' && !mate.attack!.done && (k === 'heavy' || k === 'uppercut' || k === 'swing') && f.thrownBy !== undefined) return;
+  const dx = mate.pos.x - a.pos.x;
+  if (Math.abs(dx) > P.reachX || Math.abs(mate.pos.z - a.pos.z) > P.band || Math.sign(f.vx) !== Math.sign(dx)) return;
+  if (a.pos.y > mate.pos.y + 1 || a.pos.y + 0.4 < mate.pos.y) return;
+  if (f.lethal && alive(a)) { teamKill(world, a, mate, Math.sign(f.vx) || 1); return; }
+  if (!alive(a) || a.kind !== 'grunt' || a.state !== 'knockback' || (f.pings ?? 0) >= P.maxPings) return;
+  f.vx = -f.vx * P.restitution;
+  f.vz *= 0.3;
+  f.thrownBy = undefined;
+  f.pierce = undefined;
+  f.pings = (f.pings ?? 0) + 1;
+  f.by = mate.id;
+  mate.pose.react = { part: 'body', age: 0, v: 0.5 };
+  popOffWall(world, a, Math.abs(f.vx));
+  world.events.emit('coopMove', { kind: 'pingpong', phase: 'hit', byId: mate.id, partnerId: sender.id, targetId: a.id, actorId: a.id, ...a.pos });
+}
+
+/** Ping-pong: a player's heavy bats a bounced grunt away flat; he dies at the next wall or partner. */
+function batAway(world: World, by: Actor, o: Actor, dirX: number, at: { x: number; y: number; z: number }): void {
+  const f = o.flight!, P = TUNING.coop.pingPong;
+  f.juggle = undefined;
+  f.hang = undefined;
+  f.vx = (Math.sign(dirX) || by.facing) * P.batSpeed;
+  f.vz = 0;
+  f.vy = 1.5;
+  f.lethal = true;
+  f.pierce = true;
+  f.thrownBy = by.id;
+  f.hit = [];
+  o.pose.impact = H.impact;
+  world.events.emit('hit', { actorId: o.id, attackerId: by.id, kind: 'heavy', part: 'body', damage: 0, killed: false, dirX, dirZ: 0, combo: true, chain: o.chain?.count ?? 0, ...at });
+  world.events.emit('coopMove', { kind: 'bat', phase: 'hit', byId: by.id, partnerId: f.by ?? 0, targetId: o.id, actorId: o.id, ...o.pos });
+}
+
+/**
+ * Body bat: a body (living or dead) your partner threw, in the air within the circle (x, y, r) and
+ * your depth band, is sent on toward your cursor at TUNING.coop.bat.speedScale x its speed. True if batted.
+ */
+export function tryBat(world: World, a: Actor, x: number, y: number, r: number): boolean {
+  const B = TUNING.coop.bat;
+  if (a.playerIndex === undefined || !world.coop) return false;
+  for (const o of world.actors) {
+    const f = o.flight;
+    if (!f || f.phase !== 'air' || f.thrownBy === undefined || !isPartner(world.actorById(f.thrownBy), a)) continue;
+    if (Math.abs(o.pos.z - a.pos.z) > meleeBand(a) + 0.1) continue;
+    if (circleHits(o, x, y, r) === null && !(Math.abs(o.pos.x - x) < r + 0.25 && Math.abs(o.pos.y + 0.4 - y) < 0.6)) continue;
+    const speed = Math.max(B.minSpeed, Math.hypot(f.vx, f.vz) * B.speedScale);
+    let dx = a.facing, dz = 0;
+    const aim = a.attack?.aim, p = aim ? unprojectFloor(aim[0], aim[1]) : undefined;
+    if (p) { const ex = p.x - o.pos.x, ez = p.z - o.pos.z, n = Math.hypot(ex, ez); if (n > 0.3) { dx = ex / n; dz = ez / n; } }
+    f.vx = dx * speed;
+    f.vz = dz * speed;
+    f.vy = Math.max(f.vy, 1.5);
+    f.thrownBy = a.id;
+    f.hit = [];
+    f.spin *= B.spinScale;
+    f.pierce = true;
+    if (alive(o)) { f.lethal = true; o.hp = Math.max(1, o.hp - 1); }
+    o.pose.impact = H.impact;
+    world.events.emit('hit', { actorId: o.id, attackerId: a.id, kind: 'heavy', part: 'body', damage: alive(o) ? 1 : 0, killed: false, dirX: Math.sign(dx) || 1, dirZ: dz, combo: true, chain: 0, x: o.pos.x, y: o.pos.y + 0.4, z: o.pos.z });
+    world.events.emit('coopMove', { kind: 'bat', phase: 'hit', byId: a.id, partnerId: world.players.find((q) => q !== a)?.id ?? 0, targetId: o.id, actorId: o.id, ...o.pos });
+    return true;
+  }
+  return false;
 }
 
 /** M10b juggle: a jab keeps the launched grunt up a little longer (at most J.maxJabs times). */
@@ -1006,11 +1105,15 @@ function thrownBodyHits(world: World, a: Actor): void {
   const f = a.flight!;
   for (const o of world.actors) {
     if (o === a || o.id === f.thrownBy || f.hit.includes(o.id) || !alive(o) || o.state === 'grabbed' || o.state === 'getUp' || o.state === 'down' || o.state === 'downed') continue;
+    // M18: never the thrower's partner (ping-pong bounces it off him instead)
+    if (isPartner(world.actorById(f.thrownBy!), o)) continue;
     if (Math.abs(o.pos.z - a.pos.z) > 0.25 || Math.abs(o.pos.x - a.pos.x) > G.hitRadius) continue;
     if (a.pos.y > o.pos.y + o.body.height || a.pos.y + 0.4 < o.pos.y) continue;
     f.hit.push(o.id);
     const dir = Math.sign(f.vx) || 1;
     applyHit(world, world.actorById(f.thrownBy!), o, 'body', dir, f.vz / Math.max(1, Math.abs(f.vx)), { x: (a.pos.x + o.pos.x) / 2, y: a.pos.y + 0.3, z: o.pos.z });
+    // M18 body bat: a batted body flies on through whoever it hits
+    if (f.pierce) continue;
     if (alive(a) && !f.hit.includes(-1)) damageThrown(world, a);
     // the projectile loses its speed and drops
     f.vx *= -0.25;

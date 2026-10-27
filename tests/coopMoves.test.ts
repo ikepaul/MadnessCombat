@@ -117,3 +117,58 @@ describe('M18 weapon pass', () => {
     expect(Math.abs(k.pos.x - p2.pos.x)).toBeLessThan(1);
   });
 });
+
+describe('M18 ping-pong', () => {
+  it("P1's heavy sends a grunt into P2: P2 is unhurt and he comes back juggled; P2's heavy bats him to die at the wall", () => {
+    const { world, p1, p2 } = coop(-1, 0.4);
+    const g = grunt(world, -0.55);
+    g.facing = -1;
+    const kills = record(world, 'kill'), fat = record(world, 'fatality');
+    tick(world, 1, { attack: 'heavy', face: 1 });
+    let pinged = false;
+    for (let i = 0; i < 60 && !pinged; i++) { tick(world); pinged = (g.flight?.pings ?? 0) > 0; }
+    expect(pinged).toBe(true);
+    expect(p2.hp).toBe(p2.maxHp);
+    // P2 bats him back (toward the left wall)
+    for (let i = 0; i < 90 && g.state !== 'dead'; i++) tick(world, 1, {}, i % 6 === 0 ? { attack: 'heavy', face: -1 } : {});
+    expect(g.state).toBe('dead');
+    expect(kills.find((k) => k.actorId === g.id)?.team).toBe(true);
+    expect(fat.some((f) => f.kind === 'pingpong')).toBe(true);
+    expect(p1.hp).toBe(p1.maxHp);
+  });
+
+  it('a corpse thrown at the partner flies past him', () => {
+    const { world, p1, p2 } = coop(-1, 0.6);
+    const c = createActor('grunt', -0.8, Z, 1, { dead: true });
+    world.actors.push(c);
+    tick(world, 1, { grab: true });
+    expect(p1.holding?.id).toBe(c.id);
+    tick(world, 1, { grab: true, aim: project(3, 0, Z) });
+    tick(world, 60);
+    expect(p2.hp).toBe(p2.maxHp);
+    expect(p2.state).toBe('free');
+  });
+});
+
+describe('M18 body bat', () => {
+  it("P2's heavy on a grunt P1 threw sends him on at >= 8 H/s and he dies at the wall", () => {
+    const { world, p1, p2 } = coop(-1.4, 0.9);
+    p2.facing = -1;
+    const g = grunt(world, -0.95);
+    tick(world, 1, { grab: true });
+    expect(p1.holding?.id).toBe(g.id);
+    tick(world, 1, { grab: true, aim: project(3, 0, Z) });
+    let batted = false;
+    const bats = record(world, 'coopMove');
+    // P2 swings right to left (the cursor far left) as the body arrives
+    for (let i = 0; i < 60 && !batted; i++) {
+      const near = g.flight?.thrownBy === p1.id && Math.abs(g.pos.x - p2.pos.x) < 1.9;
+      tick(world, 1, {}, near && p2.state === 'free' ? { attack: 'heavy', aim: project(-3, 0, Z) } : {});
+      batted = bats.some((b) => b.kind === 'bat');
+    }
+    expect(batted).toBe(true);
+    expect(Math.hypot(g.flight?.vx ?? 0, g.flight?.vz ?? 0)).toBeGreaterThanOrEqual(8);
+    tick(world, 60);
+    expect(g.state).toBe('dead');
+  });
+});

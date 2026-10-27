@@ -9,7 +9,7 @@ import { isWeapon, WEAPONS } from '../data/weapons';
 import { GRAVITY, TUNING } from '../data/tuning';
 import { project, type ScreenPoint, scaleAt, unprojectFloor } from '../render/camera';
 import { type Actor, alive, type AttackKind, type HeldItem, meleeBand, newHand } from './actor';
-import { applyHit, setClip, snapTarget } from './combat';
+import { applyHit, setClip, snapTarget, tryBat } from './combat';
 import type { PlayerCommand } from './command';
 import { COVER, flipTable } from './cover';
 import { explode } from './explosives';
@@ -143,6 +143,8 @@ export function stepAction(world: World, a: Actor): void {
         world.events.emit('punch', { actorId: a.id, x: a.pos.x + a.facing * def.reach * 0.8, y: a.pos.y + 0.6, z: a.pos.z, kind, facing: a.facing });
       }
       if (atk.done) break;
+      // M18 body bat: a swing at a body your partner threw sends it on
+      if (atk.kind === 'swing' && tryBat(world, a, a.pos.x + a.facing * def.reach * 0.6, a.pos.y + 0.6, def.reach * 0.5)) { atk.done = true; break; }
       const reach = atk.kind === 'thrust' ? def.reach + 0.1 : def.reach;
       const targets = swingTargets(world, a, def, reach, atk.hits ?? []);
       for (const o of def.multiHit && atk.kind === 'swing' ? targets : targets.slice(0, 1)) {

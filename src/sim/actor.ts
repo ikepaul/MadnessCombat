@@ -220,6 +220,11 @@ export interface Flight {
   spiked?: boolean;
   /** M10b: seconds of hang time banked by juggle jabs (spent at the top of the arc). */
   hang?: number;
+  /** M18: who sent this body flying (ping-pong: it bounces off his partner), the bounces so far, batted to die at the next wall or partner, and flying through whoever it hits (a bat). */
+  by?: number;
+  pings?: number;
+  lethal?: boolean;
+  pierce?: boolean;
 }
 
 /** Corpse lifecycle (world-persistence-decals): tumble -> settle -> freeze (baked). */
@@ -265,6 +270,8 @@ export interface Actor {
   chain?: { by: number; count: number; t: number; last: string; /** M18: hits from both players in it. */ team?: boolean };
   /** M18 double-team: the last damaging hit a player landed on this one. */
   lastHeroHit?: { by: number; t: number };
+  /** M18: who hit this one last (a knockback flight remembers its sender). */
+  lastHitBy?: number;
   /** Walk speed factor this tick (the machine gun slows you while firing). */
   walkFactor?: number;
   /** M14 melee-blade-deflect: guarding since (world time), blows turned so far. */
