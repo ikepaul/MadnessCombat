@@ -4,7 +4,7 @@ import { INK, type Palette } from '../../data/palettes';
 import { type DoorDef, type PoleDef, type PropDef, ROOM_DRAW_NEAR_Z, type RoomDef, type TableDef } from '../../sim/room';
 import { project as P, SCREEN_H, SCREEN_W, scaleAt } from '../camera';
 import { type Ctx, line, linear, mulberry32, poly, shade } from './draw';
-import { paintCeilingHole, paintCrate, paintElevator, paintLadder, paintRoof, paintStreet } from './sceneryPainter';
+import { paintCeilingHole, paintCrate, paintDesert, paintElevator, paintLadder, paintRoof, paintSecurityCamera, paintStreet, paintTank, paintToyStreet, paintVendingProp, paintVoid, paintWallHole } from './sceneryPainter';
 
 export function paintRoom(ctx: Ctx, room: RoomDef, pal: Palette, elevator?: { offset: number; cut?: number; phase: string }): void {
   ctx.clearRect(0, 0, SCREEN_W, SCREEN_H);
@@ -14,6 +14,8 @@ export function paintRoom(ctx: Ctx, room: RoomDef, pal: Palette, elevator?: { of
     // M9: stage 2's night street and rooftops
     if (room.scene === 'street') paintStreet(ctx, room, pal);
     else if (room.scene === 'roof') paintRoof(ctx, room, pal);
+    else if (room.scene === 'toyStreet') paintToyStreet(ctx, room, pal);
+    else if (room.scene === 'desert') paintDesert(ctx, room, pal);
     else paintOutdoor(ctx, room, pal);
     return;
   }
@@ -79,6 +81,12 @@ export function paintRoom(ctx: Ctx, room: RoomDef, pal: Palette, elevator?: { of
   ctx.strokeRect(bx0, by0, bx1 - bx0, by1 - by0);
 
   for (const l of room.lamps) paintLamp(ctx, room, l.x, l.z, l.shadeY, l.poolR);
+  // M11: the camera room's security camera, and the floor that fell away
+  if (room.camera) paintSecurityCamera(ctx, room.camera.x, room.camera.y, zb);
+  if (room.wallHole) paintWallHole(ctx, room, room.wallHole);
+  // M12: the sealed desert box draws as a room once its walls are down (indoor from then on)
+  if (room.scene === 'desert') { paintDesert(ctx, room, pal); return; }
+  paintVoid(ctx, room);
 }
 
 function paintBoard(ctx: Ctx, x0: number, x1: number, y0: number, y1: number, z: number, pal: Palette): void {
@@ -165,6 +173,8 @@ export function paintProp(ctx: Ctx, p: PropDef, pal: Palette): void {
   if (p.kind === 'table') paintTable(ctx, p, pal);
   else if (p.kind === 'pole') paintPole(ctx, p, pal);
   else if (p.kind === 'crate') paintCrate(ctx, p, pal);
+  else if (p.kind === 'tank') paintTank(ctx, (p.x0 + p.x1) / 2, (p.z0 + p.z1) / 2, p.facing);
+  else if (p.kind === 'vending') paintVendingProp(ctx, (p.x0 + p.x1) / 2, (p.z0 + p.z1) / 2 + 0.1, !!p.smashed);
   // the cannon's footprint: drawn with the cannon itself (src/render/canvas/cannonPainter.ts)
 }
 

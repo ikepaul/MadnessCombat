@@ -13,7 +13,19 @@ export class CanvasLayer {
   private dirty = false;
 
   constructor(scene: Phaser.Scene, key: string, depth: number) {
-    if (scene.textures.exists(key)) scene.textures.remove(key);
+    // a restart (every death) reuses the layer's canvas: making four new full-screen canvases
+    // each time stalled the restart for up to ~1.6 s while the old ones were torn down (M13)
+    const old = scene.textures.exists(key) ? scene.textures.get(key) : undefined;
+    if (old instanceof Phaser.Textures.CanvasTexture && old.width === SCREEN_W && old.height === SCREEN_H) {
+      this.texture = old;
+      // drop any drawing state (alpha, filters, clip) the last scene left on the context
+      this.ctx.reset?.();
+      this.clear();
+      this.texture.refresh();
+      this.image = scene.add.image(0, 0, key).setOrigin(0, 0).setDepth(depth);
+      return;
+    }
+    if (old) scene.textures.remove(key);
     // Create the 2D context ourselves first: Phaser's own canvas textures ask for
     // willReadFrequently, which keeps the canvas in CPU memory and makes every upload of a
     // 1920x1080 layer cost ~30 ms. Without it the browser keeps the canvas on the GPU.

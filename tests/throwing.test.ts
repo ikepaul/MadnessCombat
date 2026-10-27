@@ -338,7 +338,7 @@ describe('human shield (combat-human-shield)', () => {
     expect(hero.holding).toBeDefined();
     const x0 = hero.pos.x;
     tick(world, { moveX: -1 }, 60);
-    expect((x0 - hero.pos.x) / 1).toBeCloseTo(1.8 * 0.6, 1);
+    expect((x0 - hero.pos.x) / 1).toBeCloseTo(TUNING.move.hero.combatWalkSpeed * 0.6, 1);
     const shots = record(world, 'shot');
     tick(world, { aim: project(target.pos.x, 0.79, Z) });
     tick(world, { aim: project(target.pos.x, 0.79, Z), press: [false, true], attack: 'heavy' });
@@ -547,5 +547,54 @@ describe('armed grunts (stage 1)', () => {
     }
     expect(thrown).toBe(true);
     expect(g.hands[0]).toBeNull();
+  });
+});
+
+describe('friendly fire (playtest 2026-10-27 setting)', () => {
+  const throwAtAlly = (mode: World['friendlyThrow']) => {
+    const { world, hero } = setup(EMPTY, -1.5);
+    const ally = createActor('hero', 0.5, Z, -1);
+    world.addPlayer(ally);
+    world.friendlyThrow = mode;
+    hero.hands[0] = newHand('knife');
+    const hp = ally.hp;
+    const it = tossHeld(world, hero, 0, chest(ally))!;
+    for (let i = 0; i < 60; i++) world.step();
+    return { ally, hp, it };
+  };
+
+  it('full damage: the ally is hurt like an enemy', () => {
+    const { ally, hp } = throwAtAlly('damage');
+    expect(ally.hp).toBeLessThan(hp);
+  });
+
+  it('knockdown only: the ally goes down and keeps his health', () => {
+    const { ally, hp, it } = throwAtAlly('knockdown');
+    expect(ally.hp).toBe(hp);
+    expect(it.hit).toContain(ally.id);
+    expect(it.state).not.toBe('stuck');
+  });
+
+  it('flies through: nothing happens to the ally', () => {
+    const { ally, hp, it } = throwAtAlly('through');
+    expect(ally.hp).toBe(hp);
+    expect(it.hit).not.toContain(ally.id);
+    expect(ally.state).toBe('free');
+  });
+});
+
+describe('grenade tuning (playtest 2026-10-27)', () => {
+  it('the hero lobs a grenade 6 H away; it lands there with time left on the fuse', () => {
+    const { world, hero } = setup(EMPTY, -3.2);
+    hero.grenades = 1;
+    const target = project(2.8, 0, Z);
+    tick(world, { grenade: true, aim: target }, 6);
+    tick(world, { grenade: false, aim: target }, 1);
+    let g = world.items.find((i) => i.kind === 'grenade' && i.live);
+    for (let i = 0; i < 30 && !g; i++) { tick(world, { aim: target }); g = world.items.find((x) => x.kind === 'grenade' && x.live); }
+    for (let i = 0; i < 120 && g && g.state === 'air'; i++) { tick(world, { aim: target }); g = world.items.find((x) => x.kind === 'grenade' && x.live); }
+    expect(g).toBeDefined();
+    expect(g!.pos.x).toBeGreaterThan(2.0);
+    expect(g!.fuse!).toBeGreaterThan(1.0);
   });
 });

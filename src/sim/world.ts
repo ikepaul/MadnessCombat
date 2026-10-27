@@ -1,3 +1,4 @@
+import type { GoreLevel } from './gore';
 import { lyingAt, rootToWorld, STANDING } from '../anim/skeleton';
 import { TUNING } from '../data/tuning';
 import { type Actor, type ActorKind, alive, createActor, type Vec3 } from './actor';
@@ -10,8 +11,10 @@ import { type Item, type ItemKind, spawnItem, stepItems } from './items';
 import type { RoomDef } from './room';
 import type { WaveDirector } from './waves';
 import { stepProps } from './cover';
-import { type ElevatorState, stepElevator } from './elevator';
-import { blastExit, checkExits, type ExitDef, type ExitState, stepTraversal, type Tracker } from './stage';
+import { checkHatch, type ElevatorState, stepElevator } from './elevator';
+import { type Collapse, type FallingBlock, stepBlocks, stepCollapse } from './improbability';
+import { type LastStand, lastStandCommand, type LockWall, stepLastStand, stepLockWalls } from './arena';
+import { blastExit, checkExits, type ExitDef, type ExitState, skyLanding, stepTraversal, type Tracker } from './stage';
 import { Seq } from './sequencer';
 import { isBoss, stepBoss, stepSwept } from './boss';
 import { installAlertRules } from './stealth';
@@ -57,6 +60,17 @@ export class World {
   exits: ExitState[] = [];
   exitTaken?: ExitDef;
   transition = false;
+  /** M12: the arena lock's walls and the last stand (src/sim/arena.ts). */
+  lockWalls: LockWall[] = [];
+  lastStand?: LastStand;
+  /** M11: improbability mode (src/sim/improbability.ts), the arena collapse, falling blocks. */
+  physics: 'normal' | 'improbable' = 'normal';
+  /** Thrown weapons hitting a co-op ally (the friendly-fire setting): full damage, a knockdown only, or nothing. */
+  friendlyThrow: 'damage' | 'knockdown' | 'through' = 'damage';
+  /** Stage 3 is gorier (src/sim/gore.ts). */
+  gore: GoreLevel = 'normal';
+  collapse?: Collapse;
+  blocks: FallingBlock[] = [];
   /** M10: the elevator cab's state while in that room (src/sim/elevator.ts). */
   elevator?: ElevatorState;
   /** One-off story flags (a title card shown once per stage, not again after a checkpoint restart). */
@@ -81,6 +95,7 @@ export class World {
     this.resetDoors();
     installAlertRules(this);
     this.events.on('explosion', (e) => { if (!this.puppet) blastExit(this, e); });
+    this.events.on('land', (e) => { if (!this.puppet) skyLanding(this, e.actorId); });
     this.events.on('waveStart', () => { this.enemyGrenades = 1; });
     // world-kill-counter: every enemy death counts
     this.events.on('kill', (e) => {
@@ -158,6 +173,10 @@ export class World {
     this.room = ownProps(room);
     this.enemyGrenades = 1;
     this.elevator = undefined;
+    this.collapse = undefined;
+    this.blocks = [];
+    this.lockWalls = [];
+    this.lastStand = undefined;
     this.resetDoors();
     this.events.emit('roomChanged', { roomId: room.id });
   }
@@ -198,6 +217,7 @@ export class World {
     this.seq.step(this.dt);
     assignTokens(this);
     checkExits(this);
+    checkHatch(this);
     const gone: Actor[] = [];
     for (const a of this.actors) {
       if (a.corpse?.phase === 'frozen') continue;
@@ -217,6 +237,10 @@ export class World {
     stepCannons(this, this.dt);
     stepProps(this, this.dt);
     stepElevator(this, this.dt);
+    stepCollapse(this, this.dt);
+    stepBlocks(this, this.dt);
+    stepLockWalls(this, this.dt);
+    stepLastStand(this, this.dt);
     this.director?.step(this, this.dt);
     this.stepDoors();
     this.events.emit('tick', { tick: this.tick });
@@ -226,7 +250,12 @@ export class World {
   private commandFor(a: Actor): PlayerCommand {
     const s = this.scripted.get(a.id);
     if (s) return s;
-    if (a.playerIndex !== undefined) return this.inputLocked ? IDLE_COMMAND : this.commands[a.playerIndex] ?? IDLE_COMMAND;
+    if (a.playerIndex !== undefined) {
+      if (this.inputLocked) return IDLE_COMMAND;
+      const c = this.commands[a.playerIndex] ?? IDLE_COMMAND;
+      // M12 the last stand: aim and fire only
+      return this.lastStand && !this.lastStand.done ? lastStandCommand(a, c) : c;
+    }
     return a.brain ? a.brain(a, this.dt) : IDLE_COMMAND;
   }
 

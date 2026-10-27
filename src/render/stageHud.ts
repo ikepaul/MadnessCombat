@@ -14,18 +14,39 @@ const SLANT = 360;
 export class StageHud {
   private wipe: Phaser.GameObjects.Graphics;
   private radar: Phaser.GameObjects.Graphics;
+  private stand: Phaser.GameObjects.Graphics;
   /** Wipe: phase and the world time it started. */
   private phase?: { kind: 'out' | 'in'; t0: number };
 
   constructor(scene: Phaser.Scene, private world: World) {
     this.radar = scene.add.graphics().setDepth(60);
     this.wipe = scene.add.graphics().setDepth(95);
+    this.stand = scene.add.graphics().setDepth(80);
     world.events.on('roomTransition', (e) => (this.phase = { kind: e.phase, t0: world.time }));
+    // a new room is there: if the wipe is still covering the screen, uncover it (co-op guests can
+    // miss the 'in' event; never leave the screen black)
+    world.events.on('roomChanged', () => { if (this.phase?.kind === 'out') this.phase = { kind: 'in', t0: world.time }; });
   }
 
   update(): void {
     this.drawWipe();
     this.drawRadar();
+    this.drawLastStand();
+  }
+
+  /** M12 world-last-stand: red bars close in, the colour drains, a pulse with the heartbeat. */
+  private drawLastStand(): void {
+    const g = this.stand;
+    g.clear();
+    const ls = this.world.lastStand;
+    if (!ls) return;
+    const u = Math.min(1, ls.t / 0.4), beat = Math.pow(Math.max(0, Math.sin(ls.t * Math.PI * 2 * 1.3)), 8);
+    g.fillStyle(0x6e5a5a, 0.35 * u);
+    g.fillRect(0, 0, W, H);
+    const bar = 90 * u + 10 * beat;
+    g.fillStyle(0x8a0a12, 0.92);
+    g.fillRect(0, 0, W, bar);
+    g.fillRect(0, H - bar, W, bar);
   }
 
   private drawWipe(): void {

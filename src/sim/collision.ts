@@ -38,6 +38,8 @@ export function moveWithCollision(room: RoomDef, x: number, z: number, dx: numbe
     });
   const hw = outside ? room.halfWidth + ENTRY_MARGIN : room.halfWidth - R;
   let nx = clamp(x + dx, -hw, hw);
+  // M11 world-arena-collapse: nobody walks off the edge (only a shove or a flight takes you over)
+  if (room.void && !outside) nx = room.void.side < 0 ? Math.max(nx, room.void.x + R) : Math.min(nx, room.void.x - R);
   if (blocked(nx, z)) nx = x;
   let nz = clamp(z + dz, room.zFront, room.zBack - R);
   if (blocked(nx, nz)) nz = z;

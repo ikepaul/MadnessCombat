@@ -22,3 +22,6 @@ Clips (local only): `clip-1` pin pulled (pin falls on the ground), lob onto the 
 - Hold to cook (pin pulled), release to throw toward the cursor. Fuse **1.1 s** from pin pull (between the measured 0.75 s and 1.3 s; holding = cooking, invented). Throw strength scales with cursor distance, max ≈ 4 H (invented, the show only shows short lobs).
 - Blast radius 2 H: kills everything inside, gibs corpses (they can't be zombified any more), leaves a scorch decal.
 - Can destroy marked floor/ceiling tiles (see `world-breach`).
+
+## Playtest change (2026-10-27)
+The user asked for longer throws and a longer fuse, so grenades can be cooked with room to spare and an enemy's grenade can be picked up (F) and thrown back. Fuse 1.1 s -> 2.5 s from the pin (enemies cook 0.35 s and the lob flies ~0.7 s, leaving ~1.5 s after it lands). The hero's lob reaches 7 H (about a room's width); enemies keep 4 H. Both invented, in `src/data/melee.ts`.

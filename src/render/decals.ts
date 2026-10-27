@@ -3,14 +3,17 @@
 // body slams into a wall or behind a body a bullet hits, and pools under corpses. Everywhere:
 // bullet holes and the casings and magazines that land on the floor (M5). Rooms are fixed
 // screens, so one screen-space layer serves every surface.
-import { BLOOD, BLOOD_DARK } from '../data/palettes';
+import { BLOOD, BLOOD_DARK, INK } from '../data/palettes';
 import type { World } from '../sim/world';
 import { project, scaleAt } from './camera';
 import { type Ctx, mulberry32 } from './canvas/draw';
 import type { CanvasLayer } from './canvasLayer';
 import { paintDebris, type SettledDebris } from './gunFx';
 
-const MAX_DECALS = 500;
+/** Raised from 500 for stage 3's extreme gore (research/performance.md: baked, so cheap). */
+const MAX_DECALS = 900;
+/** Extreme gore: a wounded enemy drips a spot every this many seconds while walking. invented */
+const DRIP_EVERY = 0.22;
 /** Pool growth time; shorter than the corpse freeze delay so it bakes first. invented */
 const POOL_GROW = 1.2;
 
@@ -19,10 +22,11 @@ type Decal =
   | { kind: 'pool'; x: number; z: number; rx: number; rz: number; seed: number }
   | { kind: 'hole'; x: number; y: number; s: number; flat: boolean; seed: number }
   | { kind: 'scorch'; x: number; z: number; r: number; seed: number }
-  | ({ kind: 'debris' } & Omit<SettledDebris, 'kind'> & { item: SettledDebris['kind'] });
+  | ({ kind: 'debris' } & Omit<SettledDebris, 'kind'> & { item: SettledDebris['kind'] })
+  | { kind: 'hand'; x: number; z: number; angle: number; seed: number };
 
 /** Blood decals hide on stages without blood; the rest always show. */
-const isBlood = (d: Decal) => d.kind === 'splat' || d.kind === 'pool';
+const isBlood = (d: Decal) => d.kind === 'splat' || d.kind === 'pool' || d.kind === 'hand';
 
 interface Growing { x: number; z: number; rx: number; rz: number; seed: number; t: number }
 
@@ -30,22 +34,48 @@ export class Decals {
   private baked: Decal[] = [];
   private growing: Growing[] = [];
   private seed = 1;
+  /** Extreme gore: severed hands in flight (land after `t` s) and drip timers per wounded actor. */
+  private flying: { x: number; z: number; angle: number; t: number }[] = [];
+  private drips = new Map<number, number>();
 
-  constructor(world: World, private layer: CanvasLayer, private blood: () => boolean) {
+  constructor(private world: World, private layer: CanvasLayer, private blood: () => boolean) {
     world.events.on('wallHit', (e) => {
-      if (!this.blood() || e.speed < 2.5) return;
+      if (!this.blood() || e.speed < (this.extreme ? 1.5 : 2.5)) return;
       const room = world.room;
       const wx = e.wall === 'left' ? -room.halfWidth : e.wall === 'right' ? room.halfWidth : e.x;
       const wz = e.wall === 'back' ? room.zBack : e.z;
       const [x, y] = project(wx, e.y + 0.55, wz);
       // spray spreads along the wall, away from the impact
       const dx = e.wall === 'back' ? (Math.random() - 0.5) * 2 : e.wall === 'left' ? -0.4 : 0.4;
-      this.add({ kind: 'splat', x, y, dx, dy: -0.6 - Math.random() * 0.4, seed: this.seed++ * 13, scale: 0.6 * (scaleAt(wz) / 230) * Math.min(1.4, e.speed / 5) });
+      this.add({ kind: 'splat', x, y, dx, dy: -0.6 - Math.random() * 0.4, seed: this.seed++ * 13, scale: 0.6 * (scaleAt(wz) / 230) * Math.min(1.4, e.speed / 5) * (this.extreme ? 1.8 : 1) });
+    });
+    // extreme gore: kills paint the floor and the wall behind; hands land where they fell
+    world.events.on('kill', (e) => {
+      if (!this.blood() || !this.extreme) return;
+      const r = mulberry32(this.seed++ * 19);
+      for (let k = 0; k < 3; k++) {
+        const [x, y] = project(e.x + (r() - 0.5) * 1.2, 0, e.z + (r() - 0.5) * 0.4);
+        this.add({ kind: 'splat', x, y, dx: (r() - 0.5) * 2, dy: 0.15, seed: this.seed++ * 13, scale: 0.35 * (scaleAt(e.z) / 230) });
+      }
+      if (e.z > world.room.zBack - 1.2) {
+        const [x, y] = project(e.x, e.y + 0.9, world.room.zBack);
+        this.add({ kind: 'splat', x, y, dx: (r() - 0.5) * 1.5, dy: -0.8, seed: this.seed++ * 13, scale: 0.9 * (scaleAt(world.room.zBack) / 230) });
+      }
+    });
+    world.events.on('dismember', (e) => {
+      if (!this.extreme) return;
+      this.flying.push({ x: Math.max(-world.room.halfWidth + 0.2, Math.min(world.room.halfWidth - 0.2, e.x + e.dirX * (0.5 + Math.random() * 0.6))), z: e.z + (Math.random() - 0.5) * 0.3, angle: Math.random() * 6, t: 0.5 });
+    });
+    // M12: the blood flood spreading over the sealed arena's floor (cosmetic)
+    world.events.on('bloodFlood', (e) => {
+      if (!this.blood()) return;
+      for (const [dx, dz, rx] of [[0, 0, 2.6], [-1.6, 0.4, 1.4], [1.8, -0.3, 1.5]] as const) this.growing.push({ x: e.x + dx, z: e.z + dz, rx, rz: rx * 0.28, seed: this.seed++ * 11, t: 0 });
     });
     world.events.on('corpseSettled', (e) => {
       if (!this.blood()) return;
       const r = mulberry32(this.seed++ * 7);
-      this.growing.push({ x: e.x, z: e.z, rx: 0.45 + r() * 0.3, rz: 0.13 + r() * 0.07, seed: this.seed * 11, t: 0 });
+      const k = this.extreme ? 1.6 : 1;
+      this.growing.push({ x: e.x, z: e.z, rx: (0.45 + r() * 0.3) * k, rz: (0.13 + r() * 0.07) * k, seed: this.seed * 11, t: 0 });
     });
     world.events.on('shot', (e) => {
       for (const r of e.rays) {
@@ -54,7 +84,7 @@ export class Decals {
         const [x, y] = project(at.x, at.y, at.z), s = scaleAt(at.z);
         if (r.surface === 'flesh') {
           // blood sprays onto whatever is behind the body, along the shot
-          if (this.blood()) this.add({ kind: 'splat', x, y, dx: Math.cos(e.angle), dy: Math.sin(e.angle), seed: this.seed++ * 13, scale: 0.45 * (s / 230) });
+          if (this.blood()) this.add({ kind: 'splat', x, y, dx: Math.cos(e.angle), dy: Math.sin(e.angle), seed: this.seed++ * 13, scale: 0.45 * (s / 230) * (this.extreme ? 1.7 : 1) });
         } else this.add({ kind: 'hole', x, y, s, flat: at.surface === 'floor' || at.surface === 'ceiling', seed: this.seed++ });
       }
     });
@@ -63,7 +93,8 @@ export class Decals {
     world.events.on('gib', (e) => {
       if (!this.blood()) return;
       const r = mulberry32(this.seed++ * 5);
-      this.add({ kind: 'pool', x: e.x, z: e.z, rx: 0.5 + r() * 0.3, rz: 0.15 + r() * 0.08, seed: this.seed * 11 });
+      const k = this.extreme ? 1.8 : 1;
+      this.add({ kind: 'pool', x: e.x, z: e.z, rx: (0.5 + r() * 0.3) * k, rz: (0.15 + r() * 0.08) * k, seed: this.seed * 11 });
     });
     world.events.on('tick', () => this.step(world.dt));
   }
@@ -80,12 +111,32 @@ export class Decals {
     this.layer.markDirty();
   }
 
+  private get extreme(): boolean {
+    return this.world.gore === 'extreme';
+  }
+
   private step(dt: number): void {
+    if (this.extreme && this.blood()) this.trails(dt);
     for (const g of this.growing) g.t += dt;
     const done = this.growing.filter((g) => g.t >= POOL_GROW);
     if (done.length === 0) return;
     this.growing = this.growing.filter((g) => g.t < POOL_GROW);
     for (const g of done) this.add({ kind: 'pool', x: g.x, z: g.z, rx: g.rx, rz: g.rz, seed: g.seed });
+  }
+
+  /** Extreme gore: severed hands landing, and the wounded dripping as they walk. */
+  private trails(dt: number): void {
+    for (const h of this.flying) h.t -= dt;
+    for (const h of this.flying.filter((f) => f.t <= 0)) this.add({ kind: 'hand', x: h.x, z: h.z, angle: h.angle, seed: this.seed++ });
+    this.flying = this.flying.filter((f) => f.t > 0);
+    for (const a of this.world.actors) {
+      if (a.state === 'dead' || a.hp >= a.maxHp || a.kind === 'boss' || a.pose.walkPhase === undefined) continue;
+      const left = (this.drips.get(a.id) ?? DRIP_EVERY) - dt;
+      if (left > 0) { this.drips.set(a.id, left); continue; }
+      this.drips.set(a.id, DRIP_EVERY);
+      const r = mulberry32(this.seed++ * 23);
+      this.add({ kind: 'pool', x: a.pos.x - a.facing * 0.1 + (r() - 0.5) * 0.1, z: a.pos.z + (r() - 0.5) * 0.06, rx: 0.03 + r() * 0.04, rz: 0.01 + r() * 0.012, seed: this.seed * 11 });
+    }
   }
 
   /** Pools still growing: drawn per frame under the actors (their corpse isn't baked yet). */
@@ -98,10 +149,20 @@ export class Decals {
   }
 
   /** Re-bake everything (room or blood toggle changed). */
+  /** M11 world-arena-collapse: marks on the half that fell away go with it. */
+  dropBeyond(x: number, side: -1 | 1): void {
+    const sx = project(x, 0, 9.2)[0];
+    const gone = (d: Decal) => ('z' in d ? (d.x - x) * side > 0 : (d.x - sx) * side > 0);
+    this.baked = this.baked.filter((d) => !gone(d));
+    this.growing = this.growing.filter((g) => (g.x - x) * side <= 0);
+  }
+
   /** M9: a new room starts clean (blood and holes stay with the room they were made in). */
   clear(): void {
     this.baked = [];
     this.growing = [];
+    this.flying = [];
+    this.drips.clear();
   }
 
   rebake(): void {
@@ -121,6 +182,7 @@ function paintDecal(ctx: Ctx, d: Decal): void {
   else if (d.kind === 'pool') bloodPool(ctx, d.x, d.z, d.rx, d.rz, d.seed);
   else if (d.kind === 'hole') bulletHole(ctx, d.x, d.y, d.s / 230, d.flat, d.seed);
   else if (d.kind === 'scorch') scorch(ctx, d.x, d.z, d.r, d.seed);
+  else if (d.kind === 'hand') severedHand(ctx, d.x, d.z, d.angle, d.seed);
   else paintDebris(ctx, d.item, d.x, d.y, d.angle, d.s);
 }
 
@@ -195,4 +257,19 @@ function bloodPool(ctx: Ctx, x: number, z: number, rx: number, rz: number, seed:
   const [cx, cy] = project(x - rx * 0.25, 0, z - rz * 0.3);
   ctx.fillStyle = 'rgba(255,120,120,0.22)';
   ctx.beginPath(); ctx.ellipse(cx, cy, rx * scaleAt(z) * 0.22, 5 * (scaleAt(z) / 230), 0, 0, Math.PI * 2); ctx.fill();
+}
+
+/** Extreme gore: a hand lying in a little pool of its own. */
+function severedHand(ctx: Ctx, x: number, z: number, angle: number, seed: number): void {
+  bloodPool(ctx, x - 0.04, z, 0.12, 0.035, seed);
+  const [sx, sy] = project(x, 0.03, z), s = scaleAt(z);
+  ctx.save();
+  ctx.translate(sx, sy);
+  ctx.scale(s, s);
+  ctx.rotate(angle);
+  ctx.beginPath(); ctx.ellipse(0, 0, 0.06, 0.053, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#c9cacd'; ctx.fill();
+  ctx.lineWidth = 0.014; ctx.strokeStyle = INK; ctx.stroke();
+  ctx.beginPath(); ctx.arc(-0.05, 0, 0.026, 0, Math.PI * 2); ctx.fillStyle = BLOOD; ctx.fill();
+  ctx.restore();
 }

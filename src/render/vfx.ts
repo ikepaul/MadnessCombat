@@ -47,12 +47,20 @@ export class Vfx {
   /** Telekinesis ripples (seconds since the push). */
   private ripples: { x: number; y: number; s: number; dir: number; t: number }[] = [];
 
+  /** Extreme gore (stage 3): necks still spraying, seconds left. */
+  private fountains: { actorId: number; left: number }[] = [];
+
+  /** Blood amount: 1, or 2.2 under extreme gore (src/sim/gore.ts). */
+  private get gore(): number {
+    return this.world.gore === 'extreme' ? 2.2 : 1;
+  }
+
   /** `blood()` = the current stage shows blood (off for stage 1). */
   constructor(private world: World, private blood: () => boolean) {
     // M9: a new room starts without the last one's smoke and sparks
     world.events.on('roomChanged', () => {
       this.puffs = []; this.drops = []; this.smears = []; this.stars = []; this.blasts = []; this.booms = [];
-      this.smoke = []; this.chunks = []; this.marks = []; this.bolts = []; this.sparks = []; this.ripples = []; this.bubbles = [];
+      this.smoke = []; this.chunks = []; this.fountains = []; this.marks = []; this.bolts = []; this.sparks = []; this.ripples = []; this.bubbles = [];
     });
     // M10: sparks off the cables, dust as the cab hits the bottom
     world.events.on('cableHit', (e) => {
@@ -60,6 +68,19 @@ export class Vfx {
       this.stars.push({ x, y, s: scaleAt(e.z), left: STAR_TICKS, big: e.broke });
     });
     world.events.on('elevator', (e) => { if (e.phase === 'crash') for (const x of [-1, 0, 1]) this.dust(x, 0, 8.8, 14); });
+    // M12: the boss's teleport (an implosion), the wall blast's rubble, glass from the vending machine
+    world.events.on('teleport', (e) => {
+      const [x, y] = project(e.x, e.y + 0.7, e.z), s = scaleAt(e.z);
+      this.ripples.push({ x, y, s, dir: 1, t: 0 }, { x, y, s, dir: -1, t: 0 });
+      this.booms.push({ x, y, s: s * 0.6, left: 2 });
+    });
+    world.events.on('wallBlast', (e) => { for (let k = 0; k < 3; k++) this.dust(e.x, e.y - 0.5 + k * 0.4, e.z, 12); });
+    world.events.on('vendingSmash', (e) => {
+      const [x, y] = project(e.x, e.y + 0.9, e.z), s = scaleAt(e.z);
+      this.stars.push({ x, y, s, left: STAR_TICKS, big: true });
+      this.dust(e.x, e.y + 0.6, e.z, 8);
+    });
+    world.events.on('stab', (e) => { const [x, y] = project(e.x, e.y + 0.6, e.z); this.stars.push({ x, y, s: scaleAt(e.z), left: STAR_TICKS + 2, big: true }); });
     world.events.on('speech', (e) => {
       this.bubbles = this.bubbles.filter((b) => b.actorId !== e.actorId);
       this.bubbles.push({ actorId: e.actorId, icon: e.icon, left: e.seconds, max: e.seconds });
@@ -93,12 +114,30 @@ export class Vfx {
       const [x, y] = project(e.x, e.y, e.z);
       const s = scaleAt(e.z);
       this.stars.push({ x, y, s, left: STAR_TICKS, big: e.damage >= 2 || e.killed });
-      if (this.blood() && e.damage > 0) this.mist(x, y, s, e.dirX, e.killed ? 18 : 10);
+      if (this.blood() && e.damage > 0) this.mist(x, y, s, e.dirX, Math.round((e.killed ? 18 : 10) * this.gore), this.gore > 1 ? -0.9 : -0.6);
     });
     world.events.on('kill', (e) => {
-      if (!e.decap || !this.blood()) return;
-      const [x, y] = project(e.x, e.y + 0.6, e.z);
-      this.mist(x, y, scaleAt(e.z), 0, 16, -1.6);
+      if (!this.blood()) return;
+      const [x, y] = project(e.x, e.y + 0.6, e.z), s = scaleAt(e.z);
+      if (e.decap) {
+        this.mist(x, y, s, 0, Math.round(16 * this.gore), -1.6);
+        // extreme: a fountain from the neck for a moment
+        if (this.gore > 1) this.fountains.push({ actorId: e.actorId, left: 0.9 });
+      }
+      // extreme gore: every heavy kill bursts
+      else if (this.gore > 1 && (e.kind === 'heavy' || e.kind === 'uppercut' || e.kind === 'finisher' || e.kind === 'slash' || e.kind === 'smash' || e.kind === 'bullet')) {
+        this.mist(x, y, s, 0, 34, -1.2);
+        this.mist(x, y, s, 1, 10, -0.4);
+        this.mist(x, y, s, -1, 10, -0.4);
+      }
+    });
+    // extreme gore: a hand flies off, spraying
+    world.events.on('dismember', (e) => {
+      if (!this.blood()) return;
+      const [x, y] = project(e.x, e.y, e.z), s = scaleAt(e.z), floor = project(e.x, 0, e.z)[1];
+      const ang = -Math.PI / 2 + e.dirX * (0.5 + Math.random() * 0.6), v = (2.5 + Math.random() * 1.5) * s;
+      this.chunks.push({ x, y, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v, floor: floor + (Math.random() - 0.5) * 0.1 * s, r: 0.06 * s, angle: 0, spin: e.dirX * 14, color: '#c9cacd', life: 0, landed: false });
+      this.mist(x, y, s, e.dirX, 14, -0.8);
     });
     world.events.on('wallHit', (e) => {
       if (e.speed > 2) this.dust(e.x, e.y + 0.3, e.z, 6);
@@ -119,16 +158,17 @@ export class Vfx {
       const a = world.actorById(e.actorId);
       const [x, y] = project(e.x, e.y + 0.4, e.z), s = scaleAt(e.z), floor = project(e.x, 0, e.z)[1];
       const colors = a?.kind === 'zombie' ? ['#63d06b', '#8e8f94', '#4a4b50'] : ['#8e8f94', '#d2d2d5', '#4a4b50', '#707176'];
-      for (let i = 0; i < 12; i++) {
+      const pieces = this.gore > 1 ? 24 : 12;
+      for (let i = 0; i < pieces; i++) {
         const ang = -Math.PI / 2 + (Math.random() - 0.5) * 2.6, v = (1.5 + Math.random() * 3) * s;
         this.chunks.push({ x, y, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v, floor: floor + (Math.random() - 0.5) * 0.25 * s, r: (0.03 + Math.random() * 0.05) * s,
           angle: Math.random() * 6, spin: (Math.random() - 0.5) * 20, color: colors[i % colors.length], life: 0, landed: false });
       }
-      if (this.blood()) this.mist(x, y, s, 0, 24, -1.4);
+      if (this.blood()) this.mist(x, y, s, 0, Math.round(24 * this.gore * 1.2), -1.4);
     });
     world.events.on('stick', (e) => {
       const [x, y] = project(e.x, e.y, e.z), s = scaleAt(e.z);
-      if (e.surface === 'flesh') { if (this.blood()) this.mist(x, y, s, 0, 6, -0.4); }
+      if (e.surface === 'flesh') { if (this.blood()) this.mist(x, y, s, 0, Math.round(6 * this.gore), -0.4); }
       else this.dust(e.x, e.y, e.z, 4);
     });
     world.events.on('disarm', (e) => {
@@ -212,6 +252,16 @@ export class Vfx {
   }
 
   private step(dt: number): void {
+    // extreme gore: the neck keeps spurting in pulses while the body stands and falls
+    for (const f of this.fountains) {
+      f.left -= dt;
+      const a = this.world.actorById(f.actorId);
+      if (!a || !this.blood() || Math.sin(f.left * 26) < 0.3) continue;
+      const [hx, hy] = [a.pos.x + a.facing * 0.01, a.pos.y + 0.66];
+      const [x, y] = project(hx, hy, a.pos.z);
+      this.mist(x, y, scaleAt(a.pos.z), (Math.random() - 0.5) * 0.6, 2, -2.2);
+    }
+    this.fountains = this.fountains.filter((f) => f.left > 0);
     for (const b of this.bubbles) b.left -= dt;
     this.bubbles = this.bubbles.filter((b) => b.left > 0);
     for (const m of this.marks) m.left--;
@@ -307,6 +357,7 @@ export class Vfx {
     for (const sp of this.sparks) this.drawSparks(ctx, sp);
     for (const r of this.ripples) this.drawRipple(ctx, r);
     for (const m of this.marks) this.drawMark(ctx, m);
+    this.drawTrails(ctx);
     for (const b of this.bubbles) this.drawBubble(ctx, b);
     for (const b of this.blasts) {
       ctx.save();
@@ -445,6 +496,21 @@ export class Vfx {
       ctx.beginPath(); ctx.moveTo(sp.x + Math.cos(a) * l * 0.4, sp.y + Math.sin(a) * l * 0.4); ctx.lineTo(sp.x + Math.cos(a) * l, sp.y + Math.sin(a) * l); ctx.stroke();
     }
     ctx.restore();
+  }
+
+  /** M11 improbability mode: ghost trails behind bodies flying fast. */
+  private drawTrails(ctx: Ctx): void {
+    if (this.world.physics !== 'improbable') return;
+    for (const a of this.world.actors) {
+      const f = a.flight;
+      if (!f || f.phase !== 'air' || Math.hypot(f.vx, f.vy) < 6) continue;
+      const s = scaleAt(a.pos.z);
+      for (let k = 1; k <= 4; k++) {
+        const [x, y] = project(a.pos.x - f.vx * 0.03 * k, a.pos.y + 0.45 - f.vy * 0.03 * k, a.pos.z);
+        ctx.beginPath(); ctx.ellipse(x, y, 0.22 * s, 0.3 * s, 0, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(240,236,228,${0.22 - k * 0.045})`; ctx.fill();
+      }
+    }
   }
 
   /**

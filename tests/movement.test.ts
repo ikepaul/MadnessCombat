@@ -38,8 +38,8 @@ function ticksUntil(world: World, pred: () => boolean, max = 600): number {
 }
 
 describe('walk (move-walk)', () => {
-  // walk speeds were raised above the measured 0.8 / 1.3 H/s (decided with the user)
-  const { walkSpeed, combatWalkSpeed } = TUNING.move;
+  // the hero's walk speeds are raised well above the measured 0.8 / 1.3 H/s (decided with the user)
+  const { walkSpeed, combatWalkSpeed } = TUNING.move.hero;
 
   it('calm walk speed with no enemies in the room', () => {
     const { world, hero } = setup();
@@ -90,15 +90,30 @@ describe('jump (move-jump)', () => {
     expect(Math.abs(apex - 1.15)).toBeLessThanOrEqual(0.05);
   });
 
-  it('keeps takeoff momentum (no full air control)', () => {
+  it('the hero steers fully in the air and keeps his momentum with the stick released', () => {
     const { world, hero } = setup();
     run(world, 0.2, { moveX: 1 });
     world.command = { ...IDLE_COMMAND, moveX: 1, jump: true };
     world.step();
-    const x0 = hero.pos.x;
-    run(world, 0.55, { moveX: -1 });
+    expect(hero.body.vel.x).toBeCloseTo(TUNING.move.hero.walkSpeed * TUNING.jump.hero.airSpeed, 5);
+    run(world, 0.25, { moveX: -1 });
     expect(hero.body.state).toBe('air');
-    expect(hero.pos.x).toBeGreaterThan(x0); // still drifting forward despite holding back
+    expect(hero.body.vel.x).toBeLessThan(-TUNING.move.hero.walkSpeed); // turned around mid-air
+    const v = hero.body.vel.x;
+    run(world, 0.1);
+    expect(hero.body.vel.x).toBe(v);
+  });
+
+  it('enemies keep the small measured air steer', () => {
+    const { world } = setup();
+    const g = createActor('grunt', 0, 9.3, 1);
+    world.actors.push(g);
+    g.body.state = 'air';
+    g.body.takeoff = { x: 1, z: 0 };
+    g.body.vel = { x: 1, y: 2, z: 0 };
+    world.scripted.set(g.id, { ...IDLE_COMMAND, moveX: -1 });
+    world.step();
+    expect(g.body.vel.x).toBeGreaterThan(0);
   });
 
   it('lands on a 0.5 H prop when the feet clear it, and is blocked by its side otherwise', () => {
@@ -109,7 +124,8 @@ describe('jump (move-jump)', () => {
     const { world, hero } = setup(room, -0.8, 9.3);
     world.actors.push(createActor('grunt', -3, 10, 1)); // combat walk speed for the run-up
     run(world, 0.15, { moveX: 1 });
-    run(world, 0.8, { moveX: 1, jump: true });
+    run(world, 0.25, { moveX: 1, jump: true });
+    run(world, 0.6, { moveX: 0.2 });
     run(world, 0.2);
     expect(hero.body.state).toBe('ground');
     expect(hero.pos.y).toBeCloseTo(0.5, 5);
@@ -129,7 +145,7 @@ describe('jump (move-jump)', () => {
 });
 
 describe('prone (move-prone-dodge)', () => {
-  it('drops in <= 0.15 s to a 0.3 H hurtbox and stands up in 0.4 s', () => {
+  it('drops in <= 0.15 s to a 0.3 H hurtbox and the hero stands up in 0.28 s', () => {
     const { world, hero } = setup();
     world.command = { ...IDLE_COMMAND, dive: true };
     world.step();
@@ -139,7 +155,7 @@ describe('prone (move-prone-dodge)', () => {
     world.command = { ...IDLE_COMMAND, dive: true };
     world.step();
     const up = ticksUntil(world, () => hero.body.state === 'ground');
-    expect(Math.abs((up + 1) * world.dt - TUNING.prone.upTime)).toBeLessThanOrEqual(FRAME);
+    expect(Math.abs((up + 1) * world.dt - TUNING.prone.heroUpTime)).toBeLessThanOrEqual(FRAME);
     expect(hero.body.height).toBe(1);
   });
 

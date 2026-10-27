@@ -18,6 +18,12 @@ export function inCombat(world: World, a: Actor): boolean {
   return a.hands.some((h) => h !== null) || world.actors.some((o) => o !== a && o.kind !== 'hero' && alive(o));
 }
 
+/** Walk speed for `a` right now: the hero has his own (faster) speeds, everyone else the shared ones. */
+export function walkSpeedOf(world: World, a: Actor): number {
+  const m = a.kind === 'hero' ? MOVE.hero : MOVE;
+  return inCombat(world, a) ? m.combatWalkSpeed : m.walkSpeed;
+}
+
 export function stepLocomotion(world: World, a: Actor, cmd: PlayerCommand, dt: number): void {
   const b = a.body;
   b.stateTime += dt;
@@ -25,20 +31,32 @@ export function stepLocomotion(world: World, a: Actor, cmd: PlayerCommand, dt: n
   let ix = cmd.moveX, iz = cmd.moveZ;
   const len = Math.hypot(ix, iz);
   if (len > 1) { ix /= len; iz /= len; }
-  let speed = inCombat(world, a) ? MOVE.combatWalkSpeed : MOVE.walkSpeed;
+  let speed = walkSpeedOf(world, a);
   if (a.holding) speed *= TUNING.grab.carrySpeed;
   speed *= a.walkFactor ?? 1;
   const wantX = ix * speed, wantZ = iz * speed * MOVE.depthFactor;
 
   updateFacing(a, cmd, ix);
 
+  // M11 the jetpack: hovering, no gravity, flies wherever the script steers (over the void too)
+  if (a.hover !== undefined) {
+    a.pos.y += (a.hover - a.pos.y) * Math.min(1, dt * 4);
+    a.pos.x = clamp(a.pos.x + ix * speed * dt, -world.room.halfWidth - 1.5, world.room.halfWidth + 1.5);
+    a.pos.z = clamp(a.pos.z + iz * speed * MOVE.depthFactor * dt, world.room.zFront, world.room.zBack - 0.2);
+    b.state = 'air';
+    b.vel = { x: 0, y: 0, z: 0 };
+    a.pose.walkPhase = undefined;
+    return;
+  }
+
   const enter = (s: typeof b.state) => { b.state = s; b.stateTime = 0; };
 
   switch (b.state) {
     case 'ground': {
       if (cmd.jump && !a.holding) {
-        b.vel = { x: wantX, y: JUMP_V0, z: wantZ };
-        b.takeoff = { x: wantX, z: wantZ };
+        const boost = a.kind === 'hero' ? JUMP.hero.airSpeed : 1;
+        b.vel = { x: wantX * boost, y: JUMP_V0, z: wantZ * boost };
+        b.takeoff = { x: wantX * boost, z: wantZ * boost };
         enter('air');
         world.events.emit('jump', { actorId: a.id, ...a.pos });
         break;
@@ -90,7 +108,7 @@ export function stepLocomotion(world: World, a: Actor, cmd: PlayerCommand, dt: n
       }
       break;
     case 'standingUp':
-      if (b.stateTime >= PRONE.upTime) { b.sweep = false; enter('ground'); }
+      if (b.stateTime >= (a.kind === 'hero' ? PRONE.heroUpTime : PRONE.upTime)) { b.sweep = false; enter('ground'); }
       break;
   }
 
@@ -102,8 +120,17 @@ export function stepLocomotion(world: World, a: Actor, cmd: PlayerCommand, dt: n
 /** One tick of a jump or fall: steer a little, exact constant-gravity step, land on what's below. */
 function airStep(world: World, a: Actor, wantX: number, wantZ: number, dt: number): void {
   const b = a.body;
-  b.vel.x = b.takeoff.x + JUMP.airSteer * wantX;
-  b.vel.z = b.takeoff.z + JUMP.airSteer * wantZ;
+  if (a.kind === 'hero') {
+    // full air control: ease toward the input (a released stick keeps most of the momentum)
+    const k = Math.min(1, JUMP.hero.airAccel * dt);
+    if (wantX !== 0 || wantZ !== 0) {
+      b.vel.x += (wantX * JUMP.hero.airSpeed - b.vel.x) * k;
+      b.vel.z += (wantZ * JUMP.hero.airSpeed - b.vel.z) * k;
+    }
+  } else {
+    b.vel.x = b.takeoff.x + JUMP.airSteer * wantX;
+    b.vel.z = b.takeoff.z + JUMP.airSteer * wantZ;
+  }
   const prevY = a.pos.y;
   // exact constant-gravity step, so airtime/apex match the measured values at any tick rate
   a.pos.y += b.vel.y * dt - 0.5 * GRAVITY * dt * dt;
@@ -130,7 +157,7 @@ export function stepAirborneAction(world: World, a: Actor, cmd: PlayerCommand, d
   let ix = cmd.moveX, iz = cmd.moveZ;
   const len = Math.hypot(ix, iz);
   if (len > 1) { ix /= len; iz /= len; }
-  const speed = (inCombat(world, a) ? MOVE.combatWalkSpeed : MOVE.walkSpeed) * (a.walkFactor ?? 1);
+  const speed = walkSpeedOf(world, a) * (a.walkFactor ?? 1);
   a.body.stateTime += dt;
   airStep(world, a, ix * speed, iz * speed * MOVE.depthFactor, dt);
   a.body.squashLeft = Math.max(0, a.body.squashLeft - dt);
@@ -170,7 +197,7 @@ export function stepAttackMove(world: World, a: Actor, cmd: PlayerCommand, dt: n
   let ix = cmd.moveX, iz = cmd.moveZ;
   const len = Math.hypot(ix, iz);
   if (len > 1) { ix /= len; iz /= len; }
-  const speed = (inCombat(world, a) ? MOVE.combatWalkSpeed : MOVE.walkSpeed) * MOVE.attackMoveFactor * (a.holding ? TUNING.grab.carrySpeed : 1);
+  const speed = walkSpeedOf(world, a) * MOVE.attackMoveFactor * (a.holding ? TUNING.grab.carrySpeed : 1);
   a.body.vel = { x: ix * speed, y: 0, z: iz * speed * MOVE.depthFactor };
   walkHorizontal(world, a, dt);
   advanceWalkCycle(world, a, Math.hypot(a.body.vel.x, a.body.vel.z) * dt);
@@ -201,7 +228,7 @@ function syncLocomotionPose(a: Actor, moving: boolean): void {
     case 'goingProne': p.prone = clamp(b.stateTime / PRONE.downTime, 0, 1); break;
     case 'diving': p.prone = clamp(b.stateTime / DIVE_TIME, 0, 1); break;
     case 'prone': p.prone = 1; break;
-    case 'standingUp': p.prone = 1 - clamp(b.stateTime / PRONE.upTime, 0, 1); break;
+    case 'standingUp': p.prone = 1 - clamp(b.stateTime / (a.kind === 'hero' ? PRONE.heroUpTime : PRONE.upTime), 0, 1); break;
     default: p.prone = 0;
   }
   b.height = 1 - (1 - down) * p.prone;

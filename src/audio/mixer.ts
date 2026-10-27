@@ -53,6 +53,9 @@ export class AudioEngine {
   private live = new Map<number, Live>();
   private killCamUntil = 0;
   private duckGain: GainNode;
+  /** M11 improbability mode: a tape wobble on the sound effects (a slowly swaying delay = pitch flutter). */
+  private wobbleDelay!: DelayNode;
+  private wobbleDepth!: GainNode;
 
   constructor() {
     this.ctx = new AudioContext({ latencyHint: 'interactive' });
@@ -74,7 +77,7 @@ export class AudioEngine {
     this.duckGain.connect(this.lowpass);
     for (const bus of Object.keys(BUS_GAIN) as Bus[]) {
       const g = c.createGain();
-      g.connect(bus === 'music' ? this.duckGain : this.lowpass);
+      g.connect(bus === 'music' ? this.duckGain : this.wobbleIn());
       this.buses[bus] = g;
     }
     this.setRoomReverb('medium');
@@ -86,6 +89,29 @@ export class AudioEngine {
   }
 
   /** Volumes from the settings stub (master / music / sfx). */
+  /** The effects' way into the master chain, through the wobble delay (built on first use). */
+  private wobbleIn(): AudioNode {
+    if (this.wobbleDelay) return this.wobbleDelay;
+    const c = this.ctx;
+    this.wobbleDelay = c.createDelay(0.05);
+    this.wobbleDelay.delayTime.value = 0.012;
+    const lfo = c.createOscillator();
+    lfo.frequency.value = 0.9;
+    this.wobbleDepth = c.createGain();
+    this.wobbleDepth.gain.value = 0;
+    lfo.connect(this.wobbleDepth).connect(this.wobbleDelay.delayTime);
+    lfo.start();
+    this.wobbleDelay.connect(this.lowpass);
+    return this.wobbleDelay;
+  }
+
+  /** M11: the tape wobble on (improbability mode) or off, eased in and out. */
+  setWobble(on: boolean): void {
+    if (!this.wobbleDepth) return;
+    const now = this.ctx.currentTime;
+    this.wobbleDepth.gain.setTargetAtTime(on ? 0.004 : 0, now, 0.4);
+  }
+
   applySettings(): void {
     this.master.gain.value = SETTINGS.master;
     for (const [bus, g] of Object.entries(this.buses) as [Bus, GainNode][]) {

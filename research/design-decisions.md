@@ -39,8 +39,17 @@ Decisions taken with the user while researching (2026-10-26). The mechanic notes
 - Bosses, the target and special enemies get a design pass (character sheet in the style frame) before their milestone, in our own designs.
 - Neutral names until we name things: hero, grunt, halo boss, clown, target, welder, sun brute.
 
-## Still open (to ask later, not blocking the first milestone)
-- Controls on gamepad (twin-stick?) or keyboard + mouse only.
-- Difficulty settings / checkpoints per room.
-- How the stage select works (linear unlock vs. free choice).
+## Decided for M13 (2026-10-27, with the user)
+- **Controls**: keyboard + mouse only (no gamepad).
+- **Difficulty**: one difficulty, the current tuning (3 lives, a life back per kill).
+- **Stage select**: unlock as you go. Stage 1 from the start; finishing a stage unlocks the next (saved in the browser). "Continue" resumes at the last room checkpoint.
+- **Checkpoints**: dying restarts the room you died in, with the weapons and body count you entered it with; unlimited tries.
+
+## Playtest feedback (2026-10-27, with the user)
+- **Movement**: "snappy". The hero walks ~35% faster (calm 1.5, combat 2.4 H/s), steers fully in the air and jumps a little farther, and gets up from prone quicker. Enemies keep their speeds.
+- **Friendly fire** (a setting): thrown weapons hitting a co-op ally do full damage (default), only knock down, or fly through.
+- **Idles**: smoking, chatting/gestures between unaware grunts, fidgets (wrist check, stretch, head scratch, look around), and hero fidgets after standing still.
+- **Gore in stage 3**: extreme. Bigger sprays, wall splatter, blood trails, more decapitations, shotgun/axe/explosion kills gib, arms come off, every heavy kill bursts, blood sticks to weapons and the hero.
+
+## Still open (to ask later)
 - Combos (after M10b): a gun-butt hit at contact range: its own key (F with a gun in hand) or automatic? Do juggles work on zombies or only on grunts? Co-op combos (hand-off, double-team, weapon pass) now or in M13?

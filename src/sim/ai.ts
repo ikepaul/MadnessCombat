@@ -50,7 +50,7 @@ export interface AiState {
   /** M7 stealth: false = unaware (idles, smokes or patrols facing a fixed way). */
   aware?: boolean;
   /** What an unaware enemy does, and its patrol span (x). */
-  idle?: 'stand' | 'smoke' | 'patrol';
+  idle?: 'stand' | 'smoke' | 'chat' | 'patrol';
   patrol?: [number, number];
   /** Patrol: walking direction and the wait at a turn. */
   patrolDir?: 1 | -1;
@@ -443,7 +443,10 @@ function meleeStep(world: World, a: Actor, p: Actor, face: 1 | -1, dt: number): 
   const stand = weapon ? Math.max(AI.punchDistance, weapon.reach - AI.weaponMargin) : AI.punchDistance;
 
   // enemy-behaviours: a knife grunt throws it from range now and then (then fights barehanded)
-  if (weapon?.id === 'knife' && a.state === 'free' && a.kind !== 'zombie') {
+  // M11: axe grunts throw theirs too where a room allows it (research/stages.md stage 3 room 4:
+  // an axe thrown round the corner); elsewhere they keep it, as before
+  const throws = weapon?.id === 'knife' || (weapon?.id === 'axe' && world.flags.has('axeThrows'));
+  if (throws && a.state === 'free' && a.kind !== 'zombie') {
     ai.throwT = (ai.throwT ?? AI.knifeThrowEvery * world.rng()) - dt;
     const dx = Math.abs(p.pos.x - a.pos.x), dz = Math.abs(p.pos.z - a.pos.z);
     const [r0, r1] = AI.knifeThrowRange;
@@ -452,7 +455,8 @@ function meleeStep(world: World, a: Actor, p: Actor, face: 1 | -1, dt: number): 
       ai.throwT = AI.knifeThrowEvery;
       if (dx >= r0 && dx <= r1 && dz <= 0.3 && p.state === 'free' && world.time - last >= AI.swingGap && world.rng() < AI.knifeThrowChance) {
         world.lastEnemySwing.set(p.id, world.time);
-        return { ...IDLE_COMMAND, face, attack: 'light', aim: project(p.pos.x, p.pos.y + 0.6, p.pos.z) };
+        const aim = project(p.pos.x, p.pos.y + 0.6, p.pos.z);
+        return weapon.id === 'axe' ? { ...IDLE_COMMAND, face, throwGun: true, aim } : { ...IDLE_COMMAND, face, attack: 'light', aim };
       }
     }
   }
@@ -473,7 +477,9 @@ function meleeStep(world: World, a: Actor, p: Actor, face: 1 | -1, dt: number): 
       const [i0, i1] = AI.attackInterval;
       ai.cooldown = i0 + world.rng() * (i1 - i0);
       // armed: swing the weapon (LMB); unarmed: punch, sometimes heavy
-      return { ...IDLE_COMMAND, face, attack: weapon || world.rng() >= AI.heavyChance ? 'light' : 'heavy', aim: project(p.pos.x, p.pos.y + 0.6, p.pos.z) };
+      // M11 the vending-machine brute only throws big knockdown punches
+      const heavy = a.variant === 'vending' || (!weapon && world.rng() < AI.heavyChance);
+      return { ...IDLE_COMMAND, face, attack: heavy ? 'heavy' : 'light', aim: project(p.pos.x, p.pos.y + 0.6, p.pos.z) };
     }
   } else {
     // wait on the ring, on whichever side of the player we are, drifting in depth
@@ -537,8 +543,8 @@ function steer(a: Actor, tx: number, tz: number, deadZone: number): PlayerComman
   const dx = tx - a.pos.x, dz = (tz - a.pos.z) / TUNING.move.depthFactor;
   const d = Math.hypot(dx, dz);
   if (d < deadZone) return { ...IDLE_COMMAND };
-  // enemy-zombie: the slow shuffle
-  const slow = easeIn(d) * (a.kind === 'zombie' ? TUNING.zombie.speed : AI.speed);
+  // enemy-zombie: the slow shuffle; M11 the brute lumbers
+  const slow = easeIn(d) * (a.kind === 'zombie' ? TUNING.zombie.speed : a.variant === 'vending' ? TUNING.brute.speed : AI.speed);
   return { ...IDLE_COMMAND, moveX: (dx / d) * slow, moveZ: (dz / d) * slow };
 }
 

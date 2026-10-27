@@ -58,14 +58,19 @@ function clipFor(kind: AttackKind, weapon?: string): string {
   return CLIP[kind] ?? 'idle';
 }
 
+/** Turn to the cursor (a punch, swing or throw goes where you point, a chained one too). */
+export function faceCursor(a: Actor, cmd: Pick<PlayerCommand, 'aim'>): void {
+  if (!cmd.aim) return;
+  const [sx] = project(a.pos.x, a.pos.y + 0.5, a.pos.z);
+  if (Math.abs(cmd.aim[0] - sx) > 4) a.facing = cmd.aim[0] > sx ? 1 : -1;
+}
+
 /** Enter the attack state for an M6 action. */
 export function startAction(world: World, a: Actor, kind: AttackKind, cmd: Pick<PlayerCommand, 'aim' | 'face'>, extra: { hand?: 0 | 1; itemId?: number; targetId?: number; fuse?: number; prop?: number; weapon?: string } = {}): void {
   const weapon = extra.weapon ?? (extra.hand !== undefined ? a.hands[extra.hand]?.item ?? undefined : undefined);
   if (cmd.face) a.facing = cmd.face;
-  else if (cmd.aim && (kind === 'toss' || kind === 'lob')) {
-    const [sx] = project(a.pos.x, a.pos.y + 0.5, a.pos.z);
-    if (Math.abs(cmd.aim[0] - sx) > 4) a.facing = cmd.aim[0] > sx ? 1 : -1;
-  }
+  // swings, stabs and throws turn to the cursor (actions on a target or a prop face that instead)
+  else if (kind !== 'pull' && extra.targetId === undefined && extra.prop === undefined) faceCursor(a, cmd);
   a.state = 'attack';
   a.stateT = 0;
   a.attack = { kind, heavy: false, t: 0, done: false, hand: extra.hand, hits: [], aim: cmd.aim, weapon: weapon ?? undefined, itemId: extra.itemId, targetId: extra.targetId, fuse: extra.fuse, prop: extra.prop };
@@ -96,6 +101,7 @@ export function startMeleeAction(world: World, a: Actor, cmd: PlayerCommand): bo
   const i: 0 | 1 = lmb ? 0 : 1;
   const d = i === 0 ? d0 : d1;
   if (!d) return false;
+  if (!cmd.face) faceCursor(a, cmd);
   if (d.id === 'knife' && !swingTargets(world, a, d, d.reach, []).length) { startAction(world, a, 'toss', cmd, { hand: i }); return true; }
   startAction(world, a, 'swing', cmd, { hand: i });
   return true;
@@ -206,7 +212,7 @@ export function tossHeld(world: World, a: Actor, i: 0 | 1, aim?: ScreenPoint): I
   return it;
 }
 
-/** throw-grenade: release toward the floor point under the cursor (max GRENADE.maxRange). */
+/** throw-grenade: release toward the floor point under the cursor (max GRENADE.maxRange, the hero's GRENADE.playerRange). */
 function lobGrenade(world: World, a: Actor, fuse: number, aim?: ScreenPoint): void {
   a.pose.grenade = false;
   const from = { x: a.pos.x + a.facing * 0.3, y: a.pos.y + 0.7, z: a.pos.z };
@@ -214,7 +220,9 @@ function lobGrenade(world: World, a: Actor, fuse: number, aim?: ScreenPoint): vo
   const p = aim ? unprojectFloor(aim[0], aim[1]) : undefined;
   if (p) { tx = p.x; tz = p.z; }
   const dx = tx - from.x, dz = tz - from.z, d = Math.hypot(dx, dz);
-  if (d > GRENADE.maxRange) { tx = from.x + (dx / d) * GRENADE.maxRange; tz = from.z + (dz / d) * GRENADE.maxRange; }
+  const range = a.kind === 'hero' ? GRENADE.playerRange : GRENADE.maxRange;
+  if (d > range) { tx = from.x + (dx / d) * range; tz = from.z + (dz / d) * range; }
+  tx = Math.max(-world.room.halfWidth + 0.2, Math.min(world.room.halfWidth - 0.2, tx));
   tz = Math.max(world.room.zFront, Math.min(world.room.zBack - 0.15, tz));
   const it = world.spawnItem('grenade', 'grunt', from, lobVelocity(from, tx, tz), Math.sign(tx - from.x || a.facing) * 9);
   it.live = true;

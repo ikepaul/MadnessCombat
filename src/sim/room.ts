@@ -50,7 +50,23 @@ export interface CrateDef {
   top: number;
 }
 
-export type PropDef = TableDef | PoleDef | CannonPropDef | CrateDef;
+/** M11: the tank that fell out of the sky (world-falling-hazard): a solid block, tall enough to pin against. */
+export interface TankDef {
+  kind: 'tank';
+  x0: number; x1: number; z0: number; z1: number;
+  top: number;
+  facing: 1 | -1;
+}
+
+/** M12: the vending room's machine (our design: the brute's twin, asleep). Solid; a thrown body smashes it. */
+export interface VendingDef {
+  kind: 'vending';
+  x0: number; x1: number; z0: number; z1: number;
+  top: number;
+  smashed?: boolean;
+}
+
+export type PropDef = TableDef | PoleDef | CannonPropDef | CrateDef | TankDef | VendingDef;
 
 /** A floor area (H). */
 export interface Zone { x0: number; x1: number; z0: number; z1: number }
@@ -84,7 +100,7 @@ export interface RoomDef {
   /** Open air: sky and ground, no walls or ceiling, bodies don't slam into the bounds. */
   outdoor?: boolean;
   /** M9 outdoor scenery: open ground (stage 1), a street under a building's wall, a flat roof. */
-  scene?: 'ground' | 'street' | 'roof';
+  scene?: 'ground' | 'street' | 'roof' | 'toyStreet' | 'desert';
   /** Night sky (stage 2's opening). */
   night?: boolean;
   /** Ladders up the back wall (a ladder exit's picture). */
@@ -94,11 +110,27 @@ export interface RoomDef {
   holes?: Zone[];
   /** Street flavour: a manhole cover at (x, z). */
   manhole?: { x: number; z: number };
+  /** A vent grille low in the back wall (a vent exit's picture in a street scene), x and height in H. */
+  wallVents?: { x0: number; x1: number; y0: number; y1: number }[];
+  /** The street's drainpipe (x on the back wall); null = none (it read as a climbable pole). */
+  pipeX?: number | null;
   /**
    * M10: walkable upper floors with no solid sides (the elevator cab's roof). You stand on one once
    * your feet are at its height; open holes in it (the hatch, a cut slot) drop you through.
    */
   decks?: Deck[];
+  /** M11 world-arena-collapse: the floor beyond x on `side` has fallen away. */
+  void?: { side: -1 | 1; x: number };
+  /** M12 world-arena-lock: the walls that have come down so far (the painter draws them). */
+  lockWalls?: ('right' | 'back' | 'left')[];
+  /** M12: a hole blasted through a wall (the vending room's left wall: you came through it). */
+  wallHole?: 'left' | 'right';
+  /** M11: the crack before the collapse (drawn as a jagged line). */
+  crack?: { side: -1 | 1; x: number };
+  /** M11 decor: a security camera high on the back wall (the camera room). */
+  camera?: { x: number; y: number };
+  /** M11 decor: a vending machine standing at the back (it comes alive: the brute). */
+  vending?: { x: number; z: number };
   /** M10 world-elevator-fight: this room is the elevator cab in its shaft. */
   elevator?: { cable: { x: number; z: number }; hatch: Zone; slot: Zone };
   doors: DoorDef[];

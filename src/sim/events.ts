@@ -86,6 +86,8 @@ export interface GameEvents {
   explosion: { x: number; y: number; z: number; radius: number; byId: number };
   /** A corpse was blown apart (can't be raised any more). */
   gib: At;
+  /** Playtest 2026-10-27, extreme gore: a hand comes off a corpse. */
+  dismember: At & { actorId: number; hand: 'F' | 'B'; dirX: number };
   /** A held body took a hit meant for its holder (combat-human-shield); `broke` = it fell apart. */
   shieldHit: At & { holderId: number; broke: boolean };
   /** A long-weapon thrust pinned a body to a wall or prop (melee-environment-weapon). */
@@ -153,6 +155,32 @@ export interface GameEvents {
   surrender: At;
   /** The ending: the boss's shot from behind. */
   bossShot: At & { targetId: number };
+  // M11: stage 3's surreal rules
+  improbability: { on: boolean };
+  ceilingStick: At;
+  flyIn: At;
+  collapse: { phase: 'crack' | 'fall'; side: -1 | 1; x: number };
+  fellIntoVoid: At;
+  blockDrop: { phase: 'shadow' | 'land'; x: number; y: number; z: number };
+  /** The camera room's security camera turns toward you (the cutscene cue). */
+  cameraTurn: { x: number; y: number; z: number };
+  /** The jetpack mini-boss: rising out of the void, flying off, back through the door. */
+  jetpack: At & { phase: 'up' | 'away' | 'back' };
+  shove: At & { targetId: number };
+  /** The vending machine at the back comes alive. */
+  bruteWake: { x: number; y: number; z: number };
+  // M12: the desert box, the duel, the last stand
+  wallDrop: { side: 'right' | 'back' | 'left'; phase: 'shadow' | 'land' };
+  /** The blood flood spreading over the sealed arena's floor (cosmetic). */
+  bloodFlood: { x: number; z: number };
+  swordDive: At & { phase: 'windup' | 'dive' | 'hit' };
+  teleport: At;
+  /** The boss's wall blast: the wall gives way where you hit it. */
+  wallBlast: { x: number; y: number; z: number };
+  /** Thrown into the vending machine: glass and cans everywhere. */
+  vendingSmash: At;
+  stab: At & { targetId: number };
+  lastStand: { phase: 'start' | 'end' };
   /** The target ran out of the room (boss-target). */
   targetFled: At;
   /** Lightning telegraph: his hand goes up toward a corpse (the bolt follows after TUNING.boss.castTime). */

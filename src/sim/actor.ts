@@ -24,6 +24,8 @@ export interface Hand {
   reload: number;
   /** The empty trigger clicked once: the next press throws the gun (gun-empty-throw). */
   clicked: boolean;
+  /** Extreme gore: a blade or club with blood on it. */
+  bloody?: boolean;
 }
 
 /** A full hand for `item`: guns come loaded with one spare magazine. */
@@ -56,6 +58,10 @@ export interface Pose {
   headless: boolean;
   /** Wound marks in actor-local H (drawn only on stages with blood). */
   wounds: [number, number][];
+  /** Extreme gore: hands that came off (not drawn). */
+  lostHands?: { F?: boolean; B?: boolean };
+  /** Extreme gore: blood on the body, 0..1 (the hero after close kills). */
+  stain?: number;
   /** Muzzle flash this frame. */
   flash: boolean;
   /** 0 = standing, 1 = flat on the floor (prone/dive), blended during transitions. */
@@ -81,6 +87,10 @@ export interface Pose {
   dazed?: boolean;
   /** M10: hands up. */
   handsUp?: boolean;
+  /** M12: the boss has his sword out (the dive, the stab). */
+  sword?: boolean;
+  /** M11: the twin-tank jetpack on the mini-boss's back (flames while hovering). */
+  jetpack?: boolean;
   /** M10 enemy-welder: cutting (sparks, the torch). */
   welding?: boolean;
   /** M10: ducked behind cover (the target behind his desk). */
@@ -251,6 +261,14 @@ export interface Actor {
   catchAt?: number;
   /** Hits absorbed while held as a human shield (combat-human-shield). */
   shieldHits?: number;
+  /** M12: share of the damage this one actually takes (the zombie mini-boss holding the sign: 0.1). */
+  damageScale?: number;
+  /** M11: stuck head-first in the ceiling (improbability mode). */
+  ceilingStuck?: boolean;
+  /** M11: falling into the void after the arena collapse (seconds so far). */
+  fallingAway?: number;
+  /** M11: hovering at this height (the jetpack): no gravity, the script moves him. */
+  hover?: number;
   /** M10: a melee kill leaves this one dazed instead (stars, ~5 s), once. */
   dazeOnDefeat?: boolean;
   /** M10: lying dazed until this world time. */
@@ -264,9 +282,11 @@ export interface Actor {
   /** M9: can't be hurt (the target before his final room, the boss's cameo); rays pass through. */
   invulnerable?: boolean;
   /** M9 room transitions: climbing out, vaulting in, walking out (moved by the stage runner, not stepped). */
-  traversing?: { kind: 'vault' | 'climb' | 'crawl' | 'out' | 'drop' | 'hatch'; t: number };
+  traversing?: { kind: 'vault' | 'climb' | 'crawl' | 'crawlIn' | 'leap' | 'out' | 'drop' | 'hatch' | 'shoved'; t: number };
+  /** M11 move-fall-transition: falling in from the sky (lands face down). */
+  skyFall?: boolean;
   /** M7 grunt variants: squad leader (shades, gun), elite bodyguard (2 hits, headshot 1), the VIP they guard. */
-  variant?: 'leader' | 'bodyguard' | 'vip' | 'riot' | 'target' | 'welder' | NpcVariant;
+  variant?: 'leader' | 'bodyguard' | 'vip' | 'riot' | 'target' | 'welder' | 'vending' | NpcVariant;
   /** M8: something carried that isn't a weapon (the boombox NPC's boombox), drawn at the front hand. */
   carry?: 'boombox';
   /** Being taken down (stealth kill) by this actor: held still until the kill (M7). */

@@ -6,6 +6,9 @@ import { IDLE_COMMAND } from '../src/sim/command';
 import { CoopRelay, type RelayClient } from '../src/net/relay';
 import { applySnapshot, type Snapshot, SnapshotWriter } from '../src/net/snapshot';
 import { WaveDirector } from '../src/sim/waves';
+import { STAGE2 } from '../src/data/stages/stage2';
+import { stageRunner } from '../src/sim/stage';
+import { dropBlock, setImprobable, startCollapse } from '../src/sim/improbability';
 import { World } from '../src/sim/world';
 
 class Client implements RelayClient {
@@ -132,5 +135,61 @@ describe('snapshots carry guns (M5)', () => {
     expect(shots).toEqual([0]);
     expect(puppet.players[1].hands[0]).toMatchObject({ item: 'pistol', ammo: 7 });
     expect(puppet.players[1].pose.held).toBe('pistol');
+  });
+});
+
+describe('snapshots across room changes (M9)', () => {
+  it('the full snapshot sent for a room change still carries that tick\'s events (the wipe uncovering)', () => {
+    const host = new World(STAGE2.rooms.wall.room);
+    host.addPlayer(createActor('hero', -2.9, 9.0, 1));
+    host.addPlayer(createActor('hero', -2.4, 9.2, 1));
+    host.seq.run(stageRunner(STAGE2, 'wall', 'west'), 'stage');
+    const writer = new SnapshotWriter(host, 1);
+    // as GameScene does: a room change asks for a full snapshot
+    host.events.on('roomChanged', () => (writer.needFull = true));
+    const snaps: Snapshot[] = [];
+    writer.take(); // the guest's first (joining) snapshot
+    for (let i = 0; i < 60 * 3; i++) host.step();
+    // walk off the right edge into the corner
+    host.players[0].pos.x = 3.3;
+    for (let i = 0; i < 60 * 2 && host.roomId !== 'corner'; i++) {
+      host.commands = [{ ...IDLE_COMMAND, moveX: 1 }, { ...IDLE_COMMAND }];
+      host.step();
+      snaps.push(JSON.parse(JSON.stringify(writer.take())) as Snapshot);
+    }
+    expect(host.roomId).toBe('corner');
+    const change = snaps.find((s) => s.roomId === 's2-corner')!;
+    expect(change.full).toBe(true);
+    expect(change.events.some(([t, p]) => t === 'roomTransition' && (p as { phase: string }).phase === 'in')).toBe(true);
+  });
+
+  it('a guest who joins mid-room gets no stale events', () => {
+    const { host, writer } = hostAndPuppet();
+    writer.take();
+    for (let i = 0; i < 30; i++) host.step();
+    writer.needFull = true;
+    writer.joining = true;
+    expect(writer.take().events).toEqual([]);
+  });
+});
+
+describe('snapshots carry stage 3 (M11)', () => {
+  it('player 2 sees improbability mode, the collapse, the falling tank and the hovering jetpack', () => {
+    const { host, puppet, writer } = hostAndPuppet();
+    const send = () => applySnapshot(puppet, JSON.parse(JSON.stringify(writer.take())) as Snapshot);
+    send();
+    setImprobable(host, true);
+    startCollapse(host, -1, 0);
+    dropBlock(host, 1.5, 9.6);
+    const jet = createActor('grunt', -2, 9.2, 1);
+    jet.hover = 1.3;
+    jet.pose.jetpack = true;
+    host.actors.push(jet);
+    for (let i = 0; i < 90; i++) host.step();
+    send();
+    expect(puppet.physics).toBe('improbable');
+    expect(puppet.room.void).toEqual(host.room.void);
+    expect(puppet.blocks.length).toBe(1);
+    expect(puppet.actorById(jet.id)?.hover).toBe(1.3);
   });
 });

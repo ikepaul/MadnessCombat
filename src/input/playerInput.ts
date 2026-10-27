@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { PlayerCommand } from '../sim/command';
+import { type Action, SETTINGS } from '../settings';
 
 /**
  * Keyboard + mouse -> PlayerCommand (PLAN.md controls): WASD move (W/S = depth), Space jump,
@@ -7,10 +8,11 @@ import type { PlayerCommand } from '../sim/command';
  * or punch when empty: light / heavy, uppercut when aimed steeply up), F grab / throw,
  * E pick up / pull out, R reload, Q throw the held weapon, G (hold) cook a grenade and release
  * to lob it, Shift (hold) split aim. Edges are latched until
- * the sim consumes them, so a press between ticks is never lost.
+ * the sim consumes them, so a press between ticks is never lost. M13: the keys come from the
+ * settings (rebindable); C stays a second dive key while dive is on its default.
  */
 export class PlayerInput {
-  private keys: Record<'W' | 'A' | 'S' | 'D' | 'SPACE' | 'CTRL' | 'C' | 'F' | 'E' | 'R' | 'Q' | 'G' | 'SHIFT', Phaser.Input.Keyboard.Key>;
+  private keys: Record<Action, Phaser.Input.Keyboard.Key>;
   private jumpLatch = false;
   private diveLatch = false;
   private grabLatch = false;
@@ -25,19 +27,16 @@ export class PlayerInput {
   constructor(private scene: Phaser.Scene) {
     const kb = scene.input.keyboard!;
     kb.addCapture(['SPACE', 'CTRL', 'SHIFT']);
-    const K = Phaser.Input.Keyboard.KeyCodes;
-    this.keys = {
-      W: kb.addKey(K.W), A: kb.addKey(K.A), S: kb.addKey(K.S), D: kb.addKey(K.D),
-      SPACE: kb.addKey(K.SPACE), CTRL: kb.addKey(K.CTRL), C: kb.addKey(K.C), F: kb.addKey(K.F),
-      E: kb.addKey(K.E), R: kb.addKey(K.R), Q: kb.addKey(K.Q), G: kb.addKey(K.G), SHIFT: kb.addKey(K.SHIFT),
-    };
-    this.keys.SPACE.on('down', () => (this.jumpLatch = true));
-    this.keys.CTRL.on('down', () => (this.diveLatch = true));
-    this.keys.C.on('down', () => (this.diveLatch = true));
-    this.keys.F.on('down', () => (this.grabLatch = true));
-    this.keys.E.on('down', () => (this.pickupLatch = true));
-    this.keys.R.on('down', () => (this.reloadLatch = true));
-    this.keys.Q.on('down', () => (this.throwLatch = true));
+    const K = Phaser.Input.Keyboard.KeyCodes as Record<string, number>;
+    const key = (a: Action) => kb.addKey(K[SETTINGS.keys[a]] ?? K.SPACE);
+    this.keys = Object.fromEntries((Object.keys(SETTINGS.keys) as Action[]).map((a) => [a, key(a)])) as Record<Action, Phaser.Input.Keyboard.Key>;
+    this.keys.jump.on('down', () => (this.jumpLatch = true));
+    this.keys.dive.on('down', () => (this.diveLatch = true));
+    if (SETTINGS.keys.dive === 'CTRL') kb.addKey(K.C).on('down', () => (this.diveLatch = true));
+    this.keys.grab.on('down', () => (this.grabLatch = true));
+    this.keys.use.on('down', () => (this.pickupLatch = true));
+    this.keys.reload.on('down', () => (this.reloadLatch = true));
+    this.keys.throw.on('down', () => (this.throwLatch = true));
     scene.input.mouse?.disableContextMenu();
     scene.input.on('pointermove', () => (this.aimActive = true));
     scene.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
@@ -52,8 +51,8 @@ export class PlayerInput {
     const k = this.keys;
     const p = this.scene.input.activePointer;
     return {
-      moveX: (k.D.isDown ? 1 : 0) - (k.A.isDown ? 1 : 0),
-      moveZ: (k.W.isDown ? 1 : 0) - (k.S.isDown ? 1 : 0),
+      moveX: (k.right.isDown ? 1 : 0) - (k.left.isDown ? 1 : 0),
+      moveZ: (k.up.isDown ? 1 : 0) - (k.down.isDown ? 1 : 0),
       jump: this.jumpLatch,
       dive: this.diveLatch,
       attack: this.attackLatch,
@@ -64,8 +63,8 @@ export class PlayerInput {
       pickup: this.pickupLatch,
       reload: this.reloadLatch,
       throwGun: this.throwLatch,
-      split: k.SHIFT.isDown,
-      grenade: k.G.isDown,
+      split: k.split.isDown,
+      grenade: k.grenade.isDown,
     };
   }
 

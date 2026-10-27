@@ -370,17 +370,17 @@ Labs: `combo-juggle`, `combo-wall-bounce`, `combo-pop-catch`, `combo-gun-throw`,
 **Read first:** `research/stages.md` (Stage 3 rooms 1–6), `world-improbability-mode`, `world-arena-collapse`, `world-falling-hazard`, `move-fall-transition`, `boss-clown` (clips 2–3), `enemy-sun-brute`, `melee-environment-weapon`, `world-kill-counter`.
 
 Build:
-- [ ] **Design pass first**: our own surreal street (no storefront from the show), our own "background object comes alive" brute instead of the sun, our own giant falling object instead of the marshmallow, the jetpack mini-boss look.
-- [ ] Loadout: two knives. Rooms 1–4: vent drop takedown, knife throws + retrieval, table room (an enemy grabs the floor axe, table flip, throw the empty rifle, fight from the table), camera room (security camera → cutscene: the target activates the improbability device).
-- [ ] **Improbability mode**: knockback ×2.3–2.5, wall/ceiling restitution 0.8, 10% chance to embed in the ceiling (invented), enemies enter flying. Active until the end of the street.
-- [ ] **Arena collapse**: crack telegraph ≈ 1 s, then half the floor falls away (things on it fall).
-- [ ] **Jetpack mini-boss (fight 1)**: hovers over the void, long MG burst (human shield/cover), flies off when empty, re-enters behind you through a door (door-open telegraph) and shoves. Scripted outcome: you fall → **fall transition** into the street (shadow, face-down landing).
-- [ ] Street: two-sided ambush, weapon churn, surreal sky, **giant falling object** (shadow 0.5–1 s, crush, becomes a solid block), uproot the street sign, **brute** (≈ 6 melee hits, invented), the mini-boss with a scimitar → **pin** to the block → cutscene revive as a zombie.
+- [x] **Design pass first**: our own surreal street (no storefront from the show), our own "background object comes alive" brute instead of the sun, our own giant falling object instead of the marshmallow, the jetpack mini-boss look.
+- [x] Loadout: two knives. Rooms 1–4: vent drop takedown, knife throws + retrieval, table room (an enemy grabs the floor axe, table flip, throw the empty rifle, fight from the table), camera room (security camera → cutscene: the target activates the improbability device).
+- [x] **Improbability mode**: knockback ×2.3–2.5, wall/ceiling restitution 0.8, 10% chance to embed in the ceiling (invented), enemies enter flying. Active until the end of the street.
+- [x] **Arena collapse**: crack telegraph ≈ 1 s, then half the floor falls away (things on it fall).
+- [x] **Jetpack mini-boss (fight 1)**: hovers over the void, long MG burst (human shield/cover), flies off when empty, re-enters behind you through a door (door-open telegraph) and shoves. Scripted outcome: you fall → **fall transition** into the street (shadow, face-down landing).
+- [x] Street: two-sided ambush, weapon churn, surreal sky, **giant falling object** (shadow 0.5–1 s, crush, becomes a solid block), uproot the street sign, **brute** (≈ 6 melee hits, invented), the mini-boss with a scimitar → **pin** to the block → cutscene revive as a zombie.
 
 Look & sound:
-- [ ] Warm stage palette. Improbability visuals: rubbery squash on wall bounces, motion trails on flying bodies, surreal sky layer (own designs), the collapse with a void edge.
-- [ ] Improbability audio: warped "boing" layer on knockbacks, tape-wobble filter on the world bus, falling-object whistle, jetpack burner loop, MG roll.
-- [ ] Stage 3 music cues wired (opening, building combat, improbability street).
+- [x] Warm stage palette. Improbability visuals: rubbery squash on wall bounces, motion trails on flying bodies, surreal sky layer (own designs), the collapse with a void edge.
+- [x] Improbability audio: warped "boing" layer on knockbacks, tape-wobble filter on the world bus, falling-object whistle, jetpack burner loop, MG roll.
+- [x] Stage 3 music cues wired (opening, building combat, improbability street).
 
 Acceptance: improbability bodies bounce off walls and the ceiling, and stop doing so after the mode ends · the collapse kills everything on the falling side · the mini-boss fight can't end in his death (scripted) · pin works only next to a solid prop.
 Labs: `world-improbability-mode`, `world-arena-collapse`, `world-falling-hazard`, `move-fall-transition`, `boss-clown` (clips 2–3), `enemy-sun-brute`, `combat-human-shield`.
@@ -390,15 +390,15 @@ Labs: `world-improbability-mode`, `world-arena-collapse`, `world-falling-hazard`
 **Read first:** `research/stages.md` (Stage 3 rooms 7–11), `world-arena-lock`, `boss-clown` (clip 4), `boss-halo` (clips 6–7), `throw-catch-return`, `world-destructible` (clip 2), `world-last-stand`.
 
 Build:
-- [ ] Desert: squad leader + knife squad (knife-disarm), **arena lock** (walls drop with shadows and crush), drop-in waves, blood flood (cosmetic), **zombie mini-boss** on the jetpack with the street sign (bullets barely hurt, invented 10% damage) → grab the sign → finisher.
-- [ ] Boss: mass raise ≈ 5, bullet-sponge (no damage here), **wall blast** = transition through a destructible wall into the next room.
-- [ ] Vending room: knife-throwing grunt (catch-and-return), the empty-pistol gag, throw into the vending machine, the boss flies in, raises 2 zombies, **sword dive**, damage → **teleport away**.
-- [ ] Console room (the target flees, door waves).
-- [ ] Final lift room: the target + 2 elite bodyguards → **last stand** (decided): red bars, can't move, aim/fire for ≈ 5 s (the backward over-the-shoulder shot from M10b is how the boss behind you is hit), kill the boss and the target → death → credits card with body count vs. 91.
+- [x] Desert: squad leader + knife squad (knife-disarm), **arena lock** (walls drop with shadows and crush), drop-in waves, blood flood (cosmetic), **zombie mini-boss** on the jetpack with the street sign (bullets barely hurt, invented 10% damage) → grab the sign → finisher.
+- [x] Boss: mass raise ≈ 5, bullet-sponge (no damage here), **wall blast** = transition through a destructible wall into the next room.
+- [x] Vending room: knife-throwing grunt (catch-and-return), the empty-pistol gag, throw into the vending machine, the boss flies in, raises 2 zombies, **sword dive**, damage → **teleport away**.
+- [x] Console room (the target flees, door waves).
+- [x] Final lift room: the target + 2 elite bodyguards → **last stand** (decided): red bars, can't move, aim/fire for ≈ 5 s (the backward over-the-shoulder shot from M10b is how the boss behind you is hit), kill the boss and the target → death → credits card with body count vs. 91.
 
 Look & sound:
-- [ ] Wall drops with dust and impact shake, the blood flood spreading, the wall-blast hole, teleport implosion VFX, last-stand red bars + heartbeat + desaturation fade.
-- [ ] Sealed-arena / boss-duel music cue, last-stand cue (heartbeat + drone), credits.
+- [x] Wall drops with dust and impact shake, the blood flood spreading, the wall-blast hole, teleport implosion VFX, last-stand red bars + heartbeat + desaturation fade.
+- [x] Sealed-arena / boss-duel music cue, last-stand cue (heartbeat + drone), credits.
 
 Acceptance: the last stand ends the stage whether or not both are killed (proposal: the stage still counts as finished) · the stage completes with a scripted bot · all three stages are playable in sequence.
 Labs: `world-arena-lock`, `boss-clown` (clip 4), `boss-halo` (clips 6–7), `throw-catch-return`, `world-destructible` (clip 2), `world-last-stand`, `world-kill-counter`.
@@ -408,12 +408,12 @@ Labs: `world-arena-lock`, `boss-clown` (clip 4), `boss-halo` (clips 6–7), `thr
 **Read first:** `research/design-decisions.md` ("Still open"). Ask the user those questions before starting (gamepad, difficulty, checkpoints, stage select).
 
 Build:
-- [ ] Title screen, stage select, pause menu, settings (volumes, key rebinding, blood toggle, **effect intensity** for shake/flashes/chromatic, reduced-motion preset), end-of-stage body-count comparison.
-- [ ] Checkpoints per room (or whatever the user picks). Restart flow.
-- [ ] Credits screen from `assets/CREDITS.md` (CC-BY credits are required: the gunshot recordings).
-- [ ] Final music integration (all delivered stems, mix pass at −16 LUFS), final SFX mix pass per stage.
-- [ ] Final art pass: consistency of line weights and palettes across all rooms, title/stage cards in our own design.
-- [ ] Performance pass: decal/corpse caps, profiling the heaviest rooms (stage 2 office, stage 3 desert) at 60 fps with full effects.
+- [x] Title screen, stage select, pause menu, settings (volumes, key rebinding, blood toggle, **effect intensity** for shake/flashes/chromatic, reduced-motion preset), end-of-stage body-count comparison.
+- [x] Checkpoints per room (or whatever the user picks). Restart flow.
+- [x] Credits screen from `assets/CREDITS.md` (CC-BY credits are required: the gunshot recordings).
+- [ ] Final music integration (all delivered stems, mix pass at −16 LUFS), final SFX mix pass per stage. **Waiting on the user's stems** (only `MadnessCombat.V1.wav` so far).
+- [ ] Final art pass: consistency of line weights and palettes across all rooms, title/stage cards in our own design. (Title card done, working title "BODY COUNT" until the user names the game.)
+- [x] Performance pass: decal/corpse caps, profiling the heaviest rooms (stage 2 office, stage 3 desert) at 60 fps with full effects. (Numbers in `research/performance.md`: both rooms hold 60 fps with 60+ bodies; the room restart stall after a death went from ~1.6 s to ~15 ms by reusing the layer canvases. Decals stay capped at 500; corpses need no cap.)
 - [ ] Bugfix and playtest pass on all invented numbers in `tuning.ts` and `feel.ts`.
 
 Acceptance: a full playthrough of all three stages from the title screen · 60 fps in the heaviest rooms on the dev machine with full effects.

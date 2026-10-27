@@ -36,7 +36,11 @@ export interface ActorSnap {
   variant?: Actor['variant'];
   /** M8: the boombox NPC's boombox. */
   carry?: Actor['carry'];
-  unaware?: 'stand' | 'smoke' | 'patrol';
+  unaware?: 'stand' | 'smoke' | 'chat' | 'patrol';
+  /** M11: hovering (the jetpack: its flames), falling into the void, stuck in the ceiling. */
+  hover?: number;
+  fallingAway?: number;
+  ceilingStuck?: boolean;
 }
 
 export interface Snapshot {
@@ -49,6 +53,17 @@ export interface Snapshot {
   actors: ActorSnap[];
   items: Item[];
   doors: number[];
+  /** M10: the elevator (shaft scroll, the welder's cut, the cables) and the cab roof's holes. */
+  elevator?: World['elevator'];
+  decks?: World['room']['decks'];
+  /** M11: improbability mode, the collapse (crack / void), falling tanks, the vending machine at the back. */
+  physics?: World['physics'];
+  gore?: World['gore'];
+  stage3Room?: Pick<World['room'], 'void' | 'crack' | 'vending' | 'lockWalls' | 'outdoor'>;
+  /** M12: the desert box's falling walls and the last stand (the red bars). */
+  lockWalls?: World['lockWalls'];
+  lastStand?: World['lastStand'];
+  blocks?: World['blocks'];
   /** M7: props change in play (kicked-over tables). */
   props: World['room']['props'];
   kills: number;
@@ -68,6 +83,7 @@ function snapActor(a: World['actors'][number]): ActorSnap {
     bodyState: a.body.state, bodyHeight: a.body.height, corpse: a.corpse?.phase, gibbed: a.corpse?.gibbed, pinned: a.corpse?.pinned,
     pose: a.pose, hands: a.hands, grenades: a.grenades,
     variant: a.variant, carry: a.carry, unaware: a.ai?.aware === false ? a.ai.idle ?? 'stand' : undefined,
+    hover: a.hover, fallingAway: a.fallingAway, ceilingStuck: a.ceilingStuck,
   };
 }
 
@@ -77,6 +93,12 @@ export class SnapshotWriter {
   /** Corpses that froze since the last snapshot: sent once more so the guest bakes the final pose. */
   private justFrozen = new Set<number>();
   needFull = true;
+  /**
+   * The next full snapshot is for a guest who just (re)joined: it skips the buffered events (they
+   * belong to a world the guest never saw). A full snapshot for a room change keeps them, or the
+   * guest would miss that tick's events (the ink wipe uncovering the new room, M9).
+   */
+  joining = true;
 
   constructor(private world: World, private session: number) {
     world.events.onAny((type, payload) => {
@@ -98,11 +120,15 @@ export class SnapshotWriter {
     const snap: Snapshot = {
       session: this.session, roomId: w.room.id, tick: w.tick, full, actors,
       items: w.items, doors: w.doors.map((d) => d.open), props: w.room.props, cannons: w.cannons, balls: w.balls, kills: w.kills, lastKillKind: w.lastKillKind,
-      events: full ? [] : this.events,
+      elevator: w.elevator, decks: w.room.decks,
+      physics: w.physics, gore: w.gore, blocks: w.blocks, stage3Room: { void: w.room.void, crack: w.room.crack, vending: w.room.vending, lockWalls: w.room.lockWalls, outdoor: w.room.outdoor },
+      lockWalls: w.lockWalls, lastStand: w.lastStand,
+      events: full && this.joining ? [] : this.events,
     };
     this.events = [];
     this.justFrozen.clear();
     this.needFull = false;
+    this.joining = false;
     return snap;
   }
 }
@@ -137,6 +163,9 @@ export function applySnapshot(world: World, s: Snapshot): void {
     if (as.enemy && !a.ai) a.ai = newAiState(world);
     a.kind = as.kind;
     a.variant = as.variant;
+    a.hover = as.hover;
+    a.fallingAway = as.fallingAway;
+    a.ceilingStuck = as.ceilingStuck;
     a.carry = as.carry;
     if (a.ai) { a.ai.aware = as.unaware ? false : true; a.ai.idle = as.unaware; }
     if (as.playerIndex !== undefined) {
@@ -146,6 +175,17 @@ export function applySnapshot(world: World, s: Snapshot): void {
   }
   world.items = s.items;
   if (s.props) world.room.props = s.props;
+  world.elevator = s.elevator;
+  if (s.physics) world.physics = s.physics;
+  if (s.gore) world.gore = s.gore;
+  if (s.blocks) world.blocks = s.blocks;
+  if (s.stage3Room) {
+    world.room.void = s.stage3Room.void; world.room.crack = s.stage3Room.crack; world.room.vending = s.stage3Room.vending;
+    world.room.lockWalls = s.stage3Room.lockWalls; world.room.outdoor = s.stage3Room.outdoor;
+  }
+  if (s.lockWalls) world.lockWalls = s.lockWalls;
+  world.lastStand = s.lastStand;
+  if (s.decks) world.room.decks = s.decks;
   if (s.cannons) world.cannons = s.cannons;
   if (s.balls) world.balls = s.balls;
   s.doors.forEach((open, i) => { if (world.doors[i]) world.doors[i].open = open; });

@@ -10,6 +10,9 @@ import { isWeapon, WEAPONS } from '../data/weapons';
 import { SETTINGS } from '../settings';
 import type { GameScene } from './GameScene';
 import { StageHud } from '../render/stageHud';
+import { usableExitAt } from '../sim/stage';
+import { Menu, type MenuItem } from '../ui/menu';
+import { controlsItems, settingsItems } from '../ui/settingsMenu';
 
 /** HUD + debug overlay. A separate scene/camera so post FX never touch it. */
 export class UIScene extends Phaser.Scene {
@@ -34,6 +37,8 @@ export class UIScene extends Phaser.Scene {
   private titleCard!: Phaser.GameObjects.Container;
   private caption!: Phaser.GameObjects.Text;
   private scriptCardUntil = 0;
+  /** M13: the pause menu (Esc). */
+  private pause?: { bg: Phaser.GameObjects.Rectangle; title: Phaser.GameObjects.Text; menu: Menu };
   /** M9: the ink wipe between rooms and the tracker. */
   private stageHud!: StageHud;
 
@@ -42,6 +47,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.events.once('shutdown', () => { this.pause?.menu.destroy(); this.pause = undefined; });
     const game = this.scene.get('game') as GameScene;
     this.grid = this.add.graphics();
     this.hurt = this.add.graphics();
@@ -85,6 +91,22 @@ export class UIScene extends Phaser.Scene {
       fontFamily: 'Inter', fontSize: '30px', color: '#ffffff', backgroundColor: '#000000cc', padding: { x: 18, y: 10 }, align: 'center', wordWrap: { width: 1400 },
     }).setOrigin(0.5, 0).setDepth(90).setVisible(false);
     this.scriptCardUntil = 0;
+    // playtest: standing where E takes an exit (ladder, vent, lift) shows the key over the hero
+    this.usePrompt = this.add.text(0, 0, '', {
+      fontFamily: 'Anton', fontSize: '26px', color: '#ffffff', backgroundColor: '#000000cc', padding: { x: 10, y: 4 },
+    }).setOrigin(0.5, 1).setDepth(80).setVisible(false);
+  }
+
+  private usePrompt!: Phaser.GameObjects.Text;
+
+  private drawUsePrompt(game: GameScene): void {
+    const me = game.world.players[game.localPlayer];
+    const e = me ? usableExitAt(game.world, me) : undefined;
+    this.usePrompt.setVisible(!!e);
+    if (!e || !me) return;
+    const verb = e.kind === 'vent' ? 'go in' : e.kind === 'lift' ? 'ride' : 'climb';
+    const [x, y] = project(me.pos.x, me.pos.y + 1.3, me.pos.z);
+    this.usePrompt.setText(`${SETTINGS.keys.use}  ${verb}`).setPosition(x, y);
   }
 
   /** End-of-room card: plain text on black, like an episode title card (own wording). */
@@ -96,12 +118,59 @@ export class UIScene extends Phaser.Scene {
     return this.add.container(0, 0, [bg, title, n, sub]).setDepth(100);
   }
 
+  /** When the pause menu last closed: the same Esc press must not open it again. */
+  private pauseClosedAt = -1;
+
+  /** The game's Esc: open the pause menu (the menu's own Esc handles closing it). */
+  openPause(e?: KeyboardEvent): void {
+    if (!this.pause && !(e && e.timeStamp < this.pauseClosedAt)) this.togglePause();
+  }
+
+  /** M13: Esc opens / closes the pause menu: Resume, Restart room, Settings, Controls, Quit to title. */
+  togglePause(): void {
+    const game = this.scene.get('game') as GameScene;
+    if (this.pause) { this.closePause(); return; }
+    const host = game.coop !== 'guest';
+    if (host) game.clock.paused = true;
+    const bg = this.add.rectangle(0, 0, 1920, 1080, 0x000000, 0.72).setOrigin(0, 0).setDepth(190);
+    const title = this.add.text(200, 220, 'PAUSED', { fontFamily: 'Anton', fontSize: '96px', color: '#f2f2f3' }).setDepth(200);
+    const show = (view: 'main' | 'settings' | 'controls') => {
+      this.pause?.menu.destroy();
+      const back = () => (view === 'controls' ? show('settings') : view === 'settings' ? show('main') : this.closePause());
+      const items: MenuItem[] = view === 'main'
+        ? [
+            { label: 'Resume', action: () => this.closePause() },
+            { label: 'Restart room', disabled: !host, action: () => { this.closePause(); game.restart(); } },
+            { label: 'Settings', action: () => show('settings') },
+            { label: 'Quit to title', action: () => { this.closePause(); game.toTitle(); } },
+          ]
+        : view === 'settings' ? settingsItems(() => show('controls'), () => show('main'))
+          : controlsItems(this, (on) => { if (this.pause) this.pause.menu.hold = on; }, () => show('settings'));
+      const size = view === 'main' ? 48 : view === 'settings' ? 34 : 26, gap = view === 'main' ? 70 : view === 'settings' ? 50 : 36;
+      const menu = new Menu(this, items, 260, 400, back, size, gap);
+      this.pause = { bg, title, menu };
+    };
+    show('main');
+  }
+
+  private closePause(): void {
+    const game = this.scene.get('game') as GameScene;
+    if (!this.pause) return;
+    this.pause.menu.destroy();
+    this.pause.bg.destroy();
+    this.pause.title.destroy();
+    this.pause = undefined;
+    this.pauseClosedAt = performance.now();
+    if (game.coop !== 'guest') game.clock.paused = false;
+  }
+
   update(_time: number, delta: number): void {
     const game = this.scene.get('game') as GameScene;
     const p = game.world.player;
     this.drawPips(game, delta / 1000);
     this.drawAmmo(game);
     this.drawCounter(game);
+    this.drawUsePrompt(game);
     this.stageHud.update();
     if (game.world.time >= this.scriptCardUntil) { this.titleCard.setVisible(false); this.caption.setVisible(false); }
     if (game.lab) {
@@ -142,7 +211,10 @@ export class UIScene extends Phaser.Scene {
       const vs = !target ? '' : kills > target ? `${kills - target} more than` : kills === target ? 'exactly' : `${target - kills} short of`;
       const episode = target ? `${vs} the episode's ${target}\n` : '';
       // co-op: only the host restarts the room
-      const again = game.coop === 'guest' ? 'waiting for the host to fight again' : 'press Enter to fight again';
+      const next = game.nextStage;
+      const again = game.coop === 'guest' ? 'waiting for the host'
+        : next ? `Enter: on to Stage ${next}  ·  R: Stage ${game.stageInfo!.stage} again  ·  Esc: title`
+          : game.stageInfo?.stage === 3 && !game.coop ? 'Enter: credits  ·  R: Stage 3 again  ·  Esc: title' : 'Enter: fight again  ·  Esc: title';
       (this.card.getByName('sub') as Phaser.GameObjects.Text).setText(`${episode}${again}`);
       this.card.setVisible(true);
     }
