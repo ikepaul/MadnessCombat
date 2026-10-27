@@ -233,6 +233,8 @@ export interface Actor {
   grabbedBy?: number;
   /** Punch pressed during the previous swing (input buffer). */
   queued?: { kind: Exclude<AttackKind, 'finisher' | 'throw'>; aim?: [number, number]; at: number };
+  /** A grab (F) pressed during a move: world time of the press (playtest: chaining). */
+  grabQueued?: number;
   /** Combo chain being landed on this actor (src/sim/combat.ts chainBonus). */
   chain?: { by: number; count: number; t: number; last: string };
   /** Walk speed factor this tick (the machine gun slows you while firing). */

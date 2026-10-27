@@ -390,6 +390,14 @@ export const TUNING = {
   grab: {
     /** "contact range": same reach as a punch. invented */
     range: 0.6,
+    /**
+     * Grab assist (playtest 2026-10-27, "less precise"): F takes the nearest target within this
+     * radius (H, either side) and this depth (H): living enemies first, then bodies, then heads.
+     * A grab pressed during a move is kept this long (s) and fires when the move ends. invented
+     */
+    assistRadius: 1.1,
+    assistDepth: 0.45,
+    buffer: 0.25,
     /** Walk speed while carrying a body. invented */
     carrySpeed: 0.6, // combat-human-shield: you move at 0.6x while holding a body (invented, PLAN.md M6)
     /** Throw: wind-up to release, then recovery (matches the "throw" clip). invented */

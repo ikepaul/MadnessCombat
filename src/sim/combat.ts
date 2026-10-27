@@ -68,6 +68,8 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
         cmd = { ...cmd, attack: a.queued.kind, aim: a.queued.aim };
       }
       a.queued = undefined;
+      if (!cmd.grab && !cmd.attack && a.grabQueued !== undefined && world.time - a.grabQueued <= G.buffer + 1e-6 && b.state === 'ground') cmd = { ...cmd, grab: true };
+      a.grabQueued = undefined;
       // M7: a grunt kicks a table over for cover
       if (cmd.flip !== undefined && b.state === 'ground' && !a.holding) { startAction(world, a, 'flip', cmd, { prop: cmd.flip }); break; }
       // M6: a melee weapon in the hand swings / stabs / is thrown instead of punching
@@ -91,6 +93,8 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
     case 'attack': {
       const k = a.attack?.kind;
       if (cmd.attack && (k === 'light' || k === 'heavy' || k === 'uppercut' || k === 'finisher')) a.queued = { kind: cmd.attack, aim: cmd.aim, at: world.time };
+      // a grab pressed during a move comes out when it ends (playtest: chaining)
+      if (cmd.grab && k !== 'throw') a.grabQueued = world.time;
       // in the air the jump carries on; on the ground keep walking through a swing
       // (finishers, item throws, pulls and steals are planted)
       if (a.body.state === 'air') stepAirborneAction(world, a, cmd, dt);
@@ -776,26 +780,30 @@ function tryGrab(world: World, a: Actor): void {
   const consider = (score: number, act?: Actor, itemId?: number) => {
     if (!best || score < best.score) best = { score, act, itemId };
   };
+  // grab assist (playtest 2026-10-27): the nearest within a radius on either side, not just what
+  // is straight ahead; living enemies first (+0), then bodies (+10), then heads (+20)
   for (const o of world.actors) {
-    if (o === a || o.grabbedBy !== undefined || o.state === 'getUp' || o.state === 'downed' || Math.abs(o.pos.z - a.pos.z) > M.depthBand) continue;
-    if (o.kind === 'boss' && alive(o)) continue; // he hovers out of reach of a grab
+    if (o === a || o.grabbedBy !== undefined || o.state === 'getUp' || o.state === 'downed') continue;
+    if (o.kind === 'hero' || (o.kind === 'boss' && alive(o))) continue; // not your partner; he hovers out of reach
     if (o.state === 'dead' && (o.corpse?.phase === 'headless' || o.flight || o.corpse?.pinned || o.corpse?.gibbed)) continue;
     if (o.state === 'knockback') continue;
-    const d = (o.pos.x - a.pos.x) * a.facing;
+    const dx = Math.abs(o.pos.x - a.pos.x), dz = Math.abs(o.pos.z - a.pos.z);
     // lying bodies are long: measure to the nearer end
-    const reach = o.state === 'dead' || o.state === 'down' ? R + 0.4 : R;
-    if (d < -0.2 || d > reach) continue;
-    consider(Math.abs(d) + (alive(o) ? 0 : 1), o);
+    const reach = o.state === 'dead' || o.state === 'down' ? G.assistRadius + 0.4 : G.assistRadius;
+    if (dz > G.assistDepth || dx > reach) continue;
+    consider(Math.hypot(dx, dz) + (alive(o) ? (o.variant && !o.ai ? 5 : 0) : 10), o);
   }
   for (const it of world.items) {
-    if (it.kind !== 'head' || it.state !== 'floor' || Math.abs(it.pos.z - a.pos.z) > M.depthBand) continue;
-    const d = (it.pos.x - a.pos.x) * a.facing;
-    if (d >= -0.2 && d <= R) consider(Math.abs(d) + 2, undefined, it.id);
+    if (it.kind !== 'head' || it.state !== 'floor' || Math.abs(it.pos.z - a.pos.z) > G.assistDepth) continue;
+    const dx = Math.abs(it.pos.x - a.pos.x);
+    if (dx <= R + 0.3) consider(dx + 20, undefined, it.id);
   }
   if (!best) return;
   const pick = best as { act?: Actor; itemId?: number };
   if (pick.act) {
     const o = pick.act;
+    // turn to it (it may be behind you)
+    if (Math.abs(o.pos.x - a.pos.x) > 0.02) a.facing = o.pos.x > a.pos.x ? 1 : -1;
     // combat-disarm: F on an armed enemy steals the weapon instead of grabbing the body
     if (alive(o) && stealTarget(world, a, o)) return;
     if (o.corpse?.phase === 'frozen') world.events.emit('corpseThawed', { actorId: o.id });
