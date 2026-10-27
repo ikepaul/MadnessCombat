@@ -5,6 +5,12 @@ import '../labs/gunLabs';
 import '../labs/meleeLabs';
 import '../labs/movementLabs';
 import '../labs/toolLabs';
+import '../labs/throwLabs';
+import '../labs/enemyLabs';
+import '../labs/bossLabs';
+import '../labs/hazardLabs';
+import '../labs/stage2Labs';
+import '../labs/stage3Labs';
 import { allLabSlugs, getLab } from '../labs/registry';
 
 /** `/?lab` with no slug: every expected lab, built ones clickable. */

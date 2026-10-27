@@ -6,7 +6,7 @@ import Phaser from 'phaser';
 import type { AudioEngine } from '../audio/mixer';
 import { FEEL, INTENSITY_SCALE } from '../data/feel';
 import type { FeelSink } from '../feel/feel';
-import { SETTINGS } from '../settings';
+import { effectLevel } from '../settings';
 import type { FixedClock } from '../sim/clock';
 import type { PostFx } from './post';
 
@@ -22,7 +22,7 @@ export class FeelFx implements FeelSink {
   constructor(private camera: Phaser.Cameras.Scene2D.Camera, private clock: FixedClock, private post: PostFx, private audio?: AudioEngine) {}
 
   private get k(): number {
-    return INTENSITY_SCALE[SETTINGS.effects];
+    return INTENSITY_SCALE[effectLevel()];
   }
 
   hitStop(seconds: number): void {

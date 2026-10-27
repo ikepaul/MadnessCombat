@@ -380,12 +380,12 @@ Labs: `world-arena-lock`, `boss-clown` (clip 4), `boss-halo` (clips 6–7), `thr
 **Read first:** `research/design-decisions.md` ("Still open"). Ask the user those questions before starting (gamepad, difficulty, checkpoints, stage select).
 
 Build:
-- [ ] Title screen, stage select, pause menu, settings (volumes, key rebinding, blood toggle, **effect intensity** for shake/flashes/chromatic, reduced-motion preset), end-of-stage body-count comparison.
-- [ ] Checkpoints per room (or whatever the user picks). Restart flow.
-- [ ] Credits screen from `assets/CREDITS.md` (CC-BY credits are required: the gunshot recordings).
-- [ ] Final music integration (all delivered stems, mix pass at −16 LUFS), final SFX mix pass per stage.
-- [ ] Final art pass: consistency of line weights and palettes across all rooms, title/stage cards in our own design.
-- [ ] Performance pass: decal/corpse caps, profiling the heaviest rooms (stage 2 office, stage 3 desert) at 60 fps with full effects.
+- [x] Title screen, stage select, pause menu, settings (volumes, key rebinding, blood toggle, **effect intensity** for shake/flashes/chromatic, reduced-motion preset), end-of-stage body-count comparison.
+- [x] Checkpoints per room (or whatever the user picks). Restart flow.
+- [x] Credits screen from `assets/CREDITS.md` (CC-BY credits are required: the gunshot recordings).
+- [ ] Final music integration (all delivered stems, mix pass at −16 LUFS), final SFX mix pass per stage. **Waiting on the user's stems** (only `MadnessCombat.V1.wav` so far).
+- [ ] Final art pass: consistency of line weights and palettes across all rooms, title/stage cards in our own design. (Title card done, working title "BODY COUNT" until the user names the game.)
+- [x] Performance pass: decal/corpse caps, profiling the heaviest rooms (stage 2 office, stage 3 desert) at 60 fps with full effects. (Numbers in `research/performance.md`: both rooms hold 60 fps with 60+ bodies; the room restart stall after a death went from ~1.6 s to ~15 ms by reusing the layer canvases. Decals stay capped at 500; corpses need no cap.)
 - [ ] Bugfix and playtest pass on all invented numbers in `tuning.ts` and `feel.ts`.
 
 Acceptance: a full playthrough of all three stages from the title screen · 60 fps in the heaviest rooms on the dev machine with full effects.
