@@ -630,6 +630,19 @@ export const TUNING = {
     spin: { radius: 0.75, period: 1.2, walk: 0.6, maxTime: 4, fireCos: 0.38, sweepIn: 0.45, sweepOut: 1.1, sweepArc: 0.3, sweepSpeed: 5, release: 9 },
   },
 
+  /**
+   * M19 rage meter and rage fatalities (design/rage.md). All invented except `base`, the user's 10%.
+   * Gain: a kill whose type isn't one of the last `recent` gives base + streakStep x min(streak, streakMax).
+   */
+  rage: {
+    base: 0.10, streakStep: 0.05, streakMax: 3, recent: 2,
+    styleBonus: 0.05, teamBonus: 0.05, multi: 0.03, bossBonus: 0.2,
+    /** Victims at most, and the stun the frozen bystanders get when the world resumes (s). */
+    cap: 6, aftershock: 0.4,
+    /** Victims must be on screen, with this margin (H). */
+    screenMargin: 0.3,
+  },
+
   /** Soft push-apart between standing actors. invented */
   separation: { distance: 0.32, rate: 8 },
 

@@ -7,6 +7,7 @@ import { GRAVITY, TUNING } from '../data/tuning';
 import { DISARM, GRENADE, GUARD, GUN_BLOCK, isMelee, LOW_SLASH, MELEE, SHIELD, TOPPLE } from '../data/melee';
 import { GUNS, isWeapon, WEAPONS } from '../data/weapons';
 import { stepHands, stepUse } from './guns';
+import { killType, type KillType } from './rage';
 import { isPartner, launchToss, releaseSpin, setDown, stepCarried, stepTossed, tryLift, tryPass } from './coop';
 import { blastFlight } from './explosives';
 import { tryTakedown } from './stealth';
@@ -597,7 +598,10 @@ export function applyHit(
     // M10b head punt: a heavy that kills a juggled grunt sends the head flying into the next one
     const punt = juggled && o.kind === 'grunt' && (kind === 'heavy' || kind === 'uppercut');
     const decap = o.kind === 'grunt' && (punt || double || gore.decap || kind === 'heavy' || kind === 'uppercut' || kind === 'slash' || (kind === 'finisher' && heavy) || ((pointBlank || kind === 'gun') && part === 'head'));
-    die(world, o, by, kind, dirX, dirZ, decap && !gore.gib, pointBlank ? 'heavy' : kind, { team: double || !!o.chain?.team || by?.tossT !== undefined || !!by?.carried });
+    const team = double || !!o.chain?.team || by?.tossT !== undefined || !!by?.carried;
+    // M19: the kill's type for the rage meter (a flying kick, an M10b fatality, a juggle)
+    const via = punt || world.hitVia === 'style' ? 'style' : by?.body.kick && kind === 'heavy' ? 'kick' : undefined;
+    die(world, o, by, kind, dirX, dirZ, decap && !gore.gib, pointBlank ? 'heavy' : kind, { team, type: killType(kind, { team, juggled, via }) });
     if (double) {
       world.events.emit('fatality', { actorId: o.id, kind: 'double', ...o.pos });
       world.events.emit('coopMove', { kind: 'double', phase: 'hit', byId: by!.id, partnerId: world.players.find((p) => p !== by)?.id ?? 0, targetId: o.id, actorId: o.id, ...o.pos });
@@ -809,7 +813,7 @@ function dropWeapon(world: World, o: Actor, dirX: number): void {
 }
 
 /** `flight` = the knockback profile when it differs from the hit (a point-blank shotgun kill flies like a heavy hit). */
-export function die(world: World, o: Actor, by: Actor | undefined, kind: HitKind, dirX: number, dirZ: number, decap: boolean, flight: HitKind = kind, team?: { team?: boolean; alsoId?: number }): void {
+export function die(world: World, o: Actor, by: Actor | undefined, kind: HitKind, dirX: number, dirZ: number, decap: boolean, flight: HitKind = kind, team?: { team?: boolean; alsoId?: number; type?: KillType }): void {
   dropWeapon(world, o, dirX);
   const wasDown = o.state === 'down' || o.state === 'knockback';
   o.state = 'dead';
@@ -819,7 +823,8 @@ export function die(world: World, o: Actor, by: Actor | undefined, kind: HitKind
   o.pose.death = deathStyle(kind);
   // a zombie that falls again stays down (enemy-zombie: only fresh corpses rise)
   o.corpse = { phase: 'tumble', t: 0, raisable: o.kind === 'grunt', gibbed: false, slumped: false };
-  world.events.emit('kill', { actorId: o.id, byId: by?.id ?? 0, kind, decap, ...(team?.team ? { team: true } : {}), ...(team?.alsoId ? { alsoId: team.alsoId } : {}), ...o.pos });
+  const type = team?.type ?? killType(kind, { team: team?.team });
+  world.events.emit('kill', { actorId: o.id, byId: by?.id ?? 0, kind, decap, type, ...(team?.team ? { team: true } : {}), ...(team?.alsoId ? { alsoId: team.alsoId } : {}), ...(world.rage ? { rage: true } : {}), ...o.pos });
   creditKill(world, by?.id);
   if (decap) {
     o.pose.headless = true;
@@ -1150,7 +1155,7 @@ function damageThrown(world: World, a: Actor): void {
   if (a.hp <= 0) {
     a.state = 'dead';
     a.corpse = { phase: 'tumble', t: 0, raisable: true, gibbed: false, slumped: false };
-    world.events.emit('kill', { actorId: a.id, byId: by ?? 0, kind: 'body', decap: false, ...a.pos });
+    world.events.emit('kill', { actorId: a.id, byId: by ?? 0, kind: 'body', decap: false, type: 'toss', ...a.pos });
     creditKill(world, by);
   }
 }
@@ -1182,7 +1187,7 @@ function shieldHit(world: World, by: Actor | undefined, o: Actor, kind: HitKind,
     o.corpse = { phase: 'tumble', t: 0, raisable: true, gibbed: false, slumped: false };
   }
   world.events.emit('hit', { actorId: o.id, attackerId: by?.id ?? 0, kind, part, damage: wasAlive ? 1 : 0, killed: wasAlive, dirX: 0, dirZ: 0, combo: false, chain: 0, ...at });
-  if (wasAlive) world.events.emit('kill', { actorId: o.id, byId: by?.id ?? 0, kind, decap: false, ...o.pos });
+  if (wasAlive) world.events.emit('kill', { actorId: o.id, byId: by?.id ?? 0, kind, decap: false, type: killType(kind), ...o.pos });
   const broke = o.shieldHits >= SHIELD.hits;
   world.events.emit('shieldHit', { actorId: o.id, holderId: holder?.id ?? 0, broke, ...at });
   if (broke) {

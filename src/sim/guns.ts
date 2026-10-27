@@ -103,7 +103,9 @@ export function stepHands(world: World, a: Actor, cmd: PlayerCommand, dt: number
     if (o && g && g.h.ammo > 0 && g.h.reload === 0 && g.h.cooldown <= 1e-6) {
       const target = project(o.pos.x, o.pos.y + 0.79, o.pos.z);
       a.pose.backShot = { hand: i as 0 | 1, until: world.time + 0.3, target };
+      world.hitVia = 'style';
       fire(world, a, i as 0 | 1, g.h, g.w, dual, { target, rigHand: 1, at: o.id });
+      world.hitVia = undefined;
       if (o.state === 'dead') world.events.emit('fatality', { actorId: o.id, kind: 'backshot', ...o.pos });
       backShot = true;
     }

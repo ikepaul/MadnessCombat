@@ -276,6 +276,10 @@ export interface Actor {
   carried?: 'overhead' | 'spin';
   /** M18 carry-spin, on the carrier: the swing's angle (rad, 0 = right, pi/2 = back), seconds, enemies swept this turn. */
   spin?: { angle: number; t: number; hits: number[] };
+  /** M19 the rage meter (heroes only, src/sim/rage.ts). */
+  rage?: import('./rage').RageMeter;
+  /** M19: frozen as a rage fatality's victim (struck, waiting for the release). */
+  rageMarked?: boolean;
   /** M18 hero toss: seconds of flight so far as a kick-missile (i-frames). */
   tossT?: number;
   /** M18 wishbone: the second player pulling on a grunt the first one holds. */
