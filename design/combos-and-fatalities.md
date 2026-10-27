@@ -81,6 +81,7 @@ Tag key: ⭐ = strongest candidates · (exists) = engine already has the parts.
 - **Pile launch.** Grenade under a pile of corpses launches the corpses as projectiles that knock down live grunts. Reference: 1/46.
 
 ### 3f. Co-op combos
+(2026-10-27: now milestone M18, with more moves: `coop-moves.md`.)
 - **Hand-off.** Player 1 launches or throws a grunt toward player 2; player 2's hit on him inside the window continues player 1's chain (shared chain counter for the same target).
 - **Double-team.** Both players hit the same stunned grunt in the same 0.2 s: instant decapitation.
 - **Toss a weapon.** Q at your partner = a pass they catch with F (the catch rule already exists).
