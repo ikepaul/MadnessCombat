@@ -345,6 +345,8 @@ export const TUNING = {
     snapAhead: 0.3,
     snapSpeed: 3.0,
     snapMax: 0.3,
+    /** ...and only until he's this close in depth (H). */
+    snapNear: 0.1,
     /** No muzzle-to-cursor correction when the cursor is closer to the muzzle than this (H, screen-scaled). */
     aimMinDist: 0.3,
     /** Throws find depth: an enemy within this of the cursor (H at his depth) and this depth (H) is the target. */

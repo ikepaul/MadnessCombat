@@ -32,6 +32,8 @@ export interface PaintOptions {
   flashes?: boolean;
   /** Draw this skeleton instead of the animated one (pose editor). */
   skeleton?: Skeleton;
+  /** M17 depth cue: a light ring on the shadow (1 = on your depth line, 2 = what your punch would snap to). */
+  ring?: 1 | 2;
 }
 
 interface Colors { suit: string; suitShade: string; skin: string; skinHi: string; hand: string; shoe: string }
@@ -106,6 +108,12 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
   ctx.ellipse(fx + mid * s, shadowY, (0.3 + 0.32 * flat) * shrink * s, 0.06 * shrink * s, 0, 0, Math.PI * 2);
   ctx.fillStyle = `rgba(0,0,0,${0.2 * (1 - Math.min(0.6, air * 0.5))})`;
   ctx.fill();
+  if (opts.ring) {
+    // M17 (design/qol-pass.md 3c): on the local hero's depth line
+    ctx.lineWidth = Math.max(1.5, (opts.ring === 2 ? 0.012 : 0.007) * s);
+    ctx.strokeStyle = `rgba(255,255,255,${opts.ring === 2 ? 0.7 : 0.35})`;
+    ctx.stroke();
+  }
 
   ctx.save();
   if (opts.flashes !== false && (pose.impact > 0 || pose.hurt > 0)) ctx.filter = `brightness(${FEEL.impactFrame.brightness}) contrast(${FEEL.impactFrame.contrast})`; // impact frame

@@ -3,7 +3,7 @@
 import { aboutFeet } from '../anim/skeleton';
 import { GRAVITY, JUMP_V0, TUNING } from '../data/tuning';
 import { project } from '../render/camera';
-import { type Actor, alive } from './actor';
+import { type Actor, alive, meleeBand } from './actor';
 import { clamp, moveWithCollision, STAIR_STEP, stairHeight, surfaceBelow } from './collision';
 import type { PlayerCommand } from './command';
 import type { World } from './world';
@@ -191,7 +191,7 @@ export function sweepTarget(world: World, a: Actor, dir: 1 | -1, reach: number):
   let best: Actor | undefined, bestD = Infinity;
   for (const o of world.actors) {
     if (o === a || o.state === 'dead' || o.state === 'grabbed' || o.state === 'down' || o.state === 'downed' || o.state === 'getUp' || o.state === 'knockback' || o.kind === 'boss') continue;
-    if (o.body.height < 0.9 || Math.abs(o.pos.z - a.pos.z) > TUNING.melee.depthBand) continue;
+    if (o.body.height < 0.9 || Math.abs(o.pos.z - a.pos.z) > meleeBand(a)) continue;
     const d = (o.pos.x - a.pos.x) * dir;
     if (d >= -0.1 && d <= reach && d < bestD) { best = o; bestD = d; }
   }

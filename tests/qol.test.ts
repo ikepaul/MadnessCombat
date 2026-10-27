@@ -184,3 +184,40 @@ describe('M17 catching', () => {
     }
   });
 });
+
+describe('M17 depth help for hero melee', () => {
+  it('a grunt 0.45 H deeper and in reach is hit by a light punch (the snap)', () => {
+    const { world, hero } = setup(0);
+    const g = grunt(world, 0.45);
+    g.pos.z = Z + 0.45;
+    const hits = record(world, 'hit');
+    tick(world, { attack: 'light', aim: project(g.pos.x, 0.79, g.pos.z) });
+    tick(world, {}, 12);
+    expect(hits.some((e) => e.actorId === g.id)).toBe(true);
+    expect(Math.abs(hero.pos.z - Z)).toBeLessThanOrEqual(0.3 + 1e-6);
+  });
+
+  it('a grunt 0.6 H deeper is not snapped to', () => {
+    const { world, hero } = setup(0);
+    const g = grunt(world, 0.45);
+    g.pos.z = Z + 0.6;
+    const hits = record(world, 'hit');
+    tick(world, { attack: 'light' });
+    tick(world, {}, 12);
+    expect(hits.some((e) => e.actorId === g.id)).toBe(false);
+    expect(hero.pos.z).toBeCloseTo(Z, 5);
+  });
+
+  it('the hero band is 0.3 H, enemies keep 0.2 H', () => {
+    const { world, hero } = setup(0);
+    const g = grunt(world, 0.45);
+    g.pos.z = Z + 0.25;
+    g.facing = -1;
+    // a grunt's punch at a hero 0.25 H away in depth misses
+    world.scripted.set(g.id, { ...IDLE_COMMAND, attack: 'light', face: -1 });
+    world.step();
+    world.scripted.delete(g.id);
+    tick(world, {}, 12);
+    expect(hero.hp).toBe(hero.maxHp);
+  });
+});

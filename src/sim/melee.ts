@@ -8,8 +8,8 @@ import { DISARM, GRENADE, isMelee, MELEE, type MeleeDef, THROWN } from '../data/
 import { isWeapon, WEAPONS } from '../data/weapons';
 import { GRAVITY, TUNING } from '../data/tuning';
 import { project, type ScreenPoint, scaleAt, unprojectFloor } from '../render/camera';
-import { type Actor, alive, type AttackKind, type HeldItem, newHand } from './actor';
-import { applyHit, setClip } from './combat';
+import { type Actor, alive, type AttackKind, type HeldItem, meleeBand, newHand } from './actor';
+import { applyHit, setClip, snapTarget } from './combat';
 import type { PlayerCommand } from './command';
 import { COVER, flipTable } from './cover';
 import { explode } from './explosives';
@@ -77,6 +77,8 @@ export function startAction(world: World, a: Actor, kind: AttackKind, cmd: Pick<
   a.attack = { kind, heavy: false, t: 0, done: false, hand: extra.hand, hits: [], aim: cmd.aim, weapon: weapon ?? undefined, itemId: extra.itemId, targetId: extra.targetId, fuse: extra.fuse, prop: extra.prop };
   if ((kind === 'toss' || kind === 'lob' || kind === 'pull' || kind === 'steal' || kind === 'flip' || kind === 'takedown') && a.body.state !== 'air') a.body.vel = { x: 0, y: 0, z: 0 };
   setClip(a, clipFor(kind, weapon ?? undefined));
+  // M17: a hero's swing or thrust slides toward its target's depth during the wind-up
+  if ((kind === 'swing' || kind === 'thrust') && weapon && isMelee(weapon)) a.attack.snapZ = snapTarget(world, a, cmd.aim, MELEE[weapon].reach)?.pos.z;
   if (kind === 'pull') {
     const it = world.items.find((i) => i.id === extra.itemId);
     if (it) world.events.emit('pull', { actorId: a.id, itemId: it.id, phase: 'start', item: it.kind, ...a.pos });
@@ -116,7 +118,7 @@ function swingTargets(world: World, a: Actor, def: MeleeDef, reach: number, alre
       if (o.state === 'grabbed' || o.state === 'getUp' || o.state === 'downed' || o.state === 'down') return false;
       if (a.playerIndex !== undefined && o.playerIndex !== undefined) return false; // no friendly fire in co-op
       const ahead = (o.pos.x - a.pos.x) * a.facing;
-      if (ahead < -0.1 || ahead > reach || Math.abs(o.pos.z - a.pos.z) > def.depthBand) return false;
+      if (ahead < -0.1 || ahead > reach || Math.abs(o.pos.z - a.pos.z) > meleeBand(a, def.depthBand)) return false;
       // a swing from a jump comes down on whoever is below
       return o.pos.y <= a.pos.y + 1 && o.pos.y + o.body.height >= a.pos.y - 0.2;
     })

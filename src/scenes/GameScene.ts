@@ -31,9 +31,10 @@ import { Decals } from '../render/decals';
 import { PostFx } from '../render/post';
 import { Vfx } from '../render/vfx';
 import { GunFx } from '../render/gunFx';
-import { WEAPON_IDS, WEAPONS } from '../data/weapons';
+import { isWeapon, WEAPON_IDS, WEAPONS } from '../data/weapons';
 import { lyingAt } from '../anim/skeleton';
-import { type Actor, createActor } from '../sim/actor';
+import { type Actor, alive, createActor, meleeBand } from '../sim/actor';
+import { snapTarget } from '../sim/combat';
 import { FixedClock } from '../sim/clock';
 import { hasEdges, mergeEdges } from '../sim/command';
 import { WaveDirector } from '../sim/waves';
@@ -285,6 +286,25 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Debug (L): a random loaded gun at each player's feet. */
+  /**
+   * M17 (design/qol-pass.md 3c): living enemies on the local hero's depth line get a light ring on
+   * their shadow, and the one his punch would snap to a brighter one. Off with a gun in each hand.
+   */
+  private depthRings(): Map<number, 1 | 2> {
+    const out = new Map<number, 1 | 2>();
+    const me = this.world.players[this.localPlayer];
+    if (!me || me.state === 'dead' || me.state === 'downed' || this.world.inputLocked) return out;
+    if (me.hands.every((h) => h && isWeapon(h.item))) return out;
+    for (const o of this.world.actors) {
+      if (o.kind === 'hero' || !o.ai || !alive(o)) continue;
+      if (Math.abs(o.pos.z - me.pos.z) <= meleeBand(me) && Math.abs(o.pos.x - me.pos.x) <= 2.5) out.set(o.id, 1);
+    }
+    const p = this.input.activePointer;
+    const t = snapTarget(this.world, me, [p.x, p.y], TUNING.melee.range);
+    if (t) out.set(t.id, 2);
+    return out;
+  }
+
   private dropGuns(): void {
     for (const p of this.world.players) {
       const kind = WEAPON_IDS[Math.floor(Math.random() * WEAPON_IDS.length)];
@@ -514,6 +534,7 @@ export class GameScene extends Phaser.Scene {
     // co-op: a subtle circle on the floor around a downed teammate
     for (const p of this.world.players) if (p.state === 'downed') paintReviveCircle(ctx, p);
     const list: { z: number; draw: () => void }[] = [];
+    const rings = this.depthRings();
     for (const a of this.world.actors) {
       // gibbed bodies are gone (throw-grenade): only the pieces (VFX) remain
       if (a.corpse?.phase === 'frozen' || a.corpse?.gibbed) continue;
@@ -521,7 +542,8 @@ export class GameScene extends Phaser.Scene {
       if (outOfSight(this.world, a)) continue;
       // at equal depth the attacker draws in front, so the punching fist is visible
       const bias = a.state === 'attack' ? 0.002 : a.state === 'grabbed' ? -0.001 : 0;
-      list.push({ z: a.pos.z - bias, draw: () => (a.kind === 'boss' ? paintBoss(ctx, a, { time: this.world.time, flashes }) : paintCharacter(ctx, a, pal, this.world.time, { blood, flashes })) });
+      const ring = rings.get(a.id);
+      list.push({ z: a.pos.z - bias, draw: () => (a.kind === 'boss' ? paintBoss(ctx, a, { time: this.world.time, flashes }) : paintCharacter(ctx, a, pal, this.world.time, { blood, flashes, ring })) });
     }
     // M17: the item the local player's E would take is outlined
     const me = this.world.players[this.localPlayer];
