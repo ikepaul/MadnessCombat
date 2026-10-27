@@ -4,8 +4,35 @@
     "stage1-arena": {
       "ambience": "ambWind",
       "combat": "madness-combat-v1",
-      "cues": { "riot": "s1_riot", "boss": "s1_boss" },
+      "cues": {
+        "riot": "s1_riot",
+        "boss": "s1_boss"
+      },
       "diegetic": "s1_boombox"
+    },
+    "s2-wall": {
+      "ambience": "ambCity",
+      "combat": "madness-combat-v1"
+    },
+    "s2-corner": {
+      "ambience": "ambCity",
+      "combat": "madness-combat-v1"
+    },
+    "s2-roof-a": {
+      "ambience": "ambCity",
+      "combat": "madness-combat-v1"
+    },
+    "s2-roof-b": {
+      "ambience": "ambCity",
+      "combat": "madness-combat-v1"
+    },
+    "s2-office": {
+      "ambience": "ambRoom",
+      "combat": "madness-combat-v1"
+    },
+    "s2-corridor": {
+      "ambience": "ambRoom",
+      "combat": "madness-combat-v1"
     },
     "test-room": {
       "ambience": "ambRoom",
@@ -22,8 +49,36 @@
         "MadnessCombat.V1.wav"
       ]
     },
-    "s1_boombox": { "bpm": 115, "beatsPerBar": 4, "loopStart": 0, "loopEnd": 0, "stems": ["s1_boombox_mix.wav"] },
-    "s1_riot": { "bpm": 145, "beatsPerBar": 4, "loopStart": 0, "loopEnd": 0, "stems": ["s1_riot_layer1.wav", "s1_riot_layer2.wav", "s1_riot_layer3.wav"] },
-    "s1_boss": { "bpm": 145, "beatsPerBar": 4, "loopStart": 0, "loopEnd": 0, "stems": ["s1_boss_layer1.wav", "s1_boss_layer2.wav", "s1_boss_layer3.wav"] }
+    "s1_boombox": {
+      "bpm": 115,
+      "beatsPerBar": 4,
+      "loopStart": 0,
+      "loopEnd": 0,
+      "stems": [
+        "s1_boombox_mix.wav"
+      ]
+    },
+    "s1_riot": {
+      "bpm": 145,
+      "beatsPerBar": 4,
+      "loopStart": 0,
+      "loopEnd": 0,
+      "stems": [
+        "s1_riot_layer1.wav",
+        "s1_riot_layer2.wav",
+        "s1_riot_layer3.wav"
+      ]
+    },
+    "s1_boss": {
+      "bpm": 145,
+      "beatsPerBar": 4,
+      "loopStart": 0,
+      "loopEnd": 0,
+      "stems": [
+        "s1_boss_layer1.wav",
+        "s1_boss_layer2.wav",
+        "s1_boss_layer3.wav"
+      ]
+    }
   }
 }

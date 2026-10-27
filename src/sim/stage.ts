@@ -233,7 +233,13 @@ export function stageRunner(def: StageDef, roomId = def.start.room, entryId = de
       // vent / breach entries catch the room off guard
       if (r.entries[entry]?.from === 'above' && r.entries[entry]?.surprise) {
         yield;
-        for (const a of world.actors) if (a.ai) a.ai.surpriseT = T.surprise;
+        for (const a of world.actors) {
+          if (!a.ai) continue;
+          a.ai.surpriseT = T.surprise;
+          // nobody gets a shot off in that first moment
+          a.ai.aimT = undefined;
+          a.pose.telegraph = undefined;
+        }
       }
       yield () => !!world.exitTaken;
       const e = world.exitTaken!;

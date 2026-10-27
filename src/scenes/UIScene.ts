@@ -9,6 +9,7 @@ import { BODY, HEAD } from '../sim/hurtbox';
 import { isWeapon, WEAPONS } from '../data/weapons';
 import { SETTINGS } from '../settings';
 import type { GameScene } from './GameScene';
+import { StageHud } from '../render/stageHud';
 
 /** HUD + debug overlay. A separate scene/camera so post FX never touch it. */
 export class UIScene extends Phaser.Scene {
@@ -33,6 +34,8 @@ export class UIScene extends Phaser.Scene {
   private titleCard!: Phaser.GameObjects.Container;
   private caption!: Phaser.GameObjects.Text;
   private scriptCardUntil = 0;
+  /** M9: the ink wipe between rooms and the tracker. */
+  private stageHud!: StageHud;
 
   constructor() {
     super('ui');
@@ -61,6 +64,9 @@ export class UIScene extends Phaser.Scene {
     this.counterPop = 0;
     this.card = this.buildCard().setVisible(false);
     this.buildScriptCards();
+    this.stageHud = new StageHud(this, game.world);
+    // a new room: the last room's caption goes with it
+    game.world.events.on('roomEnter', () => { this.scriptCardUntil = 0; });
     game.world.events.on('card', (e) => {
       this.scriptCardUntil = game.world.time + e.seconds;
       this.titleCard.setVisible(e.style === 'title');
@@ -96,6 +102,7 @@ export class UIScene extends Phaser.Scene {
     this.drawPips(game, delta / 1000);
     this.drawAmmo(game);
     this.drawCounter(game);
+    this.stageHud.update();
     if (game.world.time >= this.scriptCardUntil) { this.titleCard.setVisible(false); this.caption.setVisible(false); }
     if (game.lab) {
       const b = p?.body;

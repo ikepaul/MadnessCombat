@@ -100,6 +100,10 @@ export const SOUNDS = {
   telekinesis: def('telekinesis', 'weapons', 0.8, { variants: 2, limit: 1, reverb: 0.3 }),
   /** M8: the boombox's speaker until the user's tune is delivered (on the music bus: the music volume applies). */
   boomboxStatic: def('radioLoop', 'music', 0.45, { variants: 1, limit: 1, reverb: 0.3, loop: true }),
+  // M9: stage 2 (generated)
+  ambCity: def('cityLoop', 'world', 0.3, { variants: 1, limit: 1, reverb: 0, loop: true }),
+  wipe: def('wipe', 'ui', 0.5, { variants: 1, limit: 1, reverb: 0 }),
+  rungs: def('rungs', 'foley', 0.6, { variants: 2, limit: 2, reverb: 0.1 }),
   /** Outdoor wind bed: turned down ~8 dB (user: the rain-like hiss was too loud, 2026-10-26). */
   ambWind: def('windLoop', 'world', 0.2, { variants: 1, limit: 1, reverb: 0, loop: true }),
   /** Indoor room tone: turned down ~4 dB with the wind. */

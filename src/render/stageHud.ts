@@ -1,0 +1,75 @@
+// M9 HUD pieces for room-graph stages: the ink wipe between rooms (decided 2026-10-27: a quick
+// diagonal wipe in the ink colour, ~0.35 s each way) and the tracker (world-objective-radar: rings,
+// a crosshair and a red blip toward the target; centred = he's right below). Phaser Graphics in the
+// UI scene, so the wipe covers the HUD too and the post FX never touch them.
+import Phaser from 'phaser';
+import { TUNING } from '../data/tuning';
+import type { World } from '../sim/world';
+
+const INK_HEX = 0x141416;
+const W = 1920, H = 1080;
+/** The wipe's edge leans this far over the screen height (px). */
+const SLANT = 360;
+
+export class StageHud {
+  private wipe: Phaser.GameObjects.Graphics;
+  private radar: Phaser.GameObjects.Graphics;
+  /** Wipe: phase and the world time it started. */
+  private phase?: { kind: 'out' | 'in'; t0: number };
+
+  constructor(scene: Phaser.Scene, private world: World) {
+    this.radar = scene.add.graphics().setDepth(60);
+    this.wipe = scene.add.graphics().setDepth(95);
+    world.events.on('roomTransition', (e) => (this.phase = { kind: e.phase, t0: world.time }));
+  }
+
+  update(): void {
+    this.drawWipe();
+    this.drawRadar();
+  }
+
+  private drawWipe(): void {
+    const g = this.wipe;
+    g.clear();
+    const ph = this.phase;
+    if (!ph) return;
+    const u = Math.min(1, (this.world.time - ph.t0) / TUNING.stage.wipe);
+    // eased; `out` sweeps the ink in from the left, `in` carries on and uncovers to the right
+    const e = u * u * (3 - 2 * u);
+    const span = W + SLANT * 2;
+    const lead = -SLANT + e * span;
+    g.fillStyle(INK_HEX, 1);
+    const quad = (pts: [number, number][]) => {
+      g.beginPath();
+      g.moveTo(pts[0][0], pts[0][1]);
+      for (const [x, y] of pts.slice(1)) g.lineTo(x, y);
+      g.closePath();
+      g.fillPath();
+    };
+    if (ph.kind === 'out') quad([[-10, 0], [lead + SLANT, 0], [lead, H], [-10, H]]);
+    else quad([[lead + SLANT, 0], [W + 10, 0], [W + 10, H], [lead, H]]);
+    if (ph.kind === 'in' && u >= 1) this.phase = undefined;
+  }
+
+  private drawRadar(): void {
+    const g = this.radar;
+    g.clear();
+    const tr = this.world.tracker;
+    if (!tr) return;
+    const [bx, by] = typeof tr === 'function' ? tr(this.world) : tr;
+    const cx = W - 120, cy = 120, R = 78, t = this.world.time;
+    // the device: a dark disc, two rings, a crosshair, a slow sweep
+    g.fillStyle(0x10141a, 0.82); g.fillCircle(cx, cy, R + 12);
+    g.lineStyle(4, INK_HEX, 1); g.strokeCircle(cx, cy, R + 12);
+    g.lineStyle(2, 0x9fb3c8, 0.45); g.strokeCircle(cx, cy, R); g.strokeCircle(cx, cy, R * 0.5);
+    g.lineBetween(cx - R, cy, cx + R, cy); g.lineBetween(cx, cy - R, cx, cy + R);
+    const a = (t * 2.2) % (Math.PI * 2);
+    g.lineStyle(3, 0x9fb3c8, 0.6); g.lineBetween(cx, cy, cx + Math.cos(a) * R, cy + Math.sin(a) * R);
+    // the blip: red, pulsing; it sits on the rim when the target is far
+    const d = Math.min(1, Math.hypot(bx, by)), ang = Math.atan2(by, bx);
+    const px = cx + Math.cos(ang) * d * R, py = cy + Math.sin(ang) * d * R;
+    const pulse = 0.6 + 0.4 * Math.abs(Math.sin(t * 5));
+    g.fillStyle(0xd62620, 0.35 * pulse); g.fillCircle(px, py, 14);
+    g.fillStyle(0xff3a30, pulse); g.fillCircle(px, py, 7);
+  }
+}

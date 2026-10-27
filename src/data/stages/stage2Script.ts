@@ -46,7 +46,7 @@ function* wall(s: Seq, _entry: string): Beat {
 /** Room 2, the corner + ladder: one guard facing your way. Peek, suppressed head shot, climb. */
 function* corner(s: Seq, _entry: string): Beat {
   const world = s.world;
-  for (const p of world.players) if (!p.hands[0] && !p.hands[1]) s.giveItem(p, 'pistolSuppressed');
+  for (const p of world.players) if (!p.hands[0] && !p.hands[1]) { s.giveItem(p, 'pistolSuppressed'); p.hands[0]!.spare = 2; }
   const g = s.spawn('grunt', 'pistol', 1.7, 9.55, unaware({ face: -1 }));
   caption(s, 'The suppressed pistol (LMB). A head shot from here, and nobody hears a thing.');
   yield* s.until(() => dead(g) || g.ai?.aware !== false, 30);

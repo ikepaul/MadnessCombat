@@ -4,11 +4,15 @@ import { INK, type Palette } from '../../data/palettes';
 import { type DoorDef, type PoleDef, type PropDef, ROOM_DRAW_NEAR_Z, type RoomDef, type TableDef } from '../../sim/room';
 import { project as P, SCREEN_H, SCREEN_W, scaleAt } from '../camera';
 import { type Ctx, line, linear, mulberry32, poly, shade } from './draw';
+import { paintCeilingHole, paintCrate, paintLadder, paintRoof, paintStreet } from './sceneryPainter';
 
 export function paintRoom(ctx: Ctx, room: RoomDef, pal: Palette): void {
   ctx.clearRect(0, 0, SCREEN_W, SCREEN_H);
   if (room.outdoor) {
-    paintOutdoor(ctx, room, pal);
+    // M9: stage 2's night street and rooftops
+    if (room.scene === 'street') paintStreet(ctx, room, pal);
+    else if (room.scene === 'roof') paintRoof(ctx, room, pal);
+    else paintOutdoor(ctx, room, pal);
     return;
   }
   const hw = room.halfWidth, zb = room.zBack, h = room.height, zn = ROOM_DRAW_NEAR_Z;
@@ -62,6 +66,9 @@ export function paintRoom(ctx: Ctx, room: RoomDef, pal: Palette): void {
   }
 
   for (const b of room.boards) paintBoard(ctx, b.x0, b.x1, b.y0, b.y1, zb, pal);
+  // world-breach: holes blasted through the ceiling stay
+  for (const hole of room.holes ?? []) paintCeilingHole(ctx, hole, h);
+  for (const l of room.ladders ?? []) paintLadder(ctx, l.x, l.z, l.top);
 
   // room edges
   ctx.lineWidth = 3;
@@ -155,6 +162,7 @@ export function paintDoor(ctx: Ctx, room: RoomDef, d: DoorDef, open: number, pal
 export function paintProp(ctx: Ctx, p: PropDef, pal: Palette): void {
   if (p.kind === 'table') paintTable(ctx, p, pal);
   else if (p.kind === 'pole') paintPole(ctx, p, pal);
+  else if (p.kind === 'crate') paintCrate(ctx, p, pal);
   // the cannon's footprint: drawn with the cannon itself (src/render/canvas/cannonPainter.ts)
 }
 

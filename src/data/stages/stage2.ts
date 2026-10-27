@@ -4,7 +4,6 @@
 // one-way; the corridor's far door leads on to the elevator (M10), which ends the stage for now.
 import type { RoomDef } from '../../sim/room';
 import type { StageDef } from '../../sim/stage';
-import { newHand } from '../../sim/actor';
 import { stage2Scripts } from './stage2Script';
 
 const STREET = { halfWidth: 3.5, height: 3.8, zFront: 8, zBack: 10.4, doors: [], lamps: [], vents: [], boards: [] };
@@ -58,8 +57,8 @@ export const STAGE2: StageDef = {
   targetBodyCount: 86,
   start: { room: 'wall', entry: 'west' },
   loadout(p) {
-    // research/stages.md Stage 2: fiber wire (empty hands) + the suppressed pistol
-    p.hands = [newHand('pistolSuppressed', undefined, 2), null];
+    // research/stages.md Stage 2: fiber wire (empty hands) + the suppressed pistol (drawn in room 2)
+    p.hands = [null, null];
     p.grenades = 0;
   },
   rooms: {

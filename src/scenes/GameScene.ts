@@ -8,6 +8,7 @@ import '../labs/aiLabs';
 import '../labs/bossLabs';
 import '../labs/hazardLabs';
 import '../labs/enemyLabs';
+import '../labs/stage2Labs';
 import '../labs/gunLabs';
 import '../labs/meleeLabs';
 import '../labs/throwLabs';
@@ -80,6 +81,12 @@ const ROOM_STAGES: Record<number, StageDef> = { 2: STAGE2 };
 interface Checkpoint { stage: number; room: string; entry: string; kills: number; players: Pick<Actor, 'hands' | 'grenades'>[] }
 let checkpoint: Checkpoint | undefined;
 
+/**
+ * Enemies the music counts: alive, in the room and aware of you. M9: sneaking past unaware guards
+ * keeps the music to the bed only; the combat layers come in on the alert.
+ */
+const activeEnemies = (w: World) => w.actors.filter((a) => a.ai && a.state !== 'dead' && !a.entering && a.ai.aware !== false).length;
+
 /** Seconds after the player dies before the room restarts (checkpoint per room, PLAN.md M3). */
 const RESTART_DELAY = 2;
 
@@ -147,6 +154,7 @@ export class GameScene extends Phaser.Scene {
     else if (this.lab) {
       this.world = new World(TEST_ROOM);
       this.lab.setup(this.world);
+      if (!data.palette && this.lab.palette) this.paletteId = this.lab.palette;
     } else if (data.testRoom) {
       this.world = new World(TEST_ROOM);
       this.setupTestRoom();
@@ -377,7 +385,7 @@ export class GameScene extends Phaser.Scene {
       this.render();
       this.post.update();
       this.feelFx.update(delta / 1000);
-      music?.setIntensity(this.world.actors.filter((a) => a.ai && a.state !== 'dead' && !a.entering).length);
+      music?.setIntensity(activeEnemies(this.world));
       boombox?.update();
       return;
     }
@@ -397,7 +405,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.feelFx.update(delta / 1000);
     // music intensity follows the enemies actually in the fight
-    music?.setIntensity(this.world.actors.filter((a) => a.ai && a.state !== 'dead' && !a.entering).length);
+    music?.setIntensity(activeEnemies(this.world));
     boombox?.update();
   }
 

@@ -12,6 +12,8 @@ export type Recipe =
   | 'explosion' | 'slash' | 'thunk' | 'twang' | 'squelch' | 'ping' | 'clink' | 'slap' | 'clang' | 'hiss'
   // M7
   | 'telegraph' | 'alert' | 'strain' | 'moan' | 'woodCrash' | 'whistle'
+  // M9
+  | 'cityLoop' | 'wipe' | 'rungs'
   // M8 boss
   | 'crackle' | 'thunder' | 'rumble' | 'wardHum' | 'ricochet' | 'cannonBoom' | 'fallWhistle' | 'heavyLand' | 'telekinesis'
   | 'radioLoop';
@@ -436,6 +438,29 @@ export function render(recipe: Recipe, sr: number, seed: number): Float32Array {
         for (let i = 0; i < len; i++) b.d[i0 + i] += (r() * 2 - 1) * g * Math.exp(-i / (sr * 0.002));
       }
       return normalise(bandpass(loopable(b.d, sr), sr, 1800, 0.7), 0.3);
+    }
+    case 'cityLoop': {
+      // stage 2 night streets and rooftops: a low traffic rumble, a soft wind and far-off hum, 9 s loop
+      const b = new Buf(sr, 9.5);
+      noise(b, r, (t) => 180 + 90 * Math.sin(t * 0.5), (t) => 0.6 + 0.25 * Math.sin(t * 0.33) + 0.15 * Math.sin(t * 1.1), 1, 30);
+      noise(b, r, () => 900, (t) => 0.25 + 0.1 * Math.sin(t * 0.8), 0.3, 300);
+      tone(b, () => 60, () => 1, 0.12);
+      return normalise(loopable(b.d, sr), 0.22);
+    }
+    case 'wipe': {
+      // the room transition: a short airy swish under the ink wipe
+      const b = new Buf(sr, 0.4);
+      noise(b, r, (t) => 400 + 3000 * Math.sin((t / 0.4) * Math.PI), swell(0.2, 0.4), 1, 120);
+      return normalise(b.d, 0.3);
+    }
+    case 'rungs': {
+      // climbing a metal ladder: two hollow clanks
+      const b = new Buf(sr, 0.5);
+      for (const [t0, g] of [[0, 1], [0.24, 0.8]] as const) {
+        tone(b, () => jitter(620, 0.05), (t) => (t < t0 ? 0 : Math.exp(-(t - t0) / 0.05)), g * 0.6);
+        noise(b, r, () => 3000, (t) => (t < t0 ? 0 : Math.exp(-(t - t0) / 0.01)), g * 0.5, 800);
+      }
+      return normalise(b.d, 0.45);
     }
     case 'windLoop': {
       // outdoor ambience: gusting low wind, 8 s loop

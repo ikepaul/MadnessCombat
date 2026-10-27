@@ -228,18 +228,20 @@ export function gruntBrain(world: World): Brain {
 function unawareStep(world: World, a: Actor, dt: number): PlayerCommand {
   const ai = a.ai!, S = TUNING.stealth;
   lookOut(world, a, dt);
-  if (ai.aware !== false) return { ...IDLE_COMMAND, face: a.facing };
-  if (ai.idle !== 'patrol' || !ai.patrol) return { ...IDLE_COMMAND, face: a.facing };
-  if ((ai.waitT ?? 0) > 0) { ai.waitT! -= dt; return { ...IDLE_COMMAND, face: a.facing }; }
+  // an unaware guard's gun hangs lowered
+  const aim = gunHand(a) ? project(a.pos.x + a.facing * 2, a.pos.y + 0.1, a.pos.z) : undefined;
+  if (ai.aware !== false) return { ...IDLE_COMMAND, face: a.facing, aim };
+  if (ai.idle !== 'patrol' || !ai.patrol) return { ...IDLE_COMMAND, face: a.facing, aim };
+  if ((ai.waitT ?? 0) > 0) { ai.waitT! -= dt; return { ...IDLE_COMMAND, face: a.facing, aim }; }
   const dir = (ai.patrolDir ??= a.facing);
   const end = dir > 0 ? ai.patrol[1] : ai.patrol[0];
   if ((end - a.pos.x) * dir <= 0.02) {
     // turn round at the end of the beat, after a wait
     ai.patrolDir = (-dir) as 1 | -1;
     ai.waitT = S.patrolWait;
-    return { ...IDLE_COMMAND, face: ai.patrolDir };
+    return { ...IDLE_COMMAND, face: ai.patrolDir, aim };
   }
-  return { ...IDLE_COMMAND, moveX: dir * S.patrolSpeed, face: dir };
+  return { ...IDLE_COMMAND, moveX: dir * S.patrolSpeed, face: dir, aim: gunHand(a) ? project(a.pos.x + dir * 2, a.pos.y + 0.1, a.pos.z) : undefined };
 }
 
 /** Walk to (and pick up) the nearest weapon on the floor within TUNING.ai.scavenge. */
