@@ -2,12 +2,12 @@
 // with a scripted bot (sequencer + waves don't deadlock).
 import { describe, expect, it } from 'vitest';
 import { STAGE1 } from '../src/data/stages/stage1';
-import { BOSS_BEAT, GRENADE_BEAT, INTRO, stage1 } from '../src/data/stages/stage1Script';
+import { BOSS_BEAT, ENDING, GRENADE_BEAT, INTRO, stage1, stage1From } from '../src/data/stages/stage1Script';
 import { isBoss } from '../src/sim/boss';
 import { GRENADE } from '../src/data/melee';
 import { project } from '../src/render/camera';
 import { TUNING } from '../src/data/tuning';
-import { type Actor, alive, createActor } from '../src/sim/actor';
+import { type Actor, alive, createActor, newHand } from '../src/sim/actor';
 import { IDLE_COMMAND, type PlayerCommand } from '../src/sim/command';
 import { World } from '../src/sim/world';
 
@@ -65,18 +65,44 @@ describe('stage 1 intro', () => {
     expect(box?.state).toBe('floor');
   });
 
-  it("the boombox can't be picked up into a hand", () => {
+  it('a hero picks the boombox up by the handle (the front-hand weapon drops); grunts leave it alone', () => {
     const { world, hero } = setup();
     world.step();
     const bb = npc(world, 'boombox');
     world.hitActor(hero, bb, 'wall', 1, 0, bb.pos);
-    for (let i = 0; i < 90; i++) world.step();
+    // past the title card (input locked) and the boombox's fall
+    for (let i = 0; i < 130; i++) world.step();
     const box = world.items.find((it) => it.kind === 'boombox')!;
+    // mid-stage it can't be taken: walking over it with empty hands leaves it be
+    expect(box.locked).toBe(true);
     hero.pos = { ...hero.pos, x: box.pos.x, z: box.pos.z };
     world.command = { ...IDLE_COMMAND, pickup: true };
     world.step();
-    expect(hero.hands[0]).toBeNull();
+    expect(hero.carry).toBeUndefined();
+    // the ending unlocks it; a grunt standing on it with empty hands, pressing E: still nothing
+    hero.pos = { ...hero.pos, x: box.pos.x + 2, z: box.pos.z };
+    world.command = { ...IDLE_COMMAND };
+    box.locked = false;
+    const g = createActor('grunt', box.pos.x, box.pos.z, 1);
+    world.actors.push(g);
+    world.scripted.set(g.id, { ...IDLE_COMMAND, pickup: true });
+    world.step();
+    world.scripted.delete(g.id);
     expect(world.items.includes(box)).toBe(true);
+    expect(g.carry).toBeUndefined();
+    hero.hands[0] = newHand('pistol');
+    hero.pos = { ...hero.pos, x: box.pos.x + 0.1, z: box.pos.z };
+    world.command = { ...IDLE_COMMAND, pickup: true };
+    world.step();
+    expect(hero.carry).toBe('boombox');
+    expect(hero.hands[0]).toBeNull();
+    expect(world.items.includes(box)).toBe(false);
+    expect(world.items.some((it) => it.kind === 'pistol')).toBe(true);
+    // the dropped pistol at his feet stays there (the boombox has the hand)
+    world.command = { ...IDLE_COMMAND };
+    for (let i = 0; i < 60; i++) world.step();
+    expect(hero.hands[0]).toBeNull();
+    expect(hero.carry).toBe('boombox');
   });
 });
 
@@ -125,8 +151,21 @@ function bossShooter(world: World, hero: Actor): PlayerCommand {
   return { ...IDLE_COMMAND, aim, hold: [open, false], press: [open, false], reload };
 }
 
+/** The ending with real inputs: walk to the boombox and press E. */
+function fetchBoombox(world: World, hero: Actor): PlayerCommand {
+  const box = world.items.find((it) => it.kind === 'boombox' && it.state === 'floor');
+  if (!box || hero.carry) return { ...IDLE_COMMAND };
+  // the cannon in the way: go round it (step off its row first)
+  const prop = world.room.props.find((p) => p.kind === 'cannon' && Math.min(hero.pos.x, box.pos.x) < p.x1 && Math.max(hero.pos.x, box.pos.x) > p.x0);
+  if (prop && hero.pos.z > prop.z0 - 0.35 && hero.pos.z < prop.z1 + 0.35 && (hero.pos.x < prop.x0 - 0.1 || hero.pos.x > prop.x1 + 0.1)) {
+    return { ...IDLE_COMMAND, moveZ: 1 };
+  }
+  const dx = box.pos.x - hero.pos.x, dz = box.pos.z - hero.pos.z, d = Math.hypot(dx, dz);
+  return d < 0.2 ? { ...IDLE_COMMAND, pickup: true } : { ...IDLE_COMMAND, moveX: dx / d, moveZ: dz / d };
+}
+
 /**
- * The bot for the whole stage so far; `throwGrenade: false` leaves the grenade lying (timeout path).
+ * The bot for the whole stage; `throwGrenade: false` leaves the grenade lying (timeout path).
  * Zombies and grunts on screen go down to the M3 test's "kill all" shortcut.
  */
 function playStage(world: World, hero: Actor, throwGrenade: boolean) {
@@ -149,8 +188,9 @@ function playStage(world: World, hero: Actor, throwGrenade: boolean) {
     // brawl the boombox NPC, "kill all" whoever walks on screen (as in the M3 wave test), the grenade, the boss
     const riotOver = world.director?.state === 'done';
     world.command = alive(bb) ? brawl(hero, bb, i)
-      : log.bossAt >= 0 ? bossShooter(world, hero)
-        : riotOver && throwGrenade ? grenadier(world, hero, mem) : { ...IDLE_COMMAND };
+      : log.waves.includes('B') && riotOver ? fetchBoombox(world, hero)
+        : log.bossAt >= 0 ? bossShooter(world, hero)
+          : riotOver && throwGrenade ? grenadier(world, hero, mem) : { ...IDLE_COMMAND };
     world.step();
     hero.hp = hero.maxHp;
     if (!alive(bb)) for (const a of world.actors) if (a.ai && alive(a) && !a.entering) world.hitActor(hero, a, 'wall', 1, 0, a.pos);
@@ -167,7 +207,10 @@ describe('stage 1 headless', () => {
     world.events.on('explosion', () => world.seq.run(function* () { yield 0.2; intactAfter = intact(world).length; }));
     const log = playStage(world, hero, true);
     expect(log.waves).toEqual(['A', 'B']);
-    expect(log.music).toEqual(['riot', 'boss', 'riot']);
+    expect(log.music).toEqual(['riot', 'boss', 'riot', null, 'outro']);
+    // the ending: he fetched the boombox and danced
+    expect(hero.carry).toBe('boombox');
+    expect(hero.pose.dancing).toBe(true);
     expect(log.explosions).toBe(1);
     // the pile went up: fewer bodies left for the boss to raise
     expect(log.gibs).toBeGreaterThan(0);
@@ -214,5 +257,51 @@ describe('stage 1 headless', () => {
     playStage(world, hero, true);
     expect(boltAt).toBeGreaterThan(0);
     expect(smgAt - boltAt).toBeCloseTo(BOSS_BEAT.smgAfterBolt, 1);
+  });
+});
+
+describe('stage 1 ending', () => {
+  function atEnding() {
+    const world = new World(STAGE1.rooms.arena.room);
+    const hero = createActor('hero', 0, 9.4, 1);
+    world.addPlayer(hero);
+    world.seq.run(stage1From('ending'));
+    world.step();
+    return { world, hero };
+  }
+
+  it('puts the boombox by the pole when the stage starts at the ending, asks you to fetch it', () => {
+    const { world } = atEnding();
+    const captions = [] as string[];
+    world.events.on('card', (e) => captions.push(e.style));
+    for (let i = 0; i < 60 * (ENDING.pause + 0.2); i++) world.step();
+    expect(world.items.filter((it) => it.kind === 'boombox')).toHaveLength(1);
+    expect(captions).toEqual(['caption']);
+  });
+
+  it('fetching it starts the dance, then the body-count card', () => {
+    const { world, hero } = atEnding();
+    let clearedAt = -1, dancingAt = -1;
+    world.events.on('roomCleared', () => (clearedAt = world.time));
+    for (let i = 0; i < 60 * 30 && clearedAt < 0; i++) {
+      world.command = fetchBoombox(world, hero);
+      world.step();
+      if (dancingAt < 0 && hero.pose.dancing) dancingAt = world.time;
+    }
+    expect(hero.carry).toBe('boombox');
+    expect(dancingAt).toBeGreaterThan(0);
+    expect(clearedAt - dancingAt).toBeCloseTo(ENDING.dance, 1);
+    expect(world.inputLocked).toBe(true);
+  });
+
+  it("nobody fetches it: the card comes anyway after 60 s, and the dancer counts if you shot him", () => {
+    const { world, hero } = atEnding();
+    const dancer = npc(world, 'dancer');
+    world.hitActor(hero, dancer, 'wall', 1, 0, dancer.pos);
+    const cleared: number[] = [];
+    world.events.on('roomCleared', (e) => cleared.push(e.kills));
+    for (let i = 0; i < 60 * (ENDING.pause + ENDING.waitPickup) + 5; i++) world.step();
+    expect(cleared).toEqual([1]);
+    expect(hero.pose.dancing).toBeFalsy();
   });
 });

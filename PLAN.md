@@ -289,11 +289,12 @@ Build:
   - [x] Part 2: lightning strike (lands where you stood when his hand went up: knockdown + disarm; answers a blocked burst), hover dash (wind-up 0.25 s, ~2 H in 0.27 s) → grab → 6 body slams every 0.58 s (mashing cuts it to 2) → throw (one life). A teammate's head shot makes him let go.
   - [x] Part 3, phase 2 (from his first head wound, or after 30 s; untouchable until the cannon lands so a burst can't skip it): telekinetic sweep sends every intact corpse off the screen, the cannon drops beside him (shadow 0.8 s, crushes what's under it, stays as solid terrain you can stand on but not cover), 4-ball volleys from behind it every 9 s (barrel swings to your depth; jump or go prone), no ward while he works it. Cannonballs knock heroes down and kill grunts/zombies.
 - [x] Wave B (≈ 9 grunts) with pickups (sawed-off, knives, 2 pistols). A grunt can man the cannon (an enemy uses a prop weapon). Jump onto the cannon, split-aim.
-- [ ] Ending: pick up the boombox, dance emote, body-count card vs. 32.
+- [x] Ending: pick up the boombox, dance emote, body-count card vs. 32.
 
 Look & sound:
-- [ ] Lightning bolt VFX (jagged, cyan-white, 2 frames + afterglow), raise-dead green spread, shield shimmer + ricochet sparks, telekinesis distortion ripple, cannon drop shadow + dust, cannonball + muzzle blast, falling-object whistle.
-- [ ] Boss sounds (crackle, rumble, shield hum, whoosh, cannon), boombox as a positioned diegetic music source (user's track or ambience until delivered), stage 1 music cues wired (riot combat, boss, outro).
+- [x] Lightning bolt VFX (jagged, cyan-white, 2 frames + afterglow), raise-dead green spread, shield shimmer + ricochet sparks, telekinesis distortion ripple, cannon drop shadow + dust, cannonball + muzzle blast, falling-object whistle.
+- [x] Boss sounds (crackle, thunder, rumble, ward hum, ricochet, dash whoosh, slams, telekinesis, cannon boom, heavy landing).
+- [ ] Boombox as a positioned diegetic music source (user's track or ambience until delivered); stage 1 music cues: the script already sends `riot` / `boss` / `outro` (`MusicSystem.setTrack`), the tracks need entries in `assets/music/cues.json`.
 
 Acceptance: the stage completes headless with a scripted bot (sequencer + waves don't deadlock) · boss phases trigger in order · all Stage 1 labs still pass.
 Labs: `boss-halo` (clips 1–4), `world-falling-hazard` (cannon drop).

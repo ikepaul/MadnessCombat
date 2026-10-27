@@ -33,6 +33,8 @@ export interface Item {
   heldBy?: number;
   thrownBy?: number;
   hit: number[];
+  /** M8: can't be picked up yet (the boombox waits for the stage's ending). */
+  locked?: boolean;
   /** Guns: rounds left in the magazine and spare magazines. */
   ammo?: number;
   spare?: number;

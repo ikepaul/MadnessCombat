@@ -131,7 +131,9 @@ export class UIScene extends Phaser.Scene {
     if (game.cleared && !this.card.visible) {
       (this.card.getByName('n') as Phaser.GameObjects.Text).setText(String(kills));
       const target = game.stageInfo?.targetBodyCount;
-      const episode = target ? `the whole of stage ${game.stageInfo!.stage} counts ${target} in the episode\n` : '';
+      // the stage's count against the episode's (world-kill-counter: stage 1 = 32)
+      const vs = !target ? '' : kills > target ? `${kills - target} more than` : kills === target ? 'exactly' : `${target - kills} short of`;
+      const episode = target ? `${vs} the episode's ${target}\n` : '';
       // co-op: only the host restarts the room
       const again = game.coop === 'guest' ? 'waiting for the host to fight again' : 'press Enter to fight again';
       (this.card.getByName('sub') as Phaser.GameObjects.Text).setText(`${episode}${again}`);

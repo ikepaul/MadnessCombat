@@ -90,6 +90,8 @@ export interface Pose {
   grip?: number;
   /** M8 boss: 0..1 the telekinetic sweep gesture (front hand swept out flat). */
   push?: number;
+  /** M8 ending: the dance emote (the dancer NPC's loop: bounce, sway, hands pumping). */
+  dancing?: boolean;
 }
 
 export type MoveState = 'ground' | 'air' | 'goingProne' | 'diving' | 'prone' | 'standingUp';

@@ -42,8 +42,8 @@ export function buildSkeleton(a: Actor, time: number): Layered {
     s.handF[0] += handSwing * 0.6 + tuck * 0.04;
     s.handF[1] += -tuck * 0.14 + (quiet ? 0 : Math.sin(breath) * 0.008);
   }
-  // M8 dancer NPC (style frame "Stage 1 cast"): bounce, sway, hands pumping overhead in turn
-  const dn = a.variant === 'dancer' && a.state === 'free' && !p.dead && !stepping ? time * DANCE_RATE + a.id : undefined;
+  // M8 dancer NPC (style frame "Stage 1 cast") and the ending's dance emote: bounce, sway, hands pumping overhead in turn
+  const dn = (a.variant === 'dancer' || p.dancing) && a.state === 'free' && !p.dead && !stepping ? time * DANCE_RATE + a.id : undefined;
   let danceBob = 0, danceLean = 0;
   if (dn !== undefined) {
     danceBob = Math.abs(Math.sin(dn)) * 0.035;

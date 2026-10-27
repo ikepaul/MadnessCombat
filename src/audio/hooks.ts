@@ -84,7 +84,12 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
     if (e.phase === 'start') play('magOut', p);
     else { play('magOut', { ...p, rate: 1.25 }); play('slideRack', { ...p, delay: 0.08 }); }
   });
-  world.events.on('pickup', (e) => { play('grab', at(e.x, e.y + 0.4, e.z)); play('magOut', at(e.x, e.y + 0.4, e.z, { rate: 1.4, gain: 0.5 })); });
+  world.events.on('pickup', (e) => {
+    play('grab', at(e.x, e.y + 0.4, e.z));
+    // M8: the boombox's play button clicks; guns latch
+    if (e.item === 'boombox') play('tick', at(e.x, e.y + 0.4, e.z, { rate: 0.7, gain: 0.8, delay: 0.15 }));
+    else play('magOut', at(e.x, e.y + 0.4, e.z, { rate: 1.4, gain: 0.5 }));
+  });
   // M6
   world.events.on('explosion', (e) => {
     play('explosion', at(e.x, Math.max(0.3, e.y), e.z));

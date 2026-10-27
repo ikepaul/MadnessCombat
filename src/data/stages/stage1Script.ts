@@ -1,8 +1,8 @@
 // Stage 1 as one script (PLAN.md M8, research/stages.md Stage 1, research/episodes/ep1-log.md).
 // Beat 1, the intro: the boombox NPC by the pole, the dancer in the background. Walk up to the
 // music, get punched flat (teaches the get-up), then take him out (melee tutorial, low sweep).
-// Then wave A, a grenade for the body pile, the boss, and wave B (pickups, a grunt on his cannon).
-// The ending (boombox, dance, body-count card) comes next.
+// Then wave A, a grenade for the body pile, the boss, wave B (pickups, a grunt on his cannon) and
+// the ending (fetch the boombox, dance, the body-count card).
 import { TUNING } from '../tuning';
 import type { Actor } from '../../sim/actor';
 import { placeCannon, spawnBoss } from '../../sim/boss';
@@ -86,7 +86,9 @@ export function dropBoombox(world: World, npc: Actor): void {
   if (npc.carry !== 'boombox') return;
   npc.carry = undefined;
   const dir = -npc.facing;
-  world.spawnItem('boombox', 'grunt', { x: npc.pos.x + npc.facing * 0.25, y: 0.35, z: npc.pos.z - 0.05 }, { x: dir * 0.6, y: 1.5, z: 0 }, 0);
+  const box = world.spawnItem('boombox', 'grunt', { x: npc.pos.x + npc.facing * 0.25, y: 0.35, z: npc.pos.z - 0.05 }, { x: dir * 0.6, y: 1.5, z: 0 }, 0);
+  // it stays put until the ending asks for it (walking over it mid-fight mustn't fill your hand)
+  box.locked = true;
 }
 
 /** Beat 3 timings and placement. */
@@ -225,8 +227,45 @@ export function* waveBBeat(s: Seq) {
   yield* s.join(waves);
 }
 
+/** Beat 6 timings. */
+export const ENDING = {
+  /** Quiet after the last wave-B grunt (s). invented */
+  pause: 1.5,
+  /** Nobody fetches the boombox: the card comes anyway after this long (s), so the stage can't stall. invented */
+  waitPickup: 60,
+  /** The dance before the card (s). ep1 f3229-f3299: ~2.3 s; a little longer to enjoy it. invented */
+  dance: 3.0,
+};
+
+/**
+ * Beat 6, the ending (research/stages.md, ep1 1:40-2:07): quiet again; pick the boombox up (E or
+ * walk over it with empty hands; it takes the front hand), then the dance emote and the body-count
+ * card against the episode's 32. Shooting the dancer is up to the player (he counts).
+ */
+export function* ending(s: Seq) {
+  const world = s.world;
+  yield ENDING.pause;
+  s.music(null);
+  const carrying = () => world.players.find((p) => p.carry === 'boombox');
+  // started from a later beat: there's no dropped boombox yet, put one by the pole
+  if (!carrying() && !world.items.some((it) => it.kind === 'boombox')) {
+    world.spawnItem('boombox', 'grunt', { x: INTRO.boombox.x, y: 0.4, z: INTRO.boombox.z }, { x: 0, y: 1, z: 0 }, 0);
+  }
+  for (const it of world.items) if (it.kind === 'boombox') it.locked = false;
+  const caption = s.run(function* caption(q: Seq) { yield* q.card('Quiet again. Go and get the music.', 5, 'caption'); });
+  yield* s.until(() => !!carrying(), ENDING.waitPickup);
+  caption.cancel();
+  if (carrying()) {
+    // the dance: everyone still standing joins in
+    s.music('outro');
+    s.lockInput(true);
+    for (const p of world.activePlayers) p.pose.dancing = true;
+    yield ENDING.dance;
+  }
+}
+
 /** The beats in order; `?beat=<name>` starts the stage at one (playtesting). */
-export const STAGE1_BEATS = ['intro', 'riot', 'grenade', 'boss', 'waveB'] as const;
+export const STAGE1_BEATS = ['intro', 'riot', 'grenade', 'boss', 'waveB', 'ending'] as const;
 export type Stage1Beat = (typeof STAGE1_BEATS)[number];
 
 /** The whole stage, beat by beat (from `from`: the beats before it are skipped). */
@@ -262,7 +301,9 @@ export function stage1From(from: Stage1Beat = 'intro') {
     // beat 4: the boss
     if (at <= 3) yield* bossFight(s);
     // beat 5: wave B, with pickups and a grunt on the cannon
-    yield* waveBBeat(s);
+    if (at <= 4) yield* waveBBeat(s);
+    // beat 6: the boombox, the dance, the body-count card
+    yield* ending(s);
     s.clear();
   };
 }
