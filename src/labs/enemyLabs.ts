@@ -136,3 +136,17 @@ registerLab({
     enemy(world, 1.2, 9.9, 'smg', { aware: false, idle: 'smoke', face: 1 });
   },
 });
+
+registerLab({
+  slug: 'idles',
+  title: `Idles (playtest 2026-10-27): unaware guards fidget (watch, stretch, scratch, glance, weight shift), the smoker smokes, two chat (turns alternate: one gestures, one nods). Stand still ~3.5 s and the hero fidgets too. ${CONTROLS}`,
+  setup(world) {
+    world.room = { ...world.room, props: [] };
+    hero(world, -3.0, 9.2);
+    // the guards face away from the hero so they stay unaware
+    enemy(world, -1.2, 9.0, null, { aware: false, idle: 'stand', face: 1 });
+    enemy(world, 0.2, 9.6, 'pistol', { aware: false, idle: 'smoke', face: 1 });
+    enemy(world, 1.5, 9.2, null, { aware: false, idle: 'chat', face: 1 });
+    enemy(world, 2.3, 9.2, 'smg', { aware: false, idle: 'chat', face: -1 });
+  },
+});

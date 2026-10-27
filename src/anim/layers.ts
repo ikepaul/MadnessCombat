@@ -3,6 +3,7 @@
 // the front hand and live in the painter, since they need the screen projection.
 import type { Actor } from '../sim/actor';
 import { sampleClip } from './clips';
+import { applyIdle } from './idles';
 import type { Skeleton } from './skeleton';
 
 /** Idle breathing/hand bob rates: the style frame used 0.12 rad per 30 fps frame. */
@@ -21,6 +22,9 @@ export function buildSkeleton(a: Actor, time: number): Layered {
   const sk = sampleClip(p.clip, p.clipT);
   const s = {} as Skeleton;
   for (const k in sk) s[k as keyof Skeleton] = [...sk[k as keyof Skeleton]] as Skeleton[keyof Skeleton];
+
+  // idles (playtest 2026-10-27): guards' fidgets and chats, the hero's after standing still
+  applyIdle(a, s, time);
 
   const quiet = p.dead || a.state === 'down' || a.state === 'knockback';
   const stepping = p.walkPhase !== undefined;

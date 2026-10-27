@@ -1,3 +1,4 @@
+import type { GoreLevel } from './gore';
 import { lyingAt, rootToWorld, STANDING } from '../anim/skeleton';
 import { TUNING } from '../data/tuning';
 import { type Actor, type ActorKind, alive, createActor, type Vec3 } from './actor';
@@ -64,6 +65,10 @@ export class World {
   lastStand?: LastStand;
   /** M11: improbability mode (src/sim/improbability.ts), the arena collapse, falling blocks. */
   physics: 'normal' | 'improbable' = 'normal';
+  /** Thrown weapons hitting a co-op ally (the friendly-fire setting): full damage, a knockdown only, or nothing. */
+  friendlyThrow: 'damage' | 'knockdown' | 'through' = 'damage';
+  /** Stage 3 is gorier (src/sim/gore.ts). */
+  gore: GoreLevel = 'normal';
   collapse?: Collapse;
   blocks: FallingBlock[] = [];
   /** M10: the elevator cab's state while in that room (src/sim/elevator.ts). */

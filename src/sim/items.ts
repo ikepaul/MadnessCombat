@@ -235,6 +235,25 @@ function catchItem(world: World, o: Actor, it: Item): void {
  * rules): guns and blunt weapons knock down (a head hit kills, gun-empty-throw), blades kill,
  * knives and axes stick in what they hit (throw-knives). A target ready to catch takes it.
  */
+/** `o` is another player than the one who threw `it` (co-op friendly fire). */
+function allyHit(world: World, it: Item, o: Actor): boolean {
+  return o.kind === 'hero' && o.id !== it.thrownBy && world.actorById(it.thrownBy!)?.kind === 'hero';
+}
+
+/**
+ * A thrown thing hits an ally: per the friendly-fire setting it hurts like any hit, or knocks
+ * them down without damage. True when the knockdown rule handled it.
+ */
+function allyKnockdown(world: World, it: Item, o: Actor, dirX: number): boolean {
+  if (world.friendlyThrow !== 'knockdown' || !allyHit(world, it, o)) return false;
+  // a heavy blow's knockdown with the damage switched off (`protected`: hits do no damage)
+  const was = o.protected;
+  o.protected = true;
+  world.hitActor(world.actorById(it.thrownBy!), o, 'heavy', dirX, 0, it.pos);
+  o.protected = was;
+  return true;
+}
+
 function thrownHits(world: World, it: Item, before: [number, number]): void {
   const now = project(it.pos.x, it.pos.y, it.pos.z);
   const dx = now[0] - before[0], dy = now[1] - before[1], len = Math.hypot(dx, dy);
@@ -243,6 +262,7 @@ function thrownHits(world: World, it: Item, before: [number, number]): void {
   let best: { a: Actor; part: 'head' | 'body'; t: number } | undefined;
   for (const o of world.actors) {
     if (o.id === it.thrownBy || it.hit.includes(o.id) || o.state === 'dead' || o.state === 'downed' || o.state === 'getUp') continue;
+    if (world.friendlyThrow === 'through' && allyHit(world, it, o)) continue;
     const h = rayVsActor(before, dir, o, 0.05);
     if (h && h.t <= len && (!best || h.t < best.t)) best = { a: o, part: h.part, t: h.t };
   }
@@ -253,7 +273,9 @@ function thrownHits(world: World, it: Item, before: [number, number]): void {
   const by = world.actorById(it.thrownBy!);
   const dirX = Math.sign(it.vel.x) || 1;
   const blade = isMelee(it.kind) && MELEE[it.kind].edge === 'blade';
-  if (blade) {
+  if (allyKnockdown(world, it, o, dirX)) {
+    // nothing sticks in an ally: it bounces off below
+  } else if (blade) {
     world.hitActor(by, o, 'knife', dirX, 0, it.pos, best.part);
     if (MELEE[it.kind as keyof typeof MELEE].sticks && o.grabbedBy === undefined) {
       stickInBody(world, it, o, best.part, flightAngle(it.vel.x, it.vel.y));
@@ -270,10 +292,11 @@ function thrownHits(world: World, it: Item, before: [number, number]): void {
 function thrownItemHits(world: World, it: Item): void {
   for (const o of world.actors) {
     if (o.id === it.thrownBy || it.hit.includes(o.id) || o.state === 'dead' || o.state === 'grabbed' || o.state === 'getUp' || o.state === 'downed') continue;
+    if (world.friendlyThrow === 'through' && allyHit(world, it, o)) continue;
     if (Math.abs(o.pos.z - it.pos.z) > 0.25 || Math.abs(o.pos.x - it.pos.x) > 0.25) continue;
     if (it.pos.y < o.pos.y || it.pos.y > o.pos.y + o.body.height) continue;
     it.hit.push(o.id);
-    world.hitActor(world.actorById(it.thrownBy!), o, 'head', Math.sign(it.vel.x) || 1, 0, it.pos);
+    if (!allyKnockdown(world, it, o, Math.sign(it.vel.x) || 1)) world.hitActor(world.actorById(it.thrownBy!), o, 'head', Math.sign(it.vel.x) || 1, 0, it.pos);
     it.vel.x *= -0.3;
     it.vel.z *= 0.3;
   }

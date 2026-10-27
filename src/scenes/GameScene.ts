@@ -314,6 +314,7 @@ export class GameScene extends Phaser.Scene {
     const room = data.room && data.room in def.rooms ? data.room : cp?.room ?? def.start.room;
     const entry = cp?.entry ?? (room === def.start.room ? def.start.entry : Object.keys(def.rooms[room].entries)[0]);
     this.world = new World(def.rooms[room].room);
+    this.world.gore = def.gore ?? 'normal';
     const coop = data.coop === 'host';
     this.world.addPlayer(createActor('hero', 0, 9.2, 1));
     if (coop) this.world.addPlayer(createActor('hero', 0.6, 9.2, 1));
@@ -437,6 +438,7 @@ export class GameScene extends Phaser.Scene {
       boombox?.update();
       return;
     }
+    this.world.friendlyThrow = SETTINGS.friendlyFire;
     // keep an edge latched until a tick actually consumes it
     this.world.command = mergeEdges(this.world.command, this.input_.read());
     const steps = this.clock.advance(delta / 1000, () => {

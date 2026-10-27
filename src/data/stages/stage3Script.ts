@@ -65,7 +65,7 @@ function* vent(s: Seq, _entry: string): Beat {
   // the one right below the vent: landing next to him is the knife kill (move-drop-from-above)
   s.spawn('grunt', 'pistol', -0.55, 9.2, unaware({ face: 1 }));
   s.spawn('grunt', 'pistol', 2.3, 9.0, unaware({ idle: 'smoke', face: 1 }));
-  s.spawn('grunt', 'smg', 2.9, 9.8, unaware({ face: 1 }));
+  s.spawn('grunt', 'smg', 2.9, 9.8, unaware({ idle: 'chat', face: 1 }));
   s.drop('rifle', 0.9, 9.6, 0);
   yield 1.2;
   caption(s, 'From range, LMB throws a knife. Stand over a stuck one to pull it back out.', 5);

@@ -64,6 +64,7 @@ export const LIFT: RoomDef = {
 const EAST = { x0: 3.15, x1: 9, z0: 0, z1: 99 };
 
 export const STAGE3: StageDef = {
+  gore: 'extreme',
   stage: 3,
   palette: 'warm',
   // research/stages.md: the episode's body count

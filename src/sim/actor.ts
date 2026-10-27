@@ -24,6 +24,8 @@ export interface Hand {
   reload: number;
   /** The empty trigger clicked once: the next press throws the gun (gun-empty-throw). */
   clicked: boolean;
+  /** Extreme gore: a blade or club with blood on it. */
+  bloody?: boolean;
 }
 
 /** A full hand for `item`: guns come loaded with one spare magazine. */
@@ -56,6 +58,10 @@ export interface Pose {
   headless: boolean;
   /** Wound marks in actor-local H (drawn only on stages with blood). */
   wounds: [number, number][];
+  /** Extreme gore: hands that came off (not drawn). */
+  lostHands?: { F?: boolean; B?: boolean };
+  /** Extreme gore: blood on the body, 0..1 (the hero after close kills). */
+  stain?: number;
   /** Muzzle flash this frame. */
   flash: boolean;
   /** 0 = standing, 1 = flat on the floor (prone/dive), blended during transitions. */

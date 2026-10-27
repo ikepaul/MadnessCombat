@@ -2,6 +2,7 @@
 // ~1.5 H up and outward; corpses close by are gibbed (they can't be raised as zombies any
 // more), farther ones are thrown about; loose items scatter. The `explosion` event carries the
 // floor point for the scorch decal and for breakable floor tiles (M9).
+import { gibCorpse } from './gore';
 import { lyingAt } from '../anim/skeleton';
 import { GRENADE } from '../data/melee';
 import { GRAVITY } from '../data/tuning';
@@ -39,12 +40,7 @@ export function explode(world: World, at: Vec3, byId?: number): void {
     if (c.phase === 'frozen') world.events.emit('corpseThawed', { actorId: a.id });
     if (d <= GRENADE.gibRadius) {
       // gibbed: the body is gone, only pieces (VFX) and blood remain
-      c.gibbed = true;
-      c.raisable = false;
-      c.phase = 'settled';
-      c.t = 0;
-      a.flight = undefined;
-      world.events.emit('gib', { actorId: a.id, ...a.pos });
+      gibCorpse(world, a);
       continue;
     }
     // farther corpses are thrown about

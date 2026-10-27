@@ -4,6 +4,7 @@
 // The stage runner is a sequencer script: it enters a room (players placed at the entry, the
 // room's exits armed, its script started), waits until an exit is taken, plays the traversal and
 // the ink wipe (decided 2026-10-27), and loads the next room. Every room entry is a checkpoint.
+import type { GoreLevel } from './gore';
 import { lyingAt, STANDING } from '../anim/skeleton';
 import { TUNING } from '../data/tuning';
 import type { PaletteId } from '../data/palettes';
@@ -76,6 +77,8 @@ export interface StageDef {
   rooms: Record<string, StageRoom>;
   /** What each player starts the stage with. */
   loadout(p: Actor): void;
+  /** Playtest 2026-10-27: stage 3 is extreme (src/sim/gore.ts). */
+  gore?: GoreLevel;
 }
 
 /** An exit armed in the current room. */
