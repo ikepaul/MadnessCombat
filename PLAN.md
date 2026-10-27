@@ -415,9 +415,9 @@ Build:
 - [x] Checkpoints per room (or whatever the user picks). Restart flow.
 - [x] Credits screen from `assets/CREDITS.md` (CC-BY credits are required: the gunshot recordings).
 - [ ] Final music integration (all delivered stems, mix pass at −16 LUFS), final SFX mix pass per stage. **Waiting on the user's stems** (only `MadnessCombat.V1.wav` so far).
-- [ ] Final art pass: consistency of line weights and palettes across all rooms, title/stage cards in our own design. (Title card done, working title "BODY COUNT" until the user names the game.)
+- [x] Final art pass: consistency of line weights and palettes across all rooms, title/stage cards in our own design. (Checked, no changes needed: `design/art-pass.md`. Working title "BODY COUNT" until the user names the game.)
 - [x] Performance pass: decal/corpse caps, profiling the heaviest rooms (stage 2 office, stage 3 desert) at 60 fps with full effects. (Numbers in `research/performance.md`: both rooms hold 60 fps with 60+ bodies; the room restart stall after a death went from ~1.6 s to ~15 ms by reusing the layer canvases. Decals stay capped at 500; corpses need no cap.)
-- [ ] Bugfix and playtest pass on all invented numbers in `tuning.ts` and `feel.ts`.
+- [ ] Bugfix and playtest pass on all invented numbers in `tuning.ts` and `feel.ts`. Tool: F6 in a dev build opens the tuning panel (every number, live, kept between reloads, "Copy changes" to commit them). Playtest changes so far: movement, grenades, grab assist, gore, idles. Needs the user's hands-on pass.
 
 Acceptance: a full playthrough of all three stages from the title screen · 60 fps in the heaviest rooms on the dev machine with full effects.
 

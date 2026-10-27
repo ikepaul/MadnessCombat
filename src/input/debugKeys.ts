@@ -12,6 +12,8 @@ export interface DebugActions {
   cycleEffects(): void;
   toggleMute(): void;
   raiseAll(): void;
+  /** F6 (dev builds): the tuning panel. */
+  toggleTuning?(): void;
 }
 
 /**
@@ -38,4 +40,5 @@ export function bindDebugKeys(scene: Phaser.Scene, a: DebugActions): void {
   kb.on('keydown-V', () => a.cycleEffects());
   kb.on('keydown-M', () => a.toggleMute());
   kb.on('keydown-Z', () => a.raiseAll());
+  if (a.toggleTuning) { kb.addCapture('F6'); kb.on('keydown-F6', () => a.toggleTuning!()); }
 }

@@ -1,6 +1,7 @@
 // Melee weapons, throwables and grenades (PLAN.md M6, research/mechanics/melee-weapons,
 // melee-environment-weapon, throw-knives, throw-grenade). Measured values cite their note; the
 // rest is marked invented. Geometry (length, tip) is shared by the painter and the sim.
+import { applyOverrides } from '../dev/overrides';
 
 export type MeleeId = 'knife' | 'baton' | 'sword' | 'scimitar' | 'axe' | 'bat' | 'pipe' | 'sign';
 
@@ -123,3 +124,8 @@ export const SHIELD = {
   /** combat-human-shield: a body absorbs ~30 hits before it falls apart. invented */
   hits: 30,
 } as const;
+
+// dev: the F6 tuning panel's saved numbers (src/dev/overrides.ts)
+applyOverrides('GRENADE', GRENADE);
+applyOverrides('THROWN', THROWN);
+applyOverrides('DISARM', DISARM);

@@ -1,5 +1,6 @@
 // Every gameplay constant, each citing its source note in research/mechanics/ (measured) or
 // marked "invented". Distances in H, times in seconds.
+import { applyOverrides } from '../dev/overrides';
 
 export const TUNING = {
   /** Fixed simulation rate. */
@@ -578,6 +579,9 @@ export const TUNING = {
     radius: 0.12,
   },
 } as const;
+
+// dev: the F6 tuning panel's saved numbers (src/dev/overrides.ts), before anything is derived from them
+applyOverrides('TUNING', TUNING);
 
 /** Derived jump physics: apex h and airtime T give v0 = 4h/T and g = 8h/T^2. */
 export const JUMP_V0 = (4 * TUNING.jump.apex) / TUNING.jump.airtime;
