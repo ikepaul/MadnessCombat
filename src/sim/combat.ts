@@ -46,6 +46,7 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
   a.pose.impact = Math.max(0, a.pose.impact - dt);
   a.pose.hurt = Math.max(0, a.pose.hurt - dt);
   a.pose.lean *= Math.exp(-8 * dt);
+  if (a.pose.squash) a.pose.squash *= Math.exp(-10 * dt);
 
   // throw-catch-return: F opens a short window to catch a thrown weapon
   if (cmd.grab) a.catchAt = world.time;

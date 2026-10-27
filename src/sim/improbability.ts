@@ -73,6 +73,7 @@ export interface Collapse { side: -1 | 1; x: number; t: number; phase: 'crack' |
 /** Start the crack: the `side` half of the floor (x beyond `x` toward that side) goes after ~1 s. */
 export function startCollapse(world: World, side: -1 | 1, x = 0): void {
   world.collapse = { side, x, t: 0, phase: 'crack' };
+  world.room.crack = { side, x };
   world.events.emit('collapse', { phase: 'crack', side, x });
 }
 
@@ -104,11 +105,14 @@ export function stepCollapse(world: World, dt: number): void {
     if (a.fallingAway! >= CO.fallTime && a.playerIndex === undefined) gone.push(a);
   }
   for (const a of gone) world.actors.splice(world.actors.indexOf(a), 1);
+  if (gone.length) world.events.emit('corpseThawed', { actorId: gone[0].id });
 }
 
 function dropIntoVoid(world: World, a: Actor): void {
   if (a.fallingAway !== undefined) return;
   a.fallingAway = 0;
+  // a body baked into the corpse layer comes off it to fall
+  if (a.corpse?.phase === 'frozen') { a.corpse.phase = 'settled'; world.events.emit('corpseThawed', { actorId: a.id }); }
   if (a.playerIndex === undefined && alive(a)) applyHit(world, undefined, a, 'cannon', a.facing, 0, { ...a.pos });
   a.flight = undefined;
   world.events.emit('fellIntoVoid', { actorId: a.id, ...a.pos });

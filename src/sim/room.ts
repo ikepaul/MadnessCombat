@@ -109,6 +109,8 @@ export interface RoomDef {
   decks?: Deck[];
   /** M11 world-arena-collapse: the floor beyond x on `side` has fallen away. */
   void?: { side: -1 | 1; x: number };
+  /** M11: the crack before the collapse (drawn as a jagged line). */
+  crack?: { side: -1 | 1; x: number };
   /** M11 decor: a security camera high on the back wall (the camera room). */
   camera?: { x: number; y: number };
   /** M11 decor: a vending machine standing at the back (it comes alive: the brute). */

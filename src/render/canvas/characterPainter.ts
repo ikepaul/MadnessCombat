@@ -13,6 +13,7 @@ import { NPC_SUIT, paintBoombox, paintNpcBody, paintNpcHead } from './npcPainter
 import { isStage2Cast, paintStage2Body, paintStage2Head, STAGE2_SUIT } from './stage2CastPainter';
 import { project, type ScreenPoint, scaleAt } from '../camera';
 import { burst, type Ctx } from './draw';
+import { paintVendingBody } from './sceneryPainter';
 import { paintGrenade, paintGun, paintMelee } from './weaponPainter';
 import { isMelee } from '../../data/melee';
 
@@ -74,6 +75,8 @@ export function applyRoot(ctx: Ctx, root: Root): void {
 
 export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, opts: PaintOptions): void {
   const { pose } = a;
+  // M11: the vending-machine brute has its own body
+  if (a.variant === 'vending' && !opts.placement) { paintBrute(ctx, a, time, opts); return; }
   const { placement } = opts;
   let fx: number, fy: number, s: number, shadowY: number;
   if (placement) {
@@ -106,8 +109,12 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
   ctx.scale(s, s);
   ctx.scale(a.facing, 1);
   applyRoot(ctx, root);
+  // M11 improbability mode: a rubbery squash after a bounce
+  if ((pose.squash ?? 0) > 0.02) { ctx.translate(0, -0.5); ctx.scale(1 + pose.squash * 0.5, 1 - pose.squash * 0.4); ctx.translate(0, 0.5); }
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
+  // M11: the twin-tank jetpack on his back, flames while he's off the ground
+  if (pose.jetpack) jetpack(ctx, time, a.hover !== undefined || a.pos.y > pose.groundY + 0.1);
 
   // aim rig (PLAN.md M5): gun hands sit on a circle around the shoulder, toward the aim point
   // (standing only; the sim uses the same rig for the hitscan, so the shots leave these muzzles)
@@ -260,6 +267,44 @@ function weldingTorch(ctx: Ctx, handF: readonly [number, number, number], time: 
     ctx.lineWidth = 0.012; ctx.strokeStyle = u < 0.4 ? '#ffffff' : '#ffc070';
     ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - Math.cos(ang) * 0.04, y - Math.sin(ang) * 0.04 - 0.01); ctx.stroke();
   }
+  ctx.restore();
+}
+
+/** Style frame "Stage 3 cast", jetpack A: twin grey tanks with a red strap, twin flames when flying (body space). */
+function jetpack(ctx: Ctx, time: number, burning: boolean): void {
+  const fl = 0.1 + 0.06 * Math.abs(Math.sin(time * 40));
+  for (const x of [-0.3, -0.18]) {
+    if (burning) {
+      ctx.beginPath(); ctx.moveTo(x - 0.05, -0.2); ctx.quadraticCurveTo(x, -0.2 + fl * 3, x + 0.05, -0.2); ctx.closePath(); ctx.fillStyle = '#ffd27a'; ctx.fill();
+      ctx.beginPath(); ctx.moveTo(x - 0.025, -0.2); ctx.quadraticCurveTo(x, -0.2 + fl * 1.8, x + 0.025, -0.2); ctx.closePath(); ctx.fillStyle = '#fff6dc'; ctx.fill();
+    }
+    ctx.beginPath(); ctx.roundRect(x - 0.06, -0.62, 0.12, 0.42, 0.05); ctx.fillStyle = '#6b655d'; ctx.fill(); ctx.lineWidth = 0.014; ctx.strokeStyle = INK; ctx.stroke();
+  }
+  ctx.fillStyle = '#a3141c'; ctx.fillRect(-0.36, -0.5, 0.24, 0.03);
+}
+
+/** The vending-machine brute (the user's idea): its body, big floating hands and feet, the flap chomping. */
+function paintBrute(ctx: Ctx, a: Actor, time: number, opts: PaintOptions): void {
+  const [fx, fy] = project(a.pos.x, a.pos.y, a.pos.z), s = scaleAt(a.pos.z), pose = a.pose;
+  const walk = pose.walkPhase ?? 0, atk = a.state === 'attack' ? Math.min(1, a.stateT / 0.25) : 0;
+  ctx.save();
+  if (opts.flashes !== false && pose.impact > 0) ctx.filter = `brightness(${FEEL.impactFrame.brightness})`;
+  ctx.translate(fx, fy);
+  ctx.scale(s * a.facing, s);
+  applyRoot(ctx, pose.root);
+  ctx.lineJoin = 'round';
+  const foot = (x: number, lift: number) => { ctx.beginPath(); ctx.ellipse(x, -0.03 - lift, 0.16, 0.05, 0, 0, Math.PI * 2); ctx.fillStyle = '#4f4a44'; ctx.fill(); ctx.lineWidth = 0.014; ctx.strokeStyle = INK; ctx.stroke(); };
+  foot(-0.24, Math.max(0, Math.sin(walk)) * 0.06);
+  foot(0.24, Math.max(0, -Math.sin(walk)) * 0.06);
+  ctx.save();
+  ctx.translate(0, -0.06);
+  ctx.rotate(Math.sin(walk) * 0.04 + pose.lean);
+  paintVendingBody(ctx, Math.max(0, Math.sin(time * 6)) * 0.04 + atk * 0.06, !pose.dead);
+  ctx.restore();
+  const hand = (x: number, y: number) => { ctx.beginPath(); ctx.ellipse(x, y, 0.14, 0.123, 0, 0, Math.PI * 2); ctx.fillStyle = '#b8b0a3'; ctx.fill(); ctx.lineWidth = 0.02; ctx.strokeStyle = INK; ctx.stroke(); };
+  hand(-0.64, -0.8 + Math.sin(walk) * 0.05);
+  // the front hand swings out for the big punch
+  hand(0.64 + atk * 0.45, -0.86 - Math.sin(walk) * 0.05 - atk * 0.1);
   ctx.restore();
 }
 

@@ -307,6 +307,7 @@ export class Vfx {
     for (const sp of this.sparks) this.drawSparks(ctx, sp);
     for (const r of this.ripples) this.drawRipple(ctx, r);
     for (const m of this.marks) this.drawMark(ctx, m);
+    this.drawTrails(ctx);
     for (const b of this.bubbles) this.drawBubble(ctx, b);
     for (const b of this.blasts) {
       ctx.save();
@@ -445,6 +446,21 @@ export class Vfx {
       ctx.beginPath(); ctx.moveTo(sp.x + Math.cos(a) * l * 0.4, sp.y + Math.sin(a) * l * 0.4); ctx.lineTo(sp.x + Math.cos(a) * l, sp.y + Math.sin(a) * l); ctx.stroke();
     }
     ctx.restore();
+  }
+
+  /** M11 improbability mode: ghost trails behind bodies flying fast. */
+  private drawTrails(ctx: Ctx): void {
+    if (this.world.physics !== 'improbable') return;
+    for (const a of this.world.actors) {
+      const f = a.flight;
+      if (!f || f.phase !== 'air' || Math.hypot(f.vx, f.vy) < 6) continue;
+      const s = scaleAt(a.pos.z);
+      for (let k = 1; k <= 4; k++) {
+        const [x, y] = project(a.pos.x - f.vx * 0.03 * k, a.pos.y + 0.45 - f.vy * 0.03 * k, a.pos.z);
+        ctx.beginPath(); ctx.ellipse(x, y, 0.22 * s, 0.3 * s, 0, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(240,236,228,${0.22 - k * 0.045})`; ctx.fill();
+      }
+    }
   }
 
   /**

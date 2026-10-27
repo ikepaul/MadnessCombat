@@ -9,6 +9,7 @@ import '../labs/bossLabs';
 import '../labs/hazardLabs';
 import '../labs/enemyLabs';
 import '../labs/stage2Labs';
+import '../labs/stage3Labs';
 import '../labs/gunLabs';
 import '../labs/meleeLabs';
 import '../labs/throwLabs';
@@ -20,6 +21,8 @@ import { paintCharacter } from '../render/canvas/characterPainter';
 import { paintBoss } from '../render/canvas/bossPainter';
 import { paintItem } from '../render/canvas/itemPainter';
 import { paintDoor, paintProp, paintRoom } from '../render/canvas/roomPainter';
+import { paintTank } from '../render/canvas/sceneryPainter';
+import { TUNING } from '../data/tuning';
 import { Decals } from '../render/decals';
 import { PostFx } from '../render/post';
 import { Vfx } from '../render/vfx';
@@ -198,7 +201,10 @@ export class GameScene extends Phaser.Scene {
     });
     this.world.events.on('cannonHit', () => this.cannonHits++);
     // M11: the floor falling away and the vending machine walking off change the room's picture
-    this.world.events.on('collapse', () => this.bakeRoom());
+    this.world.events.on('collapse', (e) => {
+      if (e.phase === 'fall') this.decals.dropBeyond(e.x, e.side);
+      this.bakeRoom();
+    });
     this.world.events.on('bruteWake', () => this.bakeRoom());
     // world-persistence-decals: settled bodies are baked once; picking one up re-bakes the rest
     this.world.events.on('corpseFrozen', (e) => {
@@ -468,6 +474,12 @@ export class GameScene extends Phaser.Scene {
     for (const p of this.world.room.props) list.push({ z: p.z0, draw: () => paintProp(ctx, p, pal) });
     for (const c of this.world.cannons) list.push({ z: c.z, draw: () => paintCannon(ctx, c) });
     for (const b of this.world.balls) list.push({ z: b.z - 0.01, draw: () => paintBall(ctx, b) });
+    // M11 world-falling-hazard: the tank's shadow grows, then it comes down
+    for (const b of this.world.blocks) {
+      if (b.phase === 'landed') continue;
+      const k = b.phase === 'shadow' ? Math.min(1, b.t / TUNING.fallingBlock.shadow) : 1;
+      list.push({ z: b.z, draw: () => paintTank(ctx, b.x, b.z, b.facing, b.y, b.phase === 'shadow', k) });
+    }
     list.sort((a, b) => b.z - a.z);
     for (const d of list) d.draw();
     for (const p of this.world.players) if (p.state === 'downed') paintReviveBar(ctx, p);
