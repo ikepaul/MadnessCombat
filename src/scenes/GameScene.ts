@@ -14,6 +14,7 @@ import '../labs/gunLabs';
 import '../labs/meleeLabs';
 import '../labs/throwLabs';
 import '../labs/movementLabs';
+import '../labs/comboLabs';
 import { getLab, type Lab } from '../labs/registry';
 import { CanvasLayer } from '../render/canvasLayer';
 import { paintBall, paintCannon } from '../render/canvas/cannonPainter';

@@ -97,8 +97,11 @@ export const GUNS = {
   dualLongSpread: 2.5,
   /** gun-empty-throw: thrown guns fly straight (screen space) at this speed (H/s). invented */
   throwSpeed: 14,
-  /** Thrown gun damage: a head hit kills a grunt, a body hit knocks down (invented). */
-  throwHead: 4,
+  /**
+   * Thrown gun damage: a body hit knocks down (invented). M10b click -> throw -> punch (PLAN.md):
+   * a head hit no longer kills, it stuns like a punch and starts a chain (one heavy then kills).
+   */
+  throwHead: 1,
   throwBody: 1,
   /** gun-pickup-drop: pick-up reach on the floor (E, or automatic with empty hands). invented */
   pickupRange: 0.5,

@@ -329,6 +329,40 @@ export const TUNING = {
     bonus: 1,
   },
 
+  /**
+   * M10b combos & fatalities (design/combos-and-fatalities.md, PLAN.md M10b). All invented unless
+   * a reference frame is named.
+   */
+  juggle: {
+    /** The launcher: an uppercut on a stunned grunt deals this (not the usual 2+1), so he goes up alive. */
+    launchDamage: 1,
+    /** Each light jab on a launched grunt keeps him up this much longer (s), at most `maxJabs` times; jabs deal no damage. */
+    jabAir: 0.15,
+    maxJabs: 3,
+    /** Punches reach a juggled grunt this far from the fist (H) and up to this height (feet, H). */
+    reachX: 0.5,
+    reachUp: 1.6,
+    /** A punch that launches or jabs a juggled grunt ends this soon after it connects (s), so the next one fits. */
+    cancel: 0.08,
+    /** Share of the uppercut's forward drift a launched (juggled) grunt keeps. */
+    drift: 0.3,
+    /** A heavy that doesn't kill spikes him into the floor at this speed (H/s); he bounces up this fast (H/s). */
+    spikeSpeed: 7,
+    spikeBounce: 1.6,
+    /** Wall bounce (ep3 f2350-f2510): sub-lethal slams at this speed or more (H/s) come back this elastic, and pop up this fast. */
+    bounceMinSpeed: 1.2,
+    wallBounce: 0.55,
+    bounceUp: 2.6,
+    /** Pop & catch (ep2 f3060-f3140): a knocked-away weapon goes up about this high (H). */
+    popHeight: 1.0,
+    /** ...and it's yours for this long (s): enemies don't scavenge it meanwhile (they never catch). */
+    popReserve: 3.0,
+    /** Head punt (ep1 f1929): the head leaves along the hit at this speed (H/s). */
+    puntSpeed: 6,
+    /** Over-the-shoulder (ep3 f6660-f6710): an enemy within this distance behind you (H) can be shot without turning. */
+    backReach: 0.6,
+  },
+
   /** Hit reactions. */
   hit: {
     /** melee-hitstun-finisher: face-punch stun ~0.7 s, ep1 f1120-f1140. */

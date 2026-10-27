@@ -126,8 +126,10 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
   const prone = !opts.skeleton && shootsProne(a);
   const canAim = !opts.skeleton && !pose.dead && (flat < 0.5 || prone) && target !== undefined && !smoking(a);
   const proneRoot = prone ? root : undefined;
-  const rigF = canAim && gunF ? aimRig([fx, fy], s, a.facing, 0, target!, gunF, pose.kick?.[0], proneRoot) : undefined;
-  const rigB = canAim && gunB ? aimRig([fx, fy], s, a.facing, 1, pose.aimB ?? target!, gunB, pose.kick?.[1], proneRoot) : undefined;
+  // M10b over-the-shoulder: for a moment after a backward shot, that gun points behind from the back shoulder
+  const back = pose.backShot && time < pose.backShot.until ? pose.backShot : undefined;
+  const rigF = canAim && gunF ? (back?.hand === 0 ? aimRig([fx, fy], s, a.facing, 1, back.target, gunF, pose.kick?.[0]) : aimRig([fx, fy], s, a.facing, 0, target!, gunF, pose.kick?.[0], proneRoot)) : undefined;
+  const rigB = canAim && gunB ? aimRig([fx, fy], s, a.facing, 1, back?.hand === 1 ? back.target : pose.aimB ?? target!, gunB, pose.kick?.[1], proneRoot) : undefined;
   const aim = rigF?.angle ?? rigB?.angle;
   // a long gun held alone takes both hands: the back hand grips the barrel
   const support = rigF && gunF && !gunF.oneHanded && !pose.heldB;

@@ -51,5 +51,9 @@ Decisions taken with the user while researching (2026-10-26). The mechanic notes
 - **Idles**: smoking, chatting/gestures between unaware grunts, fidgets (wrist check, stretch, head scratch, look around), and hero fidgets after standing still.
 - **Gore in stage 3**: extreme. Bigger sprays, wall splatter, blood trails, more decapitations, shotgun/axe/explosion kills gib, arms come off, every heavy kill bursts, blood sticks to weapons and the hero.
 
+## Decided for M10b (2026-10-27, with the user)
+- **Juggles**: grunts only. Zombies shrug off the launcher.
+- **Co-op combos** (shared chains, hand-off juggles, double-teams, weapon passes): later, with M13. In M10b chains stay per attacker; both players can use every move.
+
 ## Still open (to ask later)
-- Combos (after M10b): a gun-butt hit at contact range: its own key (F with a gun in hand) or automatic? Do juggles work on zombies or only on grunts? Co-op combos (hand-off, double-team, weapon pass) now or in M13?
+- Pistol-whip (gun-butt hit at contact range): its own key (F with a gun in hand) or automatic? Not in the M10b slice.

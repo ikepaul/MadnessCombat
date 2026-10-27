@@ -23,7 +23,9 @@ import { dropHeld } from './items';
 import { DIVE_TIME, stepAirborneAction, stepAttackMove, stepLocomotion, sweepTarget } from './movement';
 import type { World } from './world';
 
-const M = TUNING.melee, H = TUNING.hit, G = TUNING.grab, C = TUNING.corpse, C_ = TUNING.combo;
+const M = TUNING.melee, H = TUNING.hit, G = TUNING.grab, C = TUNING.corpse, C_ = TUNING.combo, J = TUNING.juggle;
+/** Hits that count toward a chain (M10b: thrown guns and shots too, not only punches and blades). */
+const CHAIN_KINDS: HitKind[] = [...MELEE_KINDS, 'gun', 'bullet', 'knife'];
 const PUNCH_CLIP: Partial<Record<AttackKind, string>> = {
   light: 'punchLight', heavy: 'punchHeavy', uppercut: 'uppercut', finisher: 'finisher', throw: 'throw',
 };
@@ -56,7 +58,8 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
   // a hand holding a gun fires instead of punching (M5): LMB = hand 0, RMB = hand 1
   if (a.state === 'free' || a.state === 'attack') {
     cmd = withoutGunPunches(a, cmd);
-    stepHands(world, a, cmd, dt);
+    // M10b: RMB spent on an over-the-shoulder shot doesn't also throw a heavy punch
+    if (stepHands(world, a, cmd, dt)) cmd = { ...cmd, attack: null };
     stepGrenade(world, a, cmd, dt);
   }
 
@@ -299,12 +302,19 @@ function connect(world: World, a: Actor, kind: AttackKind): boolean {
   let best: Actor | undefined, bestD = Infinity, part: 'head' | 'body' = 'body';
   for (const o of world.actors) {
     if (!hittable(a, o) || o.state === 'down') continue;
-    const p = circleHits(o, f.x, f.y, f.r);
+    let p = circleHits(o, f.x, f.y, f.r);
+    // M10b: a juggled grunt up in the air is in reach of a punch below him (the fist alone wouldn't reach)
+    if (!p && o.flight?.juggle && o.flight.phase === 'air' && Math.abs(o.pos.x - f.x) < J.reachX && o.pos.y < J.reachUp) p = 'body';
     const d = Math.abs(o.pos.x - a.pos.x);
     if (p && d < bestD) { best = o; bestD = d; part = p; }
   }
   if (!best) return false;
   applyHit(world, a, best, kind as HitKind, a.facing, 0, { x: f.x, y: f.y, z: best.pos.z }, part);
+  // M10b: a punch that launches or keeps a grunt juggled recovers at once, so the next one fits in his airtime
+  if (best.flight?.juggle && best.flight.phase === 'air' && a.attack) {
+    const tm = attackTiming(a.attack.kind, a.attack.weapon);
+    a.attack.t = Math.max(a.attack.t, tm.startup + tm.active + tm.recovery - J.cancel);
+  }
   return true;
 }
 
@@ -349,11 +359,17 @@ export function applyHit(
   if (o.grabbedBy !== undefined && by?.id !== o.grabbedBy && kind !== 'blast') { shieldHit(world, by, o, kind, at, part); return; }
   const corpse = o.state === 'dead';
   const base = bullet ? bullet.damage : kind === 'gun' && part === 'head' ? GUNS.throwHead : kind === 'finisher' && heavy ? M.finisher.heavyDamage : DAMAGE[kind];
-  const combo = !corpse && base > 0 && o.kind !== 'hero' && MELEE_KINDS.includes(kind) && chainBonus(world, by, o, kind);
-  const damage = corpse || base <= 0 || (o.protected && kind !== 'pin') ? 0 : o.kind === 'hero' ? 1 : o.kind === 'zombie' ? zombieDamage(kind, base)
+  // M10b: a launched grunt in the air (being juggled), and the uppercut that launches a stunned one
+  const juggled = !corpse && !!o.flight?.juggle && o.flight.phase === 'air';
+  const launcher = !corpse && !!by && kind === 'uppercut' && o.kind === 'grunt' && o.state === 'stun';
+  const combo = !corpse && base > 0 && o.kind !== 'hero' && CHAIN_KINDS.includes(kind) && chainBonus(world, by, o, kind);
+  let damage = corpse || base <= 0 || (o.protected && kind !== 'pin') ? 0 : o.kind === 'hero' ? 1 : o.kind === 'zombie' ? zombieDamage(kind, base)
     // M11 the brute (~6 melee hits): every blow is one, bullets half, explosions three
     : o.variant === 'vending' ? (base >= 99 ? (kind === 'blast' ? 3 : o.hp) : kind === 'bullet' ? 0.5 : 1)
     : o.variant === 'bodyguard' ? (part === 'head' || base >= 99 ? o.hp : 1) : base + (combo ? C_.bonus : 0);
+  // the launcher sends him up alive; jabs only keep him up (the heavy that follows finishes it)
+  if (launcher) damage = J.launchDamage;
+  else if (juggled && kind === 'light') damage = 0;
   // M12 boss-clown clip 4: the zombie mini-boss shrugs off most of it while he holds the sign
   const taken = o.damageScale !== undefined && damage < 99 ? damage * o.damageScale : damage;
   o.hp = Math.max(0, o.hp - taken);
@@ -393,10 +409,25 @@ export function applyHit(
     const pointBlank = !!bullet?.pointBlank;
     // playtest 2026-10-27: stage 3's extreme gore takes more heads and gibs (src/sim/gore.ts)
     const gore = goreKill(world, by, o, kind, part, pointBlank);
-    const decap = o.kind === 'grunt' && (gore.decap || kind === 'heavy' || kind === 'uppercut' || kind === 'slash' || (kind === 'finisher' && heavy) || ((pointBlank || kind === 'gun') && part === 'head'));
+    // M10b head punt: a heavy that kills a juggled grunt sends the head flying into the next one
+    const punt = juggled && o.kind === 'grunt' && (kind === 'heavy' || kind === 'uppercut');
+    const decap = o.kind === 'grunt' && (punt || gore.decap || kind === 'heavy' || kind === 'uppercut' || kind === 'slash' || (kind === 'finisher' && heavy) || ((pointBlank || kind === 'gun') && part === 'head'));
     die(world, o, by, kind, dirX, dirZ, decap && !gore.gib, pointBlank ? 'heavy' : kind);
     if (gore.gib) gibCorpse(world, o);
+    else if (punt) puntHead(world, o, by, dirX);
     afterKill(world, by, o, kind, dirX);
+    return;
+  }
+  // M10b juggle: jabs keep him up, a heavy spikes him down, the launcher sends him up
+  if (juggled && kind === 'light') { juggleJab(world, o); return; }
+  if (juggled && (kind === 'heavy' || kind === 'uppercut')) { spike(world, o, dirX); return; }
+  if (launcher) {
+    knockDown(world, o, 'uppercut', dirX, dirZ);
+    // straight up, nearly on the spot, so the jabs that follow can reach him
+    o.flight!.vx *= J.drift;
+    o.flight!.vz = 0;
+    o.flight!.juggle = { jabs: 0, by: by!.id };
+    world.events.emit('juggle', { actorId: o.id, phase: 'launch', ...o.pos });
     return;
   }
   // M11: the hovering jetpack and the vending-machine brute don't go down: a flinch, nothing more
@@ -408,7 +439,9 @@ export function applyHit(
   }
   // a light hit in the air can't freeze you mid-jump: it knocks you down instead
   const airborne = o.pos.y > o.pose.groundY + 0.05;
-  switch ((airborne && kind === 'light') || dazedNow ? 'heavy' : kind) {
+  // M10b click -> throw -> punch: an empty gun to a grunt's head stuns like a punch (body hits still knock down)
+  const gunToHead = kind === 'gun' && part === 'head' && o.kind === 'grunt';
+  switch ((airborne && kind === 'light') || dazedNow ? 'heavy' : gunToHead ? 'light' : kind) {
     case 'light':
     case 'stab':
       // enemy-zombie: light hits only make a zombie twitch
@@ -456,9 +489,14 @@ function chainBonus(world: World, by: Actor | undefined, o: Actor, kind: HitKind
     c.count++;
     c.t = world.time;
     c.last = kind;
-  } else o.chain = { by: by.id, count: 1, t: world.time, last: kind };
+  } else {
+    // M10b pop & catch: the first hit with a weapon you just caught is already a chain hit
+    const primed = by.primedAt !== undefined && world.time - by.primedAt <= C_.window;
+    o.chain = { by: by.id, count: primed ? 2 : 1, t: world.time, last: kind };
+    by.primedAt = undefined;
+  }
   const n = o.chain!.count;
-  return n >= 3 || (n === 2 && (kind === 'heavy' || kind === 'uppercut') && prev === 'light');
+  return n >= 3 || (n === 2 && (kind === 'heavy' || kind === 'uppercut') && (prev === 'light' || prev === 'gun'));
 }
 
 function addWound(o: Actor, at: { x: number; y: number }, part: 'head' | 'body'): void {
@@ -575,12 +613,18 @@ export function stepFlight(world: World, a: Actor, dt: number): 'air' | 'skid' |
     if (room.outdoor) { /* open ground: the bounds just stop the body */ }
     else if (Math.abs(want.x) > lim && Math.abs(p.x - want.x) > 1e-6) wallImpact(world, a, want.x > 0 ? 'right' : 'left', Math.abs(f.vx));
     else if (want.z > room.zBack - TUNING.move.radius && Math.abs(p.z - want.z) > 1e-6) wallImpact(world, a, 'back', Math.abs(f.vz));
+    // M10b: a solid prop (cannon, crates, a table) bounces a sub-lethal slam back like a wall
+    else if (Math.abs(p.x - want.x) > 1e-6 || Math.abs(p.z - want.z) > 1e-6) propBounce(world, a, Math.hypot(f.vx, f.vz));
     // M12 throw-catch-return: thrown into the vending machine (the glass goes, so does he)
     if (f.thrownBy !== undefined && alive(a) && (Math.abs(p.x - want.x) > 1e-6 || Math.abs(p.z - want.z) > 1e-6)) vendingSmash(world, a, want);
     a.pos.x = p.x;
     a.pos.z = p.z;
-    a.pos.y += f.vy * dt - 0.5 * GRAVITY * dt * dt;
-    f.vy -= GRAVITY * dt;
+    // M10b: a juggled grunt hangs at the top of the arc for the time his jabs banked
+    if (f.hang && f.hang > 0 && f.vy <= 0) { f.hang -= dt; f.vy = 0; }
+    else {
+      a.pos.y += f.vy * dt - 0.5 * GRAVITY * dt * dt;
+      f.vy -= GRAVITY * dt;
+    }
     // M11: off the ceiling (or stuck in it)
     if (ceilingBounce(world, a)) return 'stopped';
     if (f.thrownBy !== undefined) {
@@ -589,6 +633,15 @@ export function stepFlight(world: World, a: Actor, dt: number): 'air' | 'skid' |
     } else f.r = f.r0 + (f.rTo - f.r0) * clamp(f.t / f.airtime, 0, 1);
     const ground = surfaceBelow(room, a.pos.x, a.pos.z, Math.max(prevY, a.pos.y));
     a.pose.groundY = ground;
+    if (f.vy <= 0 && a.pos.y <= ground && f.spiked) {
+      // M10b: spiked into the floor: one bounce, then down for real
+      a.pos.y = ground;
+      f.spiked = false;
+      f.vy = J.spikeBounce;
+      world.events.emit('juggle', { actorId: a.id, phase: 'bounce', ...a.pos });
+      a.pose.root = lyingAt(f.r);
+      return 'air';
+    }
     if (f.vy <= 0 && a.pos.y <= ground) {
       a.pos.y = ground;
       world.events.emit('bodyFall', { actorId: a.id, ...a.pos, speed: Math.hypot(f.vx, f.vz, f.vy) });
@@ -622,17 +675,82 @@ export function stepFlight(world: World, a: Actor, dt: number): 'air' | 'skid' |
 function wallImpact(world: World, a: Actor, wall: 'left' | 'right' | 'back', speed: number): void {
   const f = a.flight!;
   f.wall = wall;
-  // M11 improbability mode: an elastic bounce, squashed like rubber
-  const e = wallRestitution(world);
+  // M11 improbability mode: an elastic bounce, squashed like rubber. M10b: a living grunt slammed
+  // in below the kill speed comes back off the wall airborne, ready to be juggled (one code path)
+  const lethal = f.thrownBy !== undefined && speed >= G.wallKillSpeed;
+  const bounce = juggleBounce(a, speed, lethal);
+  const e = bounce ? Math.max(wallRestitution(world), J.wallBounce) : wallRestitution(world);
   if (wall === 'back') f.vz *= -e;
   else f.vx *= -e;
   if (e > 0.5) a.pose.squash = 0.35;
   world.events.emit('wallHit', { actorId: a.id, ...a.pos, wall, speed });
+  if (bounce) popOffWall(world, a, speed);
   // melee-grab-throw: a fast wall impact kills
   if (f.thrownBy !== undefined && alive(a) && speed >= G.wallKillSpeed) {
     f.hit.push(-1);
     applyHit(world, world.actorById(f.thrownBy), a, 'wall', -Math.sign(f.vx) || 1, 0, a.pos);
   }
+}
+
+/** M10b: a sub-lethal slam into a wall or a solid prop sends a living grunt back up for a juggle. */
+function juggleBounce(a: Actor, speed: number, lethal: boolean): boolean {
+  return !lethal && alive(a) && a.kind === 'grunt' && a.state === 'knockback' && speed >= J.bounceMinSpeed;
+}
+
+function popOffWall(world: World, a: Actor, speed: number): void {
+  const f = a.flight!;
+  f.vy = Math.max(f.vy, J.bounceUp);
+  f.juggle ??= { jabs: 0 };
+  f.r0 = f.r;
+  f.t = 0;
+  f.airtime = (2 * f.vy) / GRAVITY;
+  a.pose.squash = Math.max(a.pose.squash ?? 0, 0.15);
+  world.events.emit('wallBounce', { actorId: a.id, ...a.pos, speed });
+}
+
+function propBounce(world: World, a: Actor, speed: number): void {
+  const f = a.flight!;
+  if (!juggleBounce(a, speed, f.thrownBy !== undefined && speed >= G.wallKillSpeed)) return;
+  f.vx *= -J.wallBounce;
+  f.vz *= -J.wallBounce;
+  popOffWall(world, a, speed);
+}
+
+/** M10b juggle: a jab keeps the launched grunt up a little longer (at most J.maxJabs times). */
+function juggleJab(world: World, o: Actor): void {
+  const f = o.flight!, j = f.juggle!;
+  o.pose.impact = H.impact;
+  if (j.jabs >= J.maxJabs) return;
+  j.jabs++;
+  // each jab nudges him a little along the hit, no more (he stays in reach)
+  f.vx = Math.sign(f.vx || 1) * Math.min(Math.abs(f.vx), 0.25);
+  // he hangs at the top of the arc a little longer (no climbing: still in reach of the next jab)
+  f.hang = (f.hang ?? 0) + J.jabAir;
+  f.airtime += J.jabAir;
+  world.events.emit('juggle', { actorId: o.id, phase: 'jab', ...o.pos });
+}
+
+/** M10b juggle: a heavy that doesn't kill drives him into the floor; he bounces once. */
+function spike(world: World, o: Actor, dirX: number): void {
+  const f = o.flight!;
+  f.juggle = undefined;
+  f.spiked = true;
+  f.vy = -J.spikeSpeed;
+  f.vx = Math.sign(dirX) * 0.4;
+  f.vz = 0;
+  world.events.emit('juggle', { actorId: o.id, phase: 'spike', ...o.pos });
+}
+
+/** M10b head punt: the head just knocked off leaves along the hit, fast, and floors whoever it meets. */
+function puntHead(world: World, o: Actor, by: Actor | undefined, dirX: number): void {
+  const head = [...world.items].reverse().find((it) => it.kind === 'head' && it.state === 'air' && Math.abs(it.pos.x - o.pos.x) < 1);
+  if (!head) return;
+  head.vel = { x: (Math.sign(dirX) || 1) * J.puntSpeed, y: 1.2, z: 0 };
+  head.spin = (Math.sign(dirX) || 1) * 24;
+  head.thrownBy = by?.id;
+  head.punt = true;
+  head.hit = [];
+  world.events.emit('fatality', { actorId: o.id, kind: 'punt', itemId: head.id, ...head.pos });
 }
 
 /** A thrown body stopped by the vending machine smashes into it and dies. */
@@ -798,7 +916,8 @@ function tryGrab(world: World, a: Actor): void {
     if (o === a || o.grabbedBy !== undefined || o.state === 'getUp' || o.state === 'downed') continue;
     if (o.kind === 'hero' || (o.kind === 'boss' && alive(o))) continue; // not your partner; he hovers out of reach
     if (o.state === 'dead' && (o.corpse?.phase === 'headless' || o.flight || o.corpse?.pinned || o.corpse?.gibbed)) continue;
-    if (o.state === 'knockback') continue;
+    // M10b: a juggled grunt can be grabbed out of the air; other flying bodies can't
+    if (o.state === 'knockback' && !(o.flight?.juggle && alive(o))) continue;
     const dx = Math.abs(o.pos.x - a.pos.x), dz = Math.abs(o.pos.z - a.pos.z);
     // lying bodies are long: measure to the nearer end
     const reach = o.state === 'dead' || o.state === 'down' ? G.assistRadius + 0.4 : G.assistRadius;
