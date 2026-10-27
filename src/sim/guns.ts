@@ -55,6 +55,8 @@ export function splitTarget(world: World, a: Actor): Actor | undefined {
 
 /** Lying on the belly after a dive, in control (crawling too): the guns aim from down there. */
 export function shootsProne(a: Actor): boolean {
+  // M18 carry-spin: swung round by the ankles, the partner shoots like from the belly
+  if (a.carried === 'spin') return true;
   return a.state === 'free' && a.body.state === 'prone' && !a.pose.dead;
 }
 

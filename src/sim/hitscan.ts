@@ -226,7 +226,7 @@ export function castRay(world: World, from: ScreenPoint, dir: ScreenPoint, shoot
       if (t !== undefined && (!ward || t < ward.t)) ward = { actor: a, t };
     }
     // a corpse held up as a human shield still stops bullets (combat-human-shield)
-    if (skip(a) || (a.state === 'dead' && a.grabbedBy === undefined) || a.state === 'downed' || a.invulnerable || a.parked) continue;
+    if (skip(a) || (a.state === 'dead' && a.grabbedBy === undefined) || a.state === 'downed' || a.invulnerable || a.parked || a.carried || a.tossT !== undefined) continue;
     const h = rayVsActor(from, dir, a);
     if (h && (!hit || h.t < hit.t)) hit = { actor: a, part: h.part, t: h.t, point: [from[0] + dir[0] * h.t, from[1] + dir[1] * h.t] };
     // combat-disarm: an enemy's weapon in the hand can be shot out of it (small target)

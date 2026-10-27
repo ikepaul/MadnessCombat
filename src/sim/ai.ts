@@ -115,7 +115,9 @@ function ableToFight(a: Actor): boolean {
 /** The standing player nearest to `a`, if any. */
 function nearestPlayer(world: World, a: Actor): Actor | undefined {
   let best: Actor | undefined, bestD = Infinity;
+  // M18: a partner carried or swung by the other is out of reach (they turn on the carrier)
   for (const p of world.activePlayers) {
+    if (p.carried) continue;
     const d = dist(a, p);
     if (d < bestD) { best = p; bestD = d; }
   }
@@ -130,7 +132,7 @@ function nearestPlayer(world: World, a: Actor): Actor | undefined {
 export function assignTokens(world: World): void {
   markFear(world);
   const tokens = world.tokens;
-  const standing = world.activePlayers;
+  const standing = world.activePlayers.filter((p) => !p.carried);
   for (const id of [...tokens]) {
     const a = world.actorById(id);
     const target = a?.ai?.target !== undefined ? world.actorById(a.ai.target) : undefined;

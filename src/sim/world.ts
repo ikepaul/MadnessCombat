@@ -18,6 +18,7 @@ import { blastExit, checkExits, type ExitDef, type ExitState, skyLanding, stepTr
 import { Seq } from './sequencer';
 import { isBoss, stepBoss, stepSwept } from './boss';
 import { installAlertRules } from './stealth';
+import { stepSpin } from './coop';
 
 /** Props can change in play (a kicked-over table), so each World gets its own copies. */
 function ownProps(room: RoomDef): RoomDef {
@@ -289,6 +290,15 @@ export class World {
       }
       const o = this.actorById(h.id);
       if (!o) { a.holding = undefined; continue; }
+      // M18: a partner carried overhead lies on the raised hands; swung, he goes round by the ankles
+      if (o.carried === 'spin' && a.spin) { stepSpin(this, a, o, this.dt); continue; }
+      if (o.carried) {
+        o.pos = { x: a.pos.x - a.facing * 0.5, y: a.pos.y + 1.0, z: a.pos.z - 0.01 };
+        o.facing = a.facing;
+        o.pose.root = { r: Math.PI / 2, tx: 0.5, ty: 0.3, sx: 1, sy: 1 };
+        o.pose.groundY = a.pose.groundY;
+        continue;
+      }
       // held by the collar: the body's top sits at the hands
       // just behind the holder in depth, so the holding hands draw over the body
       o.pos = { x: a.pos.x + a.facing * (0.42 - 0.5 * back), y: a.pos.y + 0.12 + 0.3 * back, z: a.pos.z + 0.005 };

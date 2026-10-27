@@ -7,7 +7,7 @@ import { GRAVITY, TUNING } from '../data/tuning';
 import { DISARM, GRENADE, GUARD, GUN_BLOCK, isMelee, LOW_SLASH, MELEE, SHIELD, TOPPLE } from '../data/melee';
 import { GUNS, isWeapon, WEAPONS } from '../data/weapons';
 import { stepHands, stepUse } from './guns';
-import { isPartner, tryPass } from './coop';
+import { isPartner, launchToss, releaseSpin, setDown, stepCarried, stepTossed, tryLift, tryPass } from './coop';
 import { blastFlight } from './explosives';
 import { tryTakedown } from './stealth';
 import { ceilingBounce, knockbackScale, wallRestitution } from './improbability';
@@ -17,7 +17,7 @@ import { ACTION_KINDS, actionTiming, disarm, dropCooking, faceCursor, holdsLong,
 import { project, type ScreenPoint, scaleAt, unprojectFloor } from '../render/camera';
 import { type Actor, type AttackKind, alive, createActor, type Flight, meleeBand } from './actor';
 import { clamp, moveWithCollision, stairHeight, stairsAt, surfaceBelow } from './collision';
-import type { PlayerCommand } from './command';
+import { IDLE_COMMAND, type PlayerCommand } from './command';
 import { type HitKind, MELEE_KINDS } from './events';
 import { circleHits } from './hurtbox';
 import { dropHeld } from './items';
@@ -54,6 +54,8 @@ const FIST_REACH = M.range - 0.2 - M.fistRadius - 0.01;
 
 export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number): void {
   a.stateT += dt;
+  // M18 hero toss: in flight as a kick-missile, the tossed partner's input is locked
+  if (a.tossT !== undefined) { stepTossed(a, dt); if (a.tossT !== undefined) cmd = { ...IDLE_COMMAND, aim: cmd.aim }; }
   a.pose.clipT += dt;
   if (a.pose.react && (a.pose.react.age += dt) > REACT_LIFE) a.pose.react = undefined;
   a.pose.impact = Math.max(0, a.pose.impact - dt);
@@ -100,8 +102,8 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
       if (canAct && !a.holding && cmd.attack && a.cook === undefined) { startAttack(world, a, cmd); break; }
       // grabbing takes the front hand (a one-handed gun may stay in the back hand: human shield)
       if (canAct && a.cook === undefined && ((cmd.grab && (canGrab(a) || a.holding)) || (a.holding && cmd.attack))) {
-        if (a.holding) startThrow(a, cmd);
-        else if (b.state === 'ground') tryGrab(world, a);
+        if (a.holding) startThrow(world, a, cmd);
+        else if (b.state === 'ground') tryGrab(world, a, cmd.aim);
         if (a.state !== 'free') break;
       }
       stepLocomotion(world, a, cmd, dt);
@@ -171,8 +173,13 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
       if (reached(a.stateT, H.getUp)) { a.pose.root = { ...STANDING }; enter(a, 'free'); }
       break;
     }
-    case 'grabbed':
-      break; // positioned by the holder (World.updateHeld)
+    case 'grabbed': {
+      // positioned by the holder (World.updateHeld); M18: a carried partner hops off, starts the spin, shoots from it
+      if (!a.carried) break;
+      const hc = stepCarried(world, a, cmd);
+      if (hc && a.carried === 'spin') stepHands(world, a, hc, dt);
+      break;
+    }
     case 'dead':
       stepCorpse(world, a, dt);
       break;
@@ -505,6 +512,7 @@ export function applyHit(
 ): void {
   if (o.state === 'getUp' || o.state === 'downed') return; // i-frames (invented); downed heroes are out of the fight
   if (o.invulnerable || o.parked) return; // M9: the target before his last room, the boss's cameo; co-op: gone ahead
+  if (o.carried || o.tossT !== undefined) return; // M18: carried, swung or tossed by the partner: untouchable
   if (by) o.lastHitBy = by.id;
   // M8: the living boss has his own damage rule (src/sim/boss.ts)
   if (o.kind === 'boss' && o.state !== 'dead') { bossHit(world, by, o, kind, part, dirX, dirZ, at); return; }
@@ -589,7 +597,7 @@ export function applyHit(
     // M10b head punt: a heavy that kills a juggled grunt sends the head flying into the next one
     const punt = juggled && o.kind === 'grunt' && (kind === 'heavy' || kind === 'uppercut');
     const decap = o.kind === 'grunt' && (punt || double || gore.decap || kind === 'heavy' || kind === 'uppercut' || kind === 'slash' || (kind === 'finisher' && heavy) || ((pointBlank || kind === 'gun') && part === 'head'));
-    die(world, o, by, kind, dirX, dirZ, decap && !gore.gib, pointBlank ? 'heavy' : kind, { team: double || !!o.chain?.team });
+    die(world, o, by, kind, dirX, dirZ, decap && !gore.gib, pointBlank ? 'heavy' : kind, { team: double || !!o.chain?.team || by?.tossT !== undefined || !!by?.carried });
     if (double) {
       world.events.emit('fatality', { actorId: o.id, kind: 'double', ...o.pos });
       world.events.emit('coopMove', { kind: 'double', phase: 'hit', byId: by!.id, partnerId: world.players.find((p) => p !== by)?.id ?? 0, targetId: o.id, actorId: o.id, ...o.pos });
@@ -1347,6 +1355,8 @@ function kickContact(world: World, a: Actor): void {
     if (circleHits(o, x, y, K.radius) === null) continue;
     b.swept.push(o.id);
     applyHit(world, a, o, 'heavy', a.facing, 0, { x, y, z: o.pos.z });
+    // M18 hero toss: the missile floors everyone on its path, it doesn't bounce off the first
+    if (a.tossT !== undefined) continue;
     b.vel.x = -a.facing * K.bounceBack;
     b.vel.y = Math.max(b.vel.y, K.bounceUp);
     b.takeoff = { x: b.vel.x, z: 0 };
@@ -1356,7 +1366,9 @@ function kickContact(world: World, a: Actor): void {
 
 // ---------- grab & throw ----------
 
-function tryGrab(world: World, a: Actor): void {
+function tryGrab(world: World, a: Actor, aim?: ScreenPoint): void {
+  // M18 hero toss: F with the cursor on your partner (both hands empty) lifts them overhead
+  if (tryLift(world, a, aim)) return;
   const R = G.range;
   // throw-grenade-return: a live grenade nearby comes first
   for (const it of world.items) {
@@ -1430,7 +1442,10 @@ function tryGrab(world: World, a: Actor): void {
   }
 }
 
-function startThrow(a: Actor, cmd: PlayerCommand): void {
+function startThrow(world: World, a: Actor, cmd: PlayerCommand): void {
+  // M18 carry-spin: the swung partner leaves along the swing at once
+  const held = a.holding?.kind === 'actor' ? world.actorById(a.holding.id) : undefined;
+  if (held?.carried === 'spin') { releaseSpin(world, a, held); return; }
   const aim = cmd.aim;
   // toward the floor point under the cursor (free aim across depth), else straight ahead
   let dx = a.facing, dz = 0;
@@ -1470,6 +1485,8 @@ function releaseThrow(world: World, a: Actor): void {
   }
   const o = world.actorById(h.id);
   if (!o) return;
+  // M18 hero toss: a partner leaves as a kick-missile
+  if (o.carried) { a.holding = h; launchToss(world, a, o, d.x, d.z, TUNING.coop.toss.speed); return; }
   o.grabbedBy = undefined;
   o.pos = { x: a.pos.x + a.facing * 0.35, y: a.pos.y + G.releaseHeight, z: a.pos.z };
   const r = o.pose.root.r;
@@ -1499,6 +1516,8 @@ function releaseHeld(world: World, a: Actor): void {
   }
   const o = world.actorById(h.id);
   if (!o) return;
+  // M18: a carried partner lands on their feet
+  if (o.carried) { a.holding = h; setDown(world, o); return; }
   o.grabbedBy = undefined;
   dropBody(o);
 }

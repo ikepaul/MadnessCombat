@@ -624,8 +624,8 @@ export const TUNING = {
     bat: { speedScale: 1.5, minSpeed: 8, slack: 0.15, spinScale: 2 },
     /** Double-team: both players hit the same enemy within this (s); tough ones take +toughBonus instead of dying. */
     double: { window: 0.25, toughBonus: 2 },
-    /** Hero toss: the lift (s), carry speed share, throw speed (H/s), launch vy (H/s), longest flight (s), landing recovery (s), hit radius (H). */
-    toss: { lift: 0.25, carrySpeed: 0.6, speed: 9, vy: 3.0, maxFlight: 0.9, recover: 0.2, hitRadius: 0.4 },
+    /** Hero toss: the lift (s), carry speed share, throw speed (H/s), launch height and vy (H, H/s), share of gravity in flight (flat, at kick height), longest flight (s), landing recovery (s), hit radius (H). */
+    toss: { lift: 0.25, carrySpeed: 0.6, speed: 9, launchY: 0.45, vy: 0.6, gravity: 0.25, maxFlight: 0.9, recover: 0.2, hitRadius: 0.4 },
     /** Carry-spin: orbit radius (H), seconds per turn, carrier walk share, max time (s), fire only past this |cos|, the sweep band (H) and arc (rad), sweep and release speeds (H/s). */
     spin: { radius: 0.75, period: 1.2, walk: 0.6, maxTime: 4, fireCos: 0.38, sweepIn: 0.45, sweepOut: 1.1, sweepArc: 0.3, sweepSpeed: 5, release: 9 },
   },

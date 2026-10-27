@@ -272,6 +272,12 @@ export interface Actor {
   chain?: { by: number; count: number; t: number; last: string; /** M18: hits from both players in it. */ team?: boolean };
   /** M18 double-team: the last damaging hit a player landed on this one. */
   lastHeroHit?: { by: number; t: number };
+  /** M18 hero toss / carry-spin: this player is carried by their partner (overhead, or swung round by the ankles). */
+  carried?: 'overhead' | 'spin';
+  /** M18 carry-spin, on the carrier: the swing's angle (rad, 0 = right, pi/2 = back), seconds, enemies swept this turn. */
+  spin?: { angle: number; t: number; hits: number[] };
+  /** M18 hero toss: seconds of flight so far as a kick-missile (i-frames). */
+  tossT?: number;
   /** M18 wishbone: the second player pulling on a grunt the first one holds. */
   grabbedBy2?: number;
   /** M18 hold & hit: the holder's partner's hits on him while held; `tender` = hit enough to die on any impact when thrown. */

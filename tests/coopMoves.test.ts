@@ -271,3 +271,103 @@ describe('M18 wishbone', () => {
     expect(p1.holding?.id).toBe(g.id);
   });
 });
+
+describe('M18 hero toss', () => {
+  it('F with the cursor on the partner lifts them; elsewhere F grabs the grunt', () => {
+    const { world, p1, p2 } = coop(-0.5, 0.2);
+    grunt(world, -1.0);
+    tick(world, 1, { grab: true, aim: head(p2) });
+    expect(p2.carried).toBe('overhead');
+    expect(p1.holding?.id).toBe(p2.id);
+    const b = coop(-0.5, 0.2);
+    const g = grunt(b.world, -1.0);
+    tick(b.world, 1, { grab: true, aim: project(-3, 0.5, Z) });
+    expect(b.p1.holding?.id).toBe(g.id);
+  });
+
+  it('a carrier holding a gun cannot lift', () => {
+    const { world, p1, p2 } = coop(-0.5, 0.2);
+    p1.hands[0] = newHand('pistol');
+    tick(world, 1, { grab: true, aim: head(p2) });
+    expect(p2.carried).toBeUndefined();
+  });
+
+  it('thrown, the partner floors three grunts in a row unhurt and lands on their feet', () => {
+    const { world, p1, p2 } = coop(-2.8, -2.2);
+    const gs = [-1.0, -0.2, 0.6].map((x) => grunt(world, x));
+    tick(world, 1, { grab: true, aim: head(p2) });
+    expect(p2.carried).toBe('overhead');
+    tick(world, 1, { grab: true, aim: project(2.5, 0, Z) });
+    for (let i = 0; i < 90; i++) { tick(world); for (const g of gs) if (g.state !== 'dead' && g.state !== 'knockback' && g.state !== 'down') g.pos.z = Z; }
+    expect(gs.every((g) => g.state !== 'free' || g.hp < g.maxHp)).toBe(true);
+    expect(p2.hp).toBe(p2.maxHp);
+    expect(p2.state).toBe('free');
+    expect(p2.tossT).toBeUndefined();
+    expect(p1).toBeDefined();
+  });
+
+  it('Space hops off; hitting the carrier drops the partner on their feet', () => {
+    const a = coop(-0.5, 0.2);
+    tick(a.world, 1, { grab: true, aim: head(a.p2) });
+    tick(a.world, 1, {}, { jump: true });
+    expect(a.p2.carried).toBeUndefined();
+    expect(a.p2.state).toBe('free');
+    const b = coop(-0.5, 0.2);
+    tick(b.world, 1, { grab: true, aim: head(b.p2) });
+    b.world.hitActor(undefined, b.p1, 'light', 1, 0, b.p1.pos);
+    tick(b.world);
+    expect(b.p2.carried).toBeUndefined();
+    expect(b.p2.state).toBe('free');
+  });
+});
+
+describe('M18 carry-spin', () => {
+  function spinning(armed = false) {
+    const { world, p1, p2 } = coop(0, 0.3);
+    if (armed) p2.hands[0] = newHand('pistol');
+    tick(world, 1, { grab: true, aim: head(p2) });
+    tick(world, 1, {}, { grab: true });
+    expect(p2.carried).toBe('spin');
+    return { world, p1, p2 };
+  }
+
+  it('the partner goes round: on the front half after 0.3 s', () => {
+    const { world, p1, p2 } = spinning();
+    tick(world, 18);
+    expect(p2.pos.z).toBeLessThan(p1.pos.z);
+  });
+
+  it('armed: fires with the cursor on their side, not on the other side', () => {
+    const { world, p1, p2 } = spinning(true);
+    const shots = record(world, 'shot');
+    // wait until the partner is out to the right (cos > 0.38)
+    for (let i = 0; i < 80 && !(Math.cos(p1.spin!.angle) > 0.6); i++) tick(world);
+    tick(world, 1, {}, { press: [true, false], aim: project(p2.pos.x + 2, 0.5, Z) });
+    expect(shots).toHaveLength(1);
+    tick(world, 12);
+    for (let i = 0; i < 80 && !(Math.cos(p1.spin!.angle) > 0.6); i++) tick(world);
+    tick(world, 1, {}, { press: [true, false], aim: project(p2.pos.x - 2, 0.5, Z) });
+    expect(shots).toHaveLength(1);
+  });
+
+  it('unarmed: a grunt in the circle is knocked down; the carrier\'s F throws along the swing; 4 s max', () => {
+    const { world, p1, p2 } = spinning();
+    const g = grunt(world, 0.8);
+    tick(world, 80);
+    expect(g.hp).toBeLessThan(g.maxHp);
+    tick(world, 1, { grab: true });
+    expect(p2.carried).toBeUndefined();
+    expect(p2.tossT).toBeDefined();
+    const s = spinning();
+    tick(s.world, 250);
+    expect(s.p2.carried).toBeUndefined();
+    expect(s.p2.state).toBe('free');
+    expect(p1).toBeDefined();
+  });
+
+  it('a swung partner is untouchable', () => {
+    const { world, p2 } = spinning();
+    world.hitActor(undefined, p2, 'heavy', 1, 0, p2.pos);
+    expect(p2.hp).toBe(p2.maxHp);
+  });
+});
