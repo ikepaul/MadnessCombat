@@ -17,11 +17,13 @@ import { stepHatchClimb } from './elevator';
 
 const T = TUNING.stage;
 
-export type ExitKind = 'door' | 'edge' | 'ladder' | 'vent' | 'breach' | 'lift' | 'fall' | 'climb';
+export type ExitKind = 'door' | 'edge' | 'ladder' | 'vent' | 'breach' | 'lift' | 'fall' | 'climb' | 'blasted';
 
 /** How an exit is taken: walking into its zone, pressing E in it, or an explosion on it (breach). */
 const HOW: Record<ExitKind, 'walk' | 'use' | 'blast'> = {
   door: 'walk', edge: 'walk', fall: 'walk', ladder: 'use', vent: 'use', lift: 'use', climb: 'use', breach: 'blast',
+  // M12: blasted through a wall by the boss (the script takes it)
+  blasted: 'blast',
 };
 
 export interface ExitDef {
@@ -49,7 +51,7 @@ export interface EntryDef {
    * walk: standing at the spot; above: dropping in from the ceiling (vent, breach); vault: over a
    * ledge; sky: falling out of the sky (move-fall-transition: shadow first, a face-down landing).
    */
-  from: 'walk' | 'above' | 'vault' | 'sky';
+  from: 'walk' | 'above' | 'vault' | 'sky' | 'thrown';
   /** Enemies are caught off guard for TUNING.stage.surprise s (vent / breach entries, world-breach). */
   surprise?: boolean;
 }
@@ -180,6 +182,12 @@ function placeAtEntry(p: Actor, e: EntryDef, i: number): void {
     p.pos.y = T.dropHeight;
     p.body.state = 'air';
     p.body.stateTime = 0;
+  } else if (e.from === 'thrown') {
+    // M12: blasted through the wall: you come to on your back on the other side
+    p.state = 'down';
+    p.stateT = 0;
+    p.pose.root = lyingAt(-Math.PI / 2);
+    setClip(p, 'lying');
   } else if (e.from === 'sky') {
     p.pos.y = T.skyHeight;
     p.body.state = 'air';
@@ -241,7 +249,7 @@ function* traverse(s: Seq, e: ExitDef): Beat {
   const world = s.world;
   s.lockInput(true);
   const zx = (e.x0 + e.x1) / 2, zz = (e.z0 + e.z1) / 2;
-  const kind: NonNullable<Actor['traversing']>['kind'] = e.kind === 'ladder' || e.kind === 'climb' ? 'climb' : e.kind === 'vent' ? 'crawl' : e.kind === 'breach' || e.kind === 'fall' ? 'drop' : 'out';
+  const kind: NonNullable<Actor['traversing']>['kind'] = e.kind === 'ladder' || e.kind === 'climb' ? 'climb' : e.kind === 'vent' ? 'crawl' : e.kind === 'breach' || e.kind === 'fall' || e.kind === 'blasted' ? 'drop' : 'out';
   for (const p of world.activePlayers) {
     if (p.state !== 'free') continue;
     if (kind !== 'out') { p.pos.x = zx; p.pos.z = zz; }

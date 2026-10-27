@@ -98,6 +98,10 @@ export const SOUNDS = {
   fallWhistle: def('fallWhistle', 'world', 0.6, { variants: 1, limit: 1, reverb: 0.2 }),
   heavyLand: def('heavyLand', 'impacts', 1, { variants: 2, limit: 1, reverb: 0.5 }),
   telekinesis: def('telekinesis', 'weapons', 0.8, { variants: 2, limit: 1, reverb: 0.3 }),
+  // M12: the last stand, the vending machine, the teleport (generated)
+  heartbeat: def('heartbeatLoop', 'music', 0.9, { variants: 1, limit: 1, reverb: 0.1, loop: true }),
+  glass: def('glass', 'impacts', 0.8, { variants: 2, limit: 2, reverb: 0.3 }),
+  implode: def('implode', 'weapons', 0.8, { variants: 1, limit: 1, reverb: 0.3 }),
   // M11: improbability, the jetpack (generated)
   boing: def('boing', 'impacts', 0.6, { variants: 4, limit: 3, reverb: 0.2 }),
   burner: def('burnerLoop', 'weapons', 0.5, { variants: 1, limit: 1, reverb: 0.1, loop: true }),

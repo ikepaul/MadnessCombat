@@ -9,6 +9,7 @@ import { TUNING } from '../src/data/tuning';
 import { type Actor, alive, createActor, newHand } from '../src/sim/actor';
 import { IDLE_COMMAND, type PlayerCommand } from '../src/sim/command';
 import { dropBlock, setImprobable, startCollapse } from '../src/sim/improbability';
+import { dropWall, sealed } from '../src/sim/arena';
 import type { RoomDef } from '../src/sim/room';
 import { stageRunner } from '../src/sim/stage';
 import { World } from '../src/sim/world';
@@ -138,7 +139,7 @@ describe('the mini-boss and the falling tank', () => {
 });
 
 describe('stage 3, first half', () => {
-  it('a scripted bot runs it: outside, vent drop, tables, the camera room (collapse, the jetpack, the shove), the street to the end card', () => {
+  it('a scripted bot runs the whole stage: the camera room, the street, the desert box, the vending room, the console room, the last stand, the card', () => {
     const world = new World(STAGE3.rooms.outside.room);
     const hero = createActor('hero', 0, 9.2, 1);
     world.addPlayer(hero);
@@ -153,6 +154,7 @@ describe('stage 3, first half', () => {
     world.events.on('collapse', (e) => { if (e.phase === 'fall') collapsed = true; });
     world.events.on('improbability', (e) => { if (e.on) improbable = true; });
     let mb: Actor | undefined;
+    hero.invulnerable = true;
     for (let i = 0; i < 60 * 60 * 10 && !cleared; i++) {
       tick(world);
       if (world.transition || hero.traversing || world.inputLocked) continue;
@@ -166,6 +168,12 @@ describe('stage 3, first half', () => {
         world.hitActor(hero, a, 'blast', 1, 0, { ...a.pos });
       }
       for (const it of [...world.items]) if (it.kind === 'grenade' && it.live) world.items.splice(world.items.indexOf(it), 1);
+      // M12: shoot the boss in the vending room and in the last stand; the target once he's fair game
+      for (const a of world.actors) {
+        if (a.kind === 'boss' && alive(a) && !a.invulnerable && i % 20 === 0 && world.roomId !== 'desert') world.hitBullet(hero, a, 4, 'head', 1, false, { ...a.pos });
+        if (a.variant === 'target' && alive(a) && !a.invulnerable && world.lastStand) world.hitBullet(hero, a, 4, 'head', 1, false, { ...a.pos });
+      }
+      if (world.flags.has('ending')) hero.invulnerable = false;
       const x = world.exits.find((e) => e.open && !e.def.warp && e.def.x0 < 50)?.def;
       if (!x || world.exitTaken || i % 15) continue;
       hero.pos.x = Math.max(-world.room.halfWidth + 0.21, Math.min(world.room.halfWidth - 0.21, (x.x0 + x.x1) / 2));
@@ -174,7 +182,7 @@ describe('stage 3, first half', () => {
       else tick(world, { moveX: x.x0 > 0 ? 1 : -1 });
     }
     expect(entered).toEqual([...STAGE3_ROOMS]);
-    expect(kinds).toEqual(['vent', 'door', 'door', 'fall', 'edge']);
+    expect(kinds).toEqual(['vent', 'door', 'door', 'fall', 'edge', 'blasted', 'door', 'door']);
     expect(improbable).toBe(true);
     expect(collapsed).toBe(true);
     // the jetpack fight: hit plenty, never died (it ends in the shove)
@@ -182,5 +190,63 @@ describe('stage 3, first half', () => {
     expect(mb?.kind).toBe('zombie');
     expect(world.physics).toBe('normal');
     expect(cleared).toBe(true);
+    // the last stand ended in the hero's death and the card
+    expect(hero.state).toBe('dead');
+  });
+});
+
+describe('stage 3, second half (M12)', () => {
+  it('the arena lock: three walls, each after its shadow, crushing whatever is under it, then a sealed box', () => {
+    const world = new World(STAGE3.rooms.desert.room);
+    const hero = createActor('hero', 0, 9.2, 1);
+    world.addPlayer(hero);
+    const under = createActor('grunt', 3.3, 9.2, -1);
+    world.actors.push(under);
+    for (const side of ['right', 'back', 'left'] as const) {
+      dropWall(world, side);
+      for (let i = 0; i < 90; i++) world.step();
+    }
+    expect(alive(under)).toBe(false);
+    expect(alive(hero)).toBe(true);
+    expect(sealed(world)).toBe(true);
+    expect(world.room.outdoor).toBe(false);
+  });
+
+  it('the last stand ends the stage whether or not both are killed', () => {
+    for (const shoot of [true, false]) {
+      const world = new World(STAGE3.rooms.lift.room);
+      const hero = createActor('hero', 0, 9.2, 1);
+      world.addPlayer(hero);
+      hero.hands = [newHand('shotgun'), null];
+      world.seq.run(stageRunner(STAGE3, 'lift', 'west'), 'stage');
+      let cleared = false;
+      world.events.on('roomCleared', () => (cleared = true));
+      for (let i = 0; i < 60 * 30 && !cleared; i++) {
+        world.command = { ...IDLE_COMMAND, moveX: 1 };
+        world.step();
+        hero.hp = Math.max(hero.hp, world.lastStand ? hero.hp : 3);
+        for (const g of world.actors) if (g.variant === 'bodyguard' && alive(g)) world.hitActor(hero, g, 'blast', 1, 0, { ...g.pos });
+        if (shoot && world.lastStand && !world.lastStand.done) for (const a of world.actors) if ((a.kind === 'boss' || a.variant === 'target') && alive(a) && !a.invulnerable) world.hitBullet(hero, a, 4, 'head', 1, false, { ...a.pos });
+      }
+      expect(cleared, `shooting: ${shoot}`).toBe(true);
+      expect(hero.state).toBe('dead');
+      // the last stand held him still
+      expect(world.lastStand?.done).toBe(true);
+    }
+  });
+
+  it('the zombie mini-boss takes 10% while he holds the sign, full once it is out of his hands', () => {
+    const world = new World(STAGE3.rooms.desert.room);
+    const hero = createActor('hero', -1, 9.2, 1);
+    world.addPlayer(hero);
+    const z = createActor('zombie', 1, 9.2, -1, { held: 'sign' });
+    z.hp = z.maxHp = TUNING.zombie.hp;
+    z.damageScale = TUNING.duel.signArmour;
+    world.actors.push(z);
+    world.hitBullet(hero, z, 2, 'body', 1, false, { ...z.pos });
+    expect(z.hp).toBeCloseTo(TUNING.zombie.hp - 0.1, 5);
+    z.damageScale = undefined;
+    world.hitBullet(hero, z, 2, 'body', 1, false, { ...z.pos });
+    expect(z.hp).toBeCloseTo(TUNING.zombie.hp - 1.1, 5);
   });
 });

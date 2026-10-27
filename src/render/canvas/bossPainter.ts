@@ -143,6 +143,19 @@ export function paintBoss(ctx: Ctx, a: Actor, o: BossPaintOptions): void {
     const k = pose.push!, e = k * k * (3 - 2 * k), hx = 0.21 + 0.3 * e, hy = -0.3 - 0.32 * e;
     glow(ctx, hx, hy, 0.12 + 0.15 * k, 0.3 + 0.4 * k);
     hand(ctx, hx, hy, 0.07);
+  } else if (!dead && pose.sword) {
+    // M12 boss-halo clip 7: a long blade, glowing at the edge, held point-forward
+    const hx = 0.3, hy = -0.5 - sway;
+    ctx.save();
+    ctx.translate(hx, hy);
+    ctx.rotate(0.35);
+    ctx.beginPath(); ctx.moveTo(0, -0.025); ctx.lineTo(0.85, -0.008); ctx.lineTo(0.92, 0); ctx.lineTo(0.85, 0.012); ctx.lineTo(0, 0.025); ctx.closePath();
+    ctx.fillStyle = '#d9dde2'; ctx.fill(); ctx.lineWidth = 0.012; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.strokeStyle = 'rgba(160,230,255,0.7)'; ctx.lineWidth = 0.006; ctx.beginPath(); ctx.moveTo(0.05, -0.015); ctx.lineTo(0.84, -0.005); ctx.stroke();
+    ctx.fillStyle = '#2c2c32'; ctx.fillRect(-0.03, -0.06, 0.035, 0.12);
+    ctx.restore();
+    hand(ctx, hx, hy, 0.07);
+    glow(ctx, hx, hy, 0.12, 0.35);
   } else {
     const front = up(0.21, -0.3 - sway, 0.22, -1.18);
     hand(ctx, front[0], front[1]);

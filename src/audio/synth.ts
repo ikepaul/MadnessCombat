@@ -18,6 +18,8 @@ export type Recipe =
   | 'motorLoop' | 'cutterLoop' | 'ding' | 'cableSnap' | 'stinger'
   // M11
   | 'boing' | 'burnerLoop'
+  // M12
+  | 'heartbeatLoop' | 'glass' | 'implode'
   // M8 boss
   | 'crackle' | 'thunder' | 'rumble' | 'wardHum' | 'ricochet' | 'cannonBoom' | 'fallWhistle' | 'heavyLand' | 'telekinesis';
 
@@ -427,6 +429,30 @@ export function render(recipe: Recipe, sr: number, seed: number): Float32Array {
       noise(b, r, (t) => 3000 * Math.exp(-t * 8) + 150, swell(0.05, 0.35), 0.8, 60);
       tone(b, (t) => 220 * Math.exp(-t * 6), swell(0.03, 0.35), 0.5);
       return normalise(b.d, 0.5);
+    }
+    case 'heartbeatLoop': {
+      // the last stand: a slow heartbeat over a low drone, ~0.77 s per beat
+      const b = new Buf(sr, 3.08);
+      for (let k = 0; k < 4; k++) for (const [o, g] of [[0, 1], [0.16, 0.7]] as const) {
+        const t0 = k * 0.77 + o;
+        tone(b, (t) => 52 * Math.exp(-(t - t0) * 6), (t) => (t < t0 ? 0 : Math.exp(-(t - t0) / 0.07)), g);
+      }
+      tone(b, () => 41, () => 0.25, 1, 'saw');
+      return normalise(bandpass(b.d, sr, 90, 0.6), 0.55);
+    }
+    case 'glass': {
+      // a vending machine's front going: a crash and tinkling shards
+      const b = new Buf(sr, 0.9);
+      noise(b, r, () => 9000, ad(0.001, 0.06), 1, 2500);
+      for (let k = 0; k < 14; k++) { const t0 = 0.03 + r() * 0.6, f = 2500 + r() * 3500; tone(b, () => f, (t) => (t < t0 ? 0 : Math.exp(-(t - t0) / 0.03)), 0.3); }
+      return normalise(b.d, 0.6);
+    }
+    case 'implode': {
+      // the boss's teleport: a reversed whoosh sucked into a point
+      const b = new Buf(sr, 0.6);
+      noise(b, r, (t) => 300 + 5000 * (t / 0.6) ** 2, (t) => Math.min(1, (t / 0.55) ** 2) * (t < 0.55 ? 1 : Math.max(0, 1 - (t - 0.55) / 0.05)), 1, 200);
+      tone(b, (t) => 80 + 600 * (t / 0.6) ** 2, (t) => (t / 0.6) ** 2, 0.4);
+      return normalise(b.d, 0.55);
     }
     case 'boing': {
       // improbability mode: a warped spring on every bounce

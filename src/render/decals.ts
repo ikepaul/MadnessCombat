@@ -42,6 +42,11 @@ export class Decals {
       const dx = e.wall === 'back' ? (Math.random() - 0.5) * 2 : e.wall === 'left' ? -0.4 : 0.4;
       this.add({ kind: 'splat', x, y, dx, dy: -0.6 - Math.random() * 0.4, seed: this.seed++ * 13, scale: 0.6 * (scaleAt(wz) / 230) * Math.min(1.4, e.speed / 5) });
     });
+    // M12: the blood flood spreading over the sealed arena's floor (cosmetic)
+    world.events.on('bloodFlood', (e) => {
+      if (!this.blood()) return;
+      for (const [dx, dz, rx] of [[0, 0, 2.6], [-1.6, 0.4, 1.4], [1.8, -0.3, 1.5]] as const) this.growing.push({ x: e.x + dx, z: e.z + dz, rx, rz: rx * 0.28, seed: this.seed++ * 11, t: 0 });
+    });
     world.events.on('corpseSettled', (e) => {
       if (!this.blood()) return;
       const r = mulberry32(this.seed++ * 7);

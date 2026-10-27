@@ -21,7 +21,7 @@ import { paintCharacter } from '../render/canvas/characterPainter';
 import { paintBoss } from '../render/canvas/bossPainter';
 import { paintItem } from '../render/canvas/itemPainter';
 import { paintDoor, paintProp, paintRoom } from '../render/canvas/roomPainter';
-import { paintTank } from '../render/canvas/sceneryPainter';
+import { paintLockShadow, paintLockWall, paintTank } from '../render/canvas/sceneryPainter';
 import { TUNING } from '../data/tuning';
 import { Decals } from '../render/decals';
 import { PostFx } from '../render/post';
@@ -206,6 +206,8 @@ export class GameScene extends Phaser.Scene {
       this.bakeRoom();
     });
     this.world.events.on('bruteWake', () => this.bakeRoom());
+    // M12: a landed wall, a smashed vending machine
+    this.world.events.on('wallDrop', (e) => { if (e.phase === 'land') this.bakeRoom(); });
     // world-persistence-decals: settled bodies are baked once; picking one up re-bakes the rest
     this.world.events.on('corpseFrozen', (e) => {
       const a = this.world.actorById(e.actorId);
@@ -474,6 +476,12 @@ export class GameScene extends Phaser.Scene {
     for (const p of this.world.room.props) list.push({ z: p.z0, draw: () => paintProp(ctx, p, pal) });
     for (const c of this.world.cannons) list.push({ z: c.z, draw: () => paintCannon(ctx, c) });
     for (const b of this.world.balls) list.push({ z: b.z - 0.01, draw: () => paintBall(ctx, b) });
+    // M12 world-arena-lock: a wall's shadow, then the slab coming down
+    for (const w of this.world.lockWalls) {
+      if (w.phase === 'landed') continue;
+      const k = w.phase === 'shadow' ? Math.min(1, w.t / TUNING.arenaLock.shadow) : 1;
+      list.push({ z: w.side === 'back' ? this.world.room.zBack : this.world.room.zFront, draw: () => { paintLockShadow(ctx, this.world.room, w.side, k); if (w.phase === 'fall') paintLockWall(ctx, this.world.room, w.side, w.y); } });
+    }
     // M11 world-falling-hazard: the tank's shadow grows, then it comes down
     for (const b of this.world.blocks) {
       if (b.phase === 'landed') continue;
