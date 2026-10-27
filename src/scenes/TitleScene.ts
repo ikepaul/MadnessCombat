@@ -11,7 +11,7 @@ export const GAME_TITLE = 'BODY COUNT';
 /** Our own stage names for the cards. */
 export const STAGE_NAMES: Record<number, string> = { 1: 'THE ARENA', 2: 'THE BUILDING', 3: 'THE RETURN' };
 
-export interface TitleData { view?: 'main' | 'stages' | 'settings' | 'controls' | 'credits' }
+export interface TitleData { view?: 'main' | 'stages' | 'coop' | 'settings' | 'controls' | 'credits' }
 
 /**
  * Title screen (PLAN.md M13): Continue (the last room checkpoint), New game, Stage select (unlocked
@@ -62,7 +62,7 @@ export class TitleScene extends Phaser.Scene {
         { label: () => (cp ? `Continue · stage ${cp.stage}` : 'Continue'), disabled: !canContinue, action: () => this.play(cp!.stage, true) },
         { label: 'New game', action: () => this.play(1, false) },
         { label: 'Stage select', action: () => this.show('stages') },
-        { label: 'Co-op (host)', action: () => this.scene.start('coop-lobby', { role: 'host', stage: 1 }) },
+        { label: 'Co-op (host)', action: () => this.show('coop') },
         { label: 'Co-op (join)', action: () => this.scene.start('coop-lobby', { role: 'guest', stage: 1 }) },
         { label: 'Settings', action: () => this.show('settings') },
         { label: 'Credits', action: () => this.show('credits') },
@@ -73,6 +73,18 @@ export class TitleScene extends Phaser.Scene {
       for (let n = 1; n <= LAST_STAGE; n++) {
         const open = n <= PROGRESS.unlocked;
         rows.push({ label: open ? `Stage ${n} · ${STAGE_NAMES[n]}` : `Stage ${n} · locked`, disabled: !open, action: () => this.play(n, false) });
+      }
+      rows.push({ label: 'Back', action: () => this.show('main') });
+      at(rows, () => this.show('main'));
+    } else if (view === 'coop') {
+      // hosting: pick where the two of you start (playtest: hosting always began at stage 1)
+      this.heading('CO-OP · HOST');
+      const cp = PROGRESS.checkpoint;
+      const rows: MenuItem[] = [];
+      if (cp && (cp.stage > 1 || cp.room)) rows.push({ label: `Continue · stage ${cp.stage}`, action: () => this.host(cp.stage, true) });
+      for (let n = 1; n <= LAST_STAGE; n++) {
+        const open = n <= PROGRESS.unlocked;
+        rows.push({ label: open ? `Stage ${n} · ${STAGE_NAMES[n]}` : `Stage ${n} · locked`, disabled: !open, action: () => this.host(n, false) });
       }
       rows.push({ label: 'Back', action: () => this.show('main') });
       at(rows, () => this.show('main'));
@@ -96,6 +108,11 @@ export class TitleScene extends Phaser.Scene {
       this.input.keyboard!.on('keydown-ESC', back);
       this.input.keyboard!.on('keydown-ENTER', back);
     }
+  }
+
+  /** Host co-op on this stage (`resume` = from the saved room checkpoint); the lobby waits for player 2. */
+  private host(stage: number, resume: boolean): void {
+    this.scene.start('coop-lobby', { role: 'host', stage, resume });
   }
 
   /** Start a stage: `resume` = from the saved room checkpoint (else from its start). */

@@ -21,7 +21,7 @@ export class CoopLobbyScene extends Phaser.Scene {
 
   create(data: { role: CoopRole } & Omit<GameSceneData, 'coop'>): void {
     this.role = data.role;
-    this.game_ = { stage: data.stage, room: data.room, wave: data.wave, palette: data.palette };
+    this.game_ = { stage: data.stage, room: data.room, wave: data.wave, palette: data.palette, resume: data.resume };
     this.started = false;
     this.cameras.main.setBackgroundColor('#141416');
     const title = this.role === 'host' ? 'CO-OP · HOSTING' : 'CO-OP · JOINING';

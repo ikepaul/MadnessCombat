@@ -355,7 +355,7 @@ export class GameScene extends Phaser.Scene {
   /** Co-op host: player 2's inputs come in, a snapshot of the world goes out every frame. */
   private startHosting(): void {
     const link = (this.link = coopLink('host'));
-    const snaps = (this.snaps = new SnapshotWriter(this.world, Date.now()));
+    const snaps = (this.snaps = new SnapshotWriter(this.world, Date.now(), () => this.paletteId));
     link.onInput = (cmd) => (this.world.commands[1] = mergeEdges(this.world.commands[1], cmd));
     // a (re)joining guest gets the whole room first
     link.onPeer = (connected) => { if (connected) { snaps.needFull = true; snaps.joining = true; } };
@@ -390,6 +390,8 @@ export class GameScene extends Phaser.Scene {
       this.world.setRoom(room);
     }
     applySnapshot(this.world, s);
+    // the host's palette: the stage's colours, and whether it shows blood (the guest used to stay 'neutral', without blood)
+    if (s.palette && s.palette !== this.paletteId) this.setPalette(s.palette);
     if (s.full) this.bakeCorpses();
   }
 

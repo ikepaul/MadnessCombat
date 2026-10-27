@@ -9,6 +9,7 @@ import type { CorpseState } from '../sim/actor';
 import type { GameEvents } from '../sim/events';
 import type { Item } from '../sim/items';
 import type { World } from '../sim/world';
+import type { PaletteId } from '../data/palettes';
 import { newAiState } from '../sim/ai';
 
 export interface ActorSnap {
@@ -26,6 +27,10 @@ export interface ActorSnap {
   entering?: boolean;
   bodyState: MoveState;
   bodyHeight: number;
+  /** A flying kick under way (the pose leans into it). */
+  bodyKick?: boolean;
+  /** Climbing out, crawling into a vent... (the guest hides the E prompt meanwhile). */
+  traversing?: Actor['traversing'];
   corpse?: CorpseState['phase'];
   gibbed?: boolean;
   pinned?: boolean;
@@ -47,6 +52,8 @@ export interface Snapshot {
   /** Changes when the host (re)starts the room: the guest restarts its scene too. */
   session: number;
   roomId: string;
+  /** The host's palette: it decides the colours and whether this stage shows blood. */
+  palette?: PaletteId;
   tick: number;
   /** Contains every actor (on join and room start); otherwise frozen corpses are left out. */
   full: boolean;
@@ -59,6 +66,8 @@ export interface Snapshot {
   /** M11: improbability mode, the collapse (crack / void), falling tanks, the vending machine at the back. */
   physics?: World['physics'];
   gore?: World['gore'];
+  /** The room's exits (the guest's E prompt). */
+  exits?: World['exits'];
   stage3Room?: Pick<World['room'], 'void' | 'crack' | 'vending' | 'lockWalls' | 'outdoor'>;
   /** M12: the desert box's falling walls and the last stand (the red bars). */
   lockWalls?: World['lockWalls'];
@@ -80,7 +89,7 @@ function snapActor(a: World['actors'][number]): ActorSnap {
     id: a.id, kind: a.kind, playerIndex: a.playerIndex, enemy: !!a.ai,
     pos: [a.pos.x, a.pos.y, a.pos.z], facing: a.facing, state: a.state, stateT: a.stateT,
     hp: a.hp, maxHp: a.maxHp, revive: a.revive, entering: a.entering,
-    bodyState: a.body.state, bodyHeight: a.body.height, corpse: a.corpse?.phase, gibbed: a.corpse?.gibbed, pinned: a.corpse?.pinned,
+    bodyState: a.body.state, bodyHeight: a.body.height, bodyKick: a.body.kick || undefined, traversing: a.traversing, corpse: a.corpse?.phase, gibbed: a.corpse?.gibbed, pinned: a.corpse?.pinned,
     pose: a.pose, hands: a.hands, grenades: a.grenades,
     variant: a.variant, carry: a.carry, unaware: a.ai?.aware === false ? a.ai.idle ?? 'stand' : undefined,
     hover: a.hover, fallingAway: a.fallingAway, ceilingStuck: a.ceilingStuck,
@@ -100,7 +109,7 @@ export class SnapshotWriter {
    */
   joining = true;
 
-  constructor(private world: World, private session: number) {
+  constructor(private world: World, private session: number, private palette: () => PaletteId = () => 'neutral') {
     world.events.onAny((type, payload) => {
       if (type === 'corpseFrozen') this.justFrozen.add((payload as GameEvents['corpseFrozen']).actorId);
       this.events.push([type, payload]);
@@ -118,10 +127,10 @@ export class SnapshotWriter {
     const w = this.world, full = this.needFull;
     const actors = w.actors.filter((a) => full || a.corpse?.phase !== 'frozen' || this.justFrozen.has(a.id)).map(snapActor);
     const snap: Snapshot = {
-      session: this.session, roomId: w.room.id, tick: w.tick, full, actors,
+      session: this.session, roomId: w.room.id, palette: this.palette(), tick: w.tick, full, actors,
       items: w.items, doors: w.doors.map((d) => d.open), props: w.room.props, cannons: w.cannons, balls: w.balls, kills: w.kills, lastKillKind: w.lastKillKind,
       elevator: w.elevator, decks: w.room.decks,
-      physics: w.physics, gore: w.gore, blocks: w.blocks, stage3Room: { void: w.room.void, crack: w.room.crack, vending: w.room.vending, lockWalls: w.room.lockWalls, outdoor: w.room.outdoor },
+      physics: w.physics, gore: w.gore, exits: w.exits, blocks: w.blocks, stage3Room: { void: w.room.void, crack: w.room.crack, vending: w.room.vending, lockWalls: w.room.lockWalls, outdoor: w.room.outdoor },
       lockWalls: w.lockWalls, lastStand: w.lastStand,
       events: full && this.joining ? [] : this.events,
     };
@@ -155,6 +164,8 @@ export function applySnapshot(world: World, s: Snapshot): void {
     a.entering = as.entering;
     a.body.state = as.bodyState;
     a.body.height = as.bodyHeight;
+    a.body.kick = as.bodyKick;
+    a.traversing = as.traversing;
     a.pose = as.pose;
     a.hands = as.hands;
     a.grenades = as.grenades ?? 0;
@@ -178,6 +189,7 @@ export function applySnapshot(world: World, s: Snapshot): void {
   world.elevator = s.elevator;
   if (s.physics) world.physics = s.physics;
   if (s.gore) world.gore = s.gore;
+  if (s.exits) world.exits = s.exits;
   if (s.blocks) world.blocks = s.blocks;
   if (s.stage3Room) {
     world.room.void = s.stage3Room.void; world.room.crack = s.stage3Room.crack; world.room.vending = s.stage3Room.vending;
