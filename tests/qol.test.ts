@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { TEST_ROOM } from '../src/data/rooms/testRoom';
 import { THROWN } from '../src/data/melee';
+import { WEAPONS } from '../src/data/weapons';
 import { project } from '../src/render/camera';
 import { type Actor, createActor, newHand } from '../src/sim/actor';
 import { IDLE_COMMAND, type PlayerCommand } from '../src/sim/command';
@@ -241,5 +242,83 @@ describe('M17 F grabs with any free hand', () => {
     grunt(world, 0.45);
     tick(world, { grab: true });
     expect(hero.holding).toBeUndefined();
+  });
+});
+
+describe('M17 cover and aim', () => {
+  const table = (x0: number, x1: number, top = 0.52) => ({ ...TEST_ROOM, props: [{ kind: 'table' as const, x0, x1, z0: 9.25, z1: 9.95, top }] });
+
+  function shoot(room: RoomDef, hx: number, hz: number, gx: number, gz: number, aimY: number) {
+    const world = new World(room);
+    const hero = createActor('hero', hx, hz, gx > hx ? 1 : -1);
+    world.addPlayer(hero);
+    hero.hands[0] = newHand('pistol');
+    const g = grunt(world, gx);
+    g.pos.z = gz;
+    const shots = record(world, 'shot');
+    tick(world, { press: [true, false], aim: project(gx, aimY, gz) });
+    return { surface: shots[0].rays[0].surface, g };
+  }
+
+  it('from behind a table you hit a grunt at your depth across it (it was blocked)', () => {
+    expect(shoot(table(-0.5, 0.8), -1.2, 10.3, 2.4, 10.3, 0.4).surface).toBe('flesh');
+  });
+
+  it('a grunt in front of your table is hit over it (your own cover)', () => {
+    expect(shoot(table(1.25, 2.55), 1.9, 10.3, -2, 8.5, 0.4).surface).toBe('flesh');
+  });
+
+  it('a grunt behind a table is covered from the front, his head above it is not', () => {
+    expect(shoot(table(1.25, 2.55), -2.5, 8.4, 1.9, 10.2, 0.3).surface).toBe('prop');
+    expect(shoot(table(1.25, 2.55), -2.5, 8.4, 1.9, 10.2, 0.84).surface).toBe('flesh');
+  });
+
+  it('the bullet goes to the cursor (spread off): within 1 px at three distances and both depths', () => {
+    const w = WEAPONS.pistol as { spread: number };
+    const spread = w.spread;
+    w.spread = 0;
+    try {
+      for (const [hz, tx] of [[8.3, 1.5], [8.3, -0.5], [10.3, 1.5], [10.3, 3]] as const) {
+        const world = new World(EMPTY);
+        const hero = createActor('hero', -2.5, hz, 1);
+        world.addPlayer(hero);
+        hero.hands[0] = newHand('pistol');
+        const shots = record(world, 'shot');
+        const aim = project(tx, 0.8, 9.2);
+        tick(world, { press: [true, false], aim });
+        const s = shots[0], dx = Math.cos(s.angle), dy = Math.sin(s.angle);
+        const vx = aim[0] - s.muzzle[0], vy = aim[1] - s.muzzle[1];
+        expect(Math.abs(vx * dy - vy * dx)).toBeLessThan(1);
+      }
+    } finally { w.spread = spread; }
+  });
+});
+
+describe('M17 throws find depth', () => {
+  it('a knife thrown at a grunt 0.6 H deeper kills him; without a target it stays on your depth', () => {
+    const { world, hero } = setup(-1.5);
+    hero.hands[0] = newHand('knife');
+    const g = grunt(world, 1);
+    g.pos.z = Z + 0.6;
+    const it = tossHeld(world, hero, 0, project(g.pos.x, 0.79, g.pos.z))!;
+    expect(it.vel.z).toBeGreaterThan(0);
+    tick(world, {}, 40);
+    expect(g.state).toBe('dead');
+    const b = setup(-1.5);
+    b.hero.hands[0] = newHand('knife');
+    const it2 = tossHeld(b.world, b.hero, 0, project(1, 0.79, Z + 0.6))!;
+    expect(it2.vel.z).toBe(0);
+  });
+
+  it('an empty gun thrown at the head of a grunt at another depth stuns him', () => {
+    const { world, hero } = setup(-1.5);
+    hero.hands[0] = newHand('pistol', 0, 0);
+    hero.hands[0].clicked = true;
+    const g = grunt(world, 0.5);
+    g.pos.z = Z - 0.5;
+    const hits = record(world, 'hit');
+    tick(world, { press: [true, false], aim: project(g.pos.x, 0.79, g.pos.z) });
+    tick(world, {}, 30);
+    expect(hits.some((e) => e.actorId === g.id && e.kind === 'gun')).toBe(true);
   });
 });

@@ -8,7 +8,7 @@ import { GRENADE, isMelee, MELEE, THROWN } from '../data/melee';
 import { isWeapon } from '../data/weapons';
 import { GRAVITY, TUNING } from '../data/tuning';
 import { type Actor, type ActorKind, alive, type HeldItem, newHand, newId, type Vec3 } from './actor';
-import { project } from '../render/camera';
+import { project, scaleAt } from '../render/camera';
 import { clamp } from './collision';
 import { explode } from './explosives';
 import { rayVsActor } from './hitscan';
@@ -334,6 +334,31 @@ function thrownItemHits(world: World, it: Item): void {
     it.vel.x *= -0.3;
     it.vel.z *= 0.3;
   }
+}
+
+/**
+ * M17 throws find depth (design/qol-pass.md 8): a hero's thrown weapon aimed at an enemy (the cursor
+ * on him, or within TUNING.qol.throwMagnet of his head or chest) flies in a straight line to his
+ * depth. Returns the velocity, or undefined (the throw stays at the thrower's depth). `drop` = the
+ * share of gravity on its flight (blades), aimed for.
+ */
+export function throwToDepth(world: World, a: Actor, from: Vec3, aim: [number, number] | undefined, speed: number, drop = 0): Vec3 | undefined {
+  if (!aim || a.playerIndex === undefined) return undefined;
+  const Q = TUNING.qol;
+  let best: { d: number; p: Vec3 } | undefined;
+  for (const o of world.actors) {
+    if (!o.ai || !alive(o) || o.entering || o.state === 'grabbed' || Math.abs(o.pos.z - a.pos.z) > Q.throwDepth) continue;
+    const s = scaleAt(o.pos.z);
+    for (const y of [0.79, 0.4]) {
+      const [sx, sy] = project(o.pos.x, o.pos.y + y, o.pos.z);
+      const d = Math.hypot(aim[0] - sx, aim[1] - sy);
+      if (d <= Q.throwMagnet * s && (!best || d < best.d)) best = { d, p: { x: o.pos.x, y: o.pos.y + y, z: o.pos.z } };
+    }
+  }
+  if (!best) return undefined;
+  const dx = best.p.x - from.x, dy = best.p.y - from.y, dz = best.p.z - from.z;
+  const dist = Math.hypot(dx, dy, dz) || 1, t = dist / speed;
+  return { x: dx / t, y: dy / t + 0.5 * GRAVITY * drop * t, z: dz / t };
 }
 
 /** Velocity of a lob from `from` landing on the floor point (x, z) (throw-grenade). */

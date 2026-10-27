@@ -11,7 +11,7 @@ import { type Actor, alive, type Hand, newHand } from './actor';
 import type { PlayerCommand } from './command';
 import { castRay, type Surface } from './hitscan';
 import { wardBlocked } from './boss';
-import { dropHeld, type Item } from './items';
+import { dropHeld, type Item, throwToDepth } from './items';
 import { shootCables } from './elevator';
 import { disarm, pullable, startAction } from './melee';
 import type { World } from './world';
@@ -180,7 +180,7 @@ function fire(world: World, a: Actor, i: 0 | 1, h: Hand, w: WeaponDef, dual: boo
     // point blank: the barrel can reach past a body right in front of you, so the hit test starts
     // back along the barrel (behind the grip); the tracer still starts at the muzzle
     const back = (w.length + 0.2) * scaleAt(a.pos.z);
-    const r = castRay(world, [rig.muzzle[0] - dir[0] * back, rig.muzzle[1] - dir[1] * back], dir, a.pos.z, skip);
+    const r = castRay(world, [rig.muzzle[0] - dir[0] * back, rig.muzzle[1] - dir[1] * back], dir, a.pos.z, skip, rig.muzzle);
     if (r.hit && r.hit.t < back) r.end = rig.muzzle;
     // M10 world-destructible: the elevator cables take shots that cross them
     if (world.elevator && a.playerIndex !== undefined) shootCables(world, rig.muzzle, r.end);
@@ -234,13 +234,15 @@ export function throwGun(world: World, a: Actor, i: 0 | 1, cmd: PlayerCommand): 
   const n = Math.hypot(dx, dy) || 1;
   dx /= n; dy /= n;
   if (Math.abs(dx) < 0.2) dx = a.facing * 0.2;
-  const it = world.spawnItem(h.item, 'grunt', from, { x: dx * GUNS.throwSpeed, y: dy * GUNS.throwSpeed, z: 0 }, Math.sign(dx) * 22);
+  // M17: thrown at an enemy at another depth, it flies to his depth
+  const vel = throwToDepth(world, a, from, cmd.aim, GUNS.throwSpeed) ?? { x: dx * GUNS.throwSpeed, y: dy * GUNS.throwSpeed, z: 0 };
+  const it = world.spawnItem(h.item, 'grunt', from, vel, Math.sign(vel.x || dx) * 22);
   it.thrownBy = a.id;
   it.thrownAt = world.time;
   it.straight = 0.6;
   it.ammo = h.ammo;
   it.spare = h.spare;
-  world.events.emit('throw', { actorId: a.id, itemId: it.id, ...from, vx: dx * GUNS.throwSpeed, vz: 0 });
+  world.events.emit('throw', { actorId: a.id, itemId: it.id, ...from, vx: vel.x, vz: vel.z });
 }
 
 /** M17 (design/qol-pass.md): what E (or walking over something) would do right now. */

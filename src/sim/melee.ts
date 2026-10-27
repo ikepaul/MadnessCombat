@@ -14,7 +14,7 @@ import type { PlayerCommand } from './command';
 import { COVER, flipTable } from './cover';
 import { explode } from './explosives';
 import { stepTakedown, takedownTiming } from './stealth';
-import { dropHeld, type Item, lobVelocity, spawnItem } from './items';
+import { dropHeld, type Item, lobVelocity, spawnItem, throwToDepth } from './items';
 import type { World } from './world';
 
 const F = 1 / 30;
@@ -204,14 +204,16 @@ export function tossHeld(world: World, a: Actor, i: 0 | 1, aim?: ScreenPoint): I
   const speed = knife ? THROWN.knifeSpeed : THROWN.speed;
   const blade = isMelee(h.item) && MELEE[h.item].edge === 'blade';
   // knives spin end over end; long things tumble slower
-  const it = world.spawnItem(h.item, 'grunt', from, { x: dx * speed, y: dy * speed, z: 0 }, Math.sign(dx) * (knife ? 24 : 14));
+  // M17: thrown at an enemy at another depth, it flies to his depth
+  const vel = throwToDepth(world, a, from, aim, speed, blade ? THROWN.gravityShare : 0) ?? { x: dx * speed, y: dy * speed, z: 0 };
+  const it = world.spawnItem(h.item, 'grunt', from, vel, Math.sign(vel.x || dx) * (knife ? 24 : 14));
   it.thrownBy = a.id;
   it.thrownAt = world.time;
   it.straight = THROWN.maxFlight;
   it.drop = blade ? THROWN.gravityShare : 0;
   it.ammo = h.ammo;
   it.spare = h.spare;
-  world.events.emit('throw', { actorId: a.id, itemId: it.id, ...from, vx: dx * speed, vz: 0 });
+  world.events.emit('throw', { actorId: a.id, itemId: it.id, ...from, vx: vel.x, vz: vel.z });
   return it;
 }
 
