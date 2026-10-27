@@ -55,7 +55,7 @@ export const FEEL = {
    * Kill cam: time x0.3 for 0.6 s + red tint (5-15%) + chromatic on the first frame + audio
    * slowdown. Triggers: the last kill of a wave, 3+ kills within 1 s, boss phase end.
    */
-  killCam: { timeScale: 0.3, duration: 0.6, tint: 0.1, comboKills: 3, comboWindow: 1.0 },
+  killCam: { timeScale: 0.3, duration: 0.6, tint: 0.1, comboKills: 3, comboWindow: 1.0, /** revamp C1, invented */ zoom: 0.06 },
   /** Impact frame: the hit character drawn bright for the hit-stop. */
   impactFrame: { brightness: 1.8, contrast: 1.2 },
   /** Kill counter pop: 1.3 -> 1.0 over 8 frames; green for zombie kills. */

@@ -2,9 +2,83 @@
 // walk cycle, idle breathing, airborne tuck, hit lean and stun wobble. Aim and recoil act on
 // the front hand and live in the painter, since they need the screen projection.
 import type { Actor } from '../sim/actor';
-import { sampleClip } from './clips';
+import { blendIn, sampleClip } from './clips';
 import { applyIdle } from './idles';
-import type { Skeleton } from './skeleton';
+import { cloneSkeleton, lerpSkeleton, type Skeleton } from './skeleton';
+
+/** Revamp A2 overlap: the head trails the body by 2 frames, the free back hand by 1. invented */
+const HEAD_LAG = 2 / 30;
+const HAND_LAG = 1 / 30;
+
+const smooth = (t: number) => t * t * (3 - 2 * t);
+const clamp01 = (t: number) => Math.max(0, Math.min(1, t));
+
+/**
+ * The clip as drawn (revamp A1/A2): overshooting easings, the head and back hand trailing a
+ * frame or two, and a crossfade out of the previous clip so switches never pop.
+ */
+function drawnClip(a: Actor): Skeleton {
+  const p = a.pose;
+  // a copy: single-key samples are the pose cache's own objects
+  const sk = cloneSkeleton(sampleClip(p.clip, p.clipT, true));
+  if (!p.dead && p.clipT > 0) {
+    sk.head = sampleClip(p.clip, Math.max(0, p.clipT - HEAD_LAG), true).head;
+    if (!p.heldB) sk.handB = sampleClip(p.clip, Math.max(0, p.clipT - HAND_LAG), true).handB;
+  }
+  const blend = blendIn(p.clip);
+  if (p.prevClip === undefined || p.clipT >= blend) return sk;
+  return lerpSkeleton(sampleClip(p.prevClip, p.prevT ?? 0, true), sk, smooth(p.clipT / blend));
+}
+
+/**
+ * Revamp A6: a hit snaps in over 3 ticks, then rings out (damped) over REACT_LIFE. Head hits
+ * throw the head back, body hits fold the body, hits from behind pitch it forward.
+ */
+function applyReaction(a: Actor, s: Skeleton): void {
+  const r = a.pose.react;
+  if (!r || a.pose.dead) return;
+  const t = r.age;
+  const k = (t < 0.05 ? t / 0.05 : Math.exp(-(t - 0.05) * 7) * Math.cos((t - 0.05) * 13)) * (0.75 + r.v * 0.5);
+  const side = r.v < 0.5 ? 1 : -1;
+  if (r.part === 'head') {
+    s.head[0] -= 0.05 * k; s.head[1] += 0.01 * k; s.head[2] -= 0.45 * k;
+    s.body[2] -= 0.08 * k;
+    s.handB[0] -= 0.04 * k; s.handB[1] -= 0.06 * k * side;
+  } else if (r.part === 'body') {
+    s.body[2] += 0.16 * k;
+    s.head[0] += 0.05 * k; s.head[1] += 0.05 * k; s.head[2] += 0.2 * k;
+    s.handF[0] -= 0.07 * k; s.handF[1] += 0.08 * k;
+    s.handB[0] += 0.05 * k; s.handB[1] += 0.06 * k;
+  } else {
+    s.body[2] += 0.22 * k;
+    s.head[0] += 0.07 * k; s.head[2] += 0.3 * k;
+    s.handF[1] -= 0.08 * k; s.handB[0] -= 0.08 * k; s.handB[1] -= 0.1 * k;
+  }
+}
+
+/**
+ * Revamp A7: the way down. `drop` buckles at the knees and the head lolls, `crumple` clutches
+ * the wound, `fling` throws the arms and legs out while it spins.
+ */
+function applyDeath(a: Actor, s: Skeleton): void {
+  const d = a.pose.death, c = a.corpse;
+  if (!d || !c || c.phase !== 'tumble') return;
+  const e = smooth(clamp01(c.t / 0.15));
+  if (d === 'drop') {
+    s.body[1] += 0.1 * e;
+    s.head[1] += 0.12 * e; s.head[2] += 0.4 * e;
+    s.handF[1] += 0.18 * e; s.handB[1] += 0.18 * e;
+    s.footF[0] += 0.05 * e; s.footB[0] -= 0.04 * e;
+  } else if (d === 'crumple') {
+    s.handF = [s.handF[0] + (0.1 - s.handF[0]) * e, s.handF[1] + (-0.42 - s.handF[1]) * e, s.handF[2]];
+    s.handB = [s.handB[0] + (0.03 - s.handB[0]) * e, s.handB[1] + (-0.5 - s.handB[1]) * e, s.handB[2]];
+    s.head[0] += 0.05 * e; s.head[2] += 0.35 * e;
+  } else {
+    s.handF[0] += 0.12 * e; s.handF[1] -= 0.25 * e;
+    s.handB[0] -= 0.14 * e; s.handB[1] -= 0.3 * e;
+    s.footF[0] += 0.1 * e; s.footB[0] -= 0.1 * e;
+  }
+}
 
 /** Idle breathing/hand bob rates: the style frame used 0.12 rad per 30 fps frame. */
 export const BREATH_RATE = 0.12 * 30;
@@ -19,9 +93,11 @@ export interface Layered {
 
 export function buildSkeleton(a: Actor, time: number): Layered {
   const p = a.pose;
-  const sk = sampleClip(p.clip, p.clipT);
+  const sk = drawnClip(a);
   const s = {} as Skeleton;
   for (const k in sk) s[k as keyof Skeleton] = [...sk[k as keyof Skeleton]] as Skeleton[keyof Skeleton];
+  applyReaction(a, s);
+  applyDeath(a, s);
 
   // the flying kick (playtest 2026-10-27): front foot thrust out level with the hips, back foot
   // tucked, fists up by the face (the root leans the whole body back)

@@ -77,6 +77,13 @@ export interface Pose {
   /** Keyframed clip and its time (src/anim/clips.ts). */
   clip: string;
   clipT: number;
+  /** Revamp A1: the clip before the last switch and its time then; the painter crossfades out of it. */
+  prevClip?: string;
+  prevT?: number;
+  /** Revamp A6: a hit reaction layered on top of the clip (head snaps back, body folds, pitched forward from behind). */
+  react?: { part: 'head' | 'body' | 'back'; age: number; v: number };
+  /** Revamp A7: how this body dies (knees-first drop, flung spin, clutching crumple); undefined = the plain tumble. */
+  death?: 'drop' | 'fling' | 'crumple';
   /** Whole-body transform (lying, prone, spin, squash). */
   root: Root;
   /** Seconds of impact frame (drawn bright) left. */

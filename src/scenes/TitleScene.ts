@@ -4,6 +4,7 @@ import { LAST_STAGE, PROGRESS } from '../progress';
 import { Menu, type MenuItem } from '../ui/menu';
 import { controlsItems, settingsItems } from '../ui/settingsMenu';
 import { creditsText } from '../ui/credits';
+import { inkWipe, requestStageCard } from '../ui/transition';
 
 /** Working title (our own; the show's name stays out of the game). One place to change it. */
 export const GAME_TITLE = 'BODY COUNT';
@@ -37,6 +38,8 @@ export class TitleScene extends Phaser.Scene {
     this.add.text(110, 150, GAME_TITLE, { fontFamily: 'Anton', fontSize: '150px', color: '#f2f2f3', stroke: INK, strokeThickness: 12 });
     this.add.text(116, 330, 'three stages, keyboard and mouse', { fontFamily: 'Inter', fontSize: '26px', color: '#9a9ba0' });
     this.show(data.view ?? 'main');
+    // revamp F2: the title comes in from under the ink
+    inkWipe(this, 'in');
     // the menu's key handlers live on the scene's keyboard: drop them when the scene stops
     this.events.once('shutdown', () => this.clear());
   }
@@ -117,6 +120,10 @@ export class TitleScene extends Phaser.Scene {
 
   /** Start a stage: `resume` = from the saved room checkpoint (else from its start). */
   private play(stage: number, resume: boolean): void {
-    this.scene.start('game', { stage, resume });
+    // revamp F2: ink over the title, then the stage (with its card, even when resuming a checkpoint)
+    this.menu?.destroy();
+    this.menu = undefined;
+    requestStageCard();
+    inkWipe(this, 'out', () => this.scene.start('game', { stage, resume }));
   }
 }

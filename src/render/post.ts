@@ -21,7 +21,7 @@ export class PostFx {
     const copy = (color: number) =>
       scene.add.image(0, 0, actorKey).setOrigin(0, 0).setDepth(11).setTint(color).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.45).setVisible(false);
     this.split = [copy(0xff2020), copy(0x20ffff)];
-    this.tint = scene.add.rectangle(0, 0, SCREEN_W, SCREEN_H, 0xc70f1b, 1).setOrigin(0, 0).setDepth(998).setAlpha(0);
+    this.tint = scene.add.rectangle(0, 0, SCREEN_W, SCREEN_H, 0xc70f1b, 1).setOrigin(0, 0).setDepth(998).setAlpha(0).setScrollFactor(0);
 
     const key = 'fx-grain';
     if (!scene.textures.exists(key)) {
@@ -47,8 +47,8 @@ export class PostFx {
       ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
       tex.refresh();
     }
-    this.vignette = scene.add.image(0, 0, vKey).setOrigin(0, 0).setDepth(999);
-    this.grain = scene.add.tileSprite(0, 0, SCREEN_W, SCREEN_H, key).setOrigin(0, 0).setDepth(1000).setAlpha(FEEL.post.grainAlpha);
+    this.vignette = scene.add.image(0, 0, vKey).setOrigin(0, 0).setDepth(999).setScrollFactor(0);
+    this.grain = scene.add.tileSprite(0, 0, SCREEN_W, SCREEN_H, key).setOrigin(0, 0).setDepth(1000).setAlpha(FEEL.post.grainAlpha).setScrollFactor(0);
   }
 
   setEnabled(on: boolean): void {

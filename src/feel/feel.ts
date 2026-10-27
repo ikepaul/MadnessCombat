@@ -11,7 +11,8 @@ export interface FeelSink {
   hitStop(seconds: number): void;
   shake(px: number, decay: number): void;
   chromatic(px: number, frames: number): void;
-  killCam(): void;
+  /** `at` = the kill's world point (revamp C1: the camera leans in toward it). */
+  killCam(at?: { x: number; y: number; z: number }): void;
 }
 
 const HEAVY_KINDS: HitKind[] = ['heavy', 'uppercut', 'finisher', 'sweep', 'body', 'wall', 'slash', 'smash', 'stab', 'knife', 'blast', 'pin'];
@@ -54,7 +55,7 @@ export class FeelDirector {
       const boss = world.actorById(e.actorId)?.kind === 'boss';
       if (multi || lastOfWave || boss) {
         this.kills = [];
-        this.sink.killCam();
+        this.sink.killCam({ x: e.x, y: e.y + 0.6, z: e.z });
       }
     });
     // M10b: every fatality gets the kill cam (the reward is feel only); launches and bounces thump the screen

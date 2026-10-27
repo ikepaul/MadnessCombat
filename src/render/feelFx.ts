@@ -9,6 +9,7 @@ import type { FeelSink } from '../feel/feel';
 import { effectLevel } from '../settings';
 import type { FixedClock } from '../sim/clock';
 import type { PostFx } from './post';
+import { project, SCREEN_H, SCREEN_W } from './camera';
 
 /** 30 fps frames -> seconds. */
 const FRAME = 1 / 30;
@@ -18,6 +19,8 @@ export class FeelFx implements FeelSink {
   private chromaPx = 0;
   private chromaLeft = 0;
   private killCamLeft = 0;
+  /** Revamp C1: the kill-cam's screen point; the camera zooms in toward it. */
+  private zoomAt: [number, number] = [SCREEN_W / 2, SCREEN_H / 2];
 
   constructor(private camera: Phaser.Cameras.Scene2D.Camera, private clock: FixedClock, private post: PostFx, private audio?: AudioEngine) {}
 
@@ -39,14 +42,31 @@ export class FeelFx implements FeelSink {
     this.chromaLeft = Math.max(this.chromaLeft, frames * FRAME);
   }
 
-  killCam(): void {
+  killCam(at?: { x: number; y: number; z: number }): void {
     this.killCamLeft = FEEL.killCam.duration;
+    this.zoomAt = at ? project(at.x, at.y, at.z) : [SCREEN_W / 2, SCREEN_H / 2];
     this.chromatic(FEEL.chromatic.killCam.px, 1); // chromatic on the first frame
     this.audio?.killCam(FEEL.killCam.duration);
   }
 
   get killCamActive(): boolean {
     return this.killCamLeft > 0;
+  }
+
+  /**
+   * Revamp C1: during the kill cam the camera zooms in up to FEEL.killCam.zoom (in fast, out over
+   * the last 40%) and leans toward the kill, never far enough to show past the room's edges.
+   * Returns the scroll for it; zoom 1 / no scroll otherwise.
+   */
+  private punchIn(): [number, number] {
+    const d = FEEL.killCam.duration, t = d - this.killCamLeft;
+    const env = this.killCamLeft <= 0 ? 0 : Math.min(1, t / 0.12, this.killCamLeft / (d * 0.4));
+    const z = 1 + FEEL.killCam.zoom * env * Math.min(1, this.k * 2);
+    this.camera.setZoom(z);
+    if (z <= 1) return [0, 0];
+    const lx = (SCREEN_W / 2) * (1 - 1 / z), ly = (SCREEN_H / 2) * (1 - 1 / z);
+    const clamp = (v: number) => Math.max(-1, Math.min(1, v));
+    return [lx * clamp((this.zoomAt[0] - SCREEN_W / 2) / (SCREEN_W / 2)), ly * clamp((this.zoomAt[1] - SCREEN_H / 2) / (SCREEN_H / 2))];
   }
 
   /** Once per rendered frame with real elapsed seconds. */
@@ -70,7 +90,8 @@ export class FeelFx implements FeelSink {
     }
     this.shakes = this.shakes.filter((s) => s.t < s.decay);
     const a = Math.random() * Math.PI * 2;
-    this.camera.setScroll(px ? Math.cos(a) * px : 0, px ? Math.sin(a) * px : 0);
+    const [zx, zy] = this.punchIn();
+    this.camera.setScroll(zx + (px ? Math.cos(a) * px : 0), zy + (px ? Math.sin(a) * px : 0));
 
     this.post.chromatic(this.chromaLeft > 0 ? this.chromaPx : 0);
     this.chromaLeft = Math.max(0, this.chromaLeft - realDt);

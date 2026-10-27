@@ -106,7 +106,10 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
 
   ctx.save();
   if (opts.flashes !== false && (pose.impact > 0 || pose.hurt > 0)) ctx.filter = `brightness(${FEEL.impactFrame.brightness}) contrast(${FEEL.impactFrame.contrast})`; // impact frame
-  ctx.translate(fx, fy);
+  // revamp A7: a body that hits the floor bounces once (0.05 H, 0.25 s) before it lies still. invented
+  const c = a.corpse;
+  const bounce = c?.phase === 'settled' && c.t < 0.25 ? 0.05 * Math.sin((Math.PI * c.t) / 0.25) * (1 - c.t / 0.25) : 0;
+  ctx.translate(fx, fy - bounce * s);
   ctx.scale(s, s);
   ctx.scale(a.facing, 1);
   applyRoot(ctx, root);
@@ -114,6 +117,8 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
   if ((pose.squash ?? 0) > 0.02) { ctx.translate(0, -0.5); ctx.scale(1 + pose.squash * 0.5, 1 - pose.squash * 0.4); ctx.translate(0, 0.5); }
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
+  // revamp G1: a soft light rim around the players so they read in a crowd (restored with the ctx)
+  if (a.kind === 'hero' && !pose.dead && !opts.placement) { ctx.shadowColor = 'rgba(255,255,255,0.6)'; ctx.shadowBlur = Math.max(3, 0.035 * s); }
   // M11: the twin-tank jetpack on his back, flames while he's off the ground
   if (pose.jetpack) jetpack(ctx, time, a.hover !== undefined || a.pos.y > pose.groundY + 0.1);
 
