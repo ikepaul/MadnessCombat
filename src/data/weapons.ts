@@ -1,6 +1,7 @@
 // Guns (PLAN.md M5, research/mechanics/gun-*). Measured values cite their note; the rest is
 // marked invented. Geometry (length, muzzle, grip) is shared by the painter and the sim's aim
 // rig, so the tracer starts exactly at the drawn muzzle.
+import { applyOverrides } from '../dev/overrides';
 
 export type WeaponId = 'pistol' | 'pistolSuppressed' | 'deagle' | 'smg' | 'rifle' | 'mg' | 'shotgun' | 'sawedoff';
 
@@ -124,3 +125,6 @@ export const WEAPON_IDS = Object.keys(WEAPONS) as WeaponId[];
 export function isWeapon(id: string): id is WeaponId {
   return id in WEAPONS;
 }
+
+// dev: the F6 tuning panel's saved numbers (src/dev/overrides.ts)
+applyOverrides('GUNS', GUNS);

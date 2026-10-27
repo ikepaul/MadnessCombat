@@ -46,3 +46,21 @@ describe('credits', () => {
     expect(t).not.toMatch(/^#/m);
   });
 });
+
+describe('dev tuning overrides (M13 playtest pass)', () => {
+  it('sets a number deep in a data object, and refuses anything that is not a number', async () => {
+    const { setPath } = await import('../src/dev/overrides');
+    const root = { move: { hero: { walkSpeed: 1.5 } }, name: 'x' };
+    expect(setPath(root, ['move', 'hero', 'walkSpeed'], 1.8)).toBe(true);
+    expect(root.move.hero.walkSpeed).toBe(1.8);
+    expect(setPath(root, ['name'], 2)).toBe(false);
+    expect(setPath(root, ['move', 'nope', 'x'], 2)).toBe(false);
+  });
+
+  it('applies nothing without saved overrides (tests, production)', async () => {
+    const { applyOverrides } = await import('../src/dev/overrides');
+    const root = { a: 1 };
+    applyOverrides('X', root);
+    expect(root.a).toBe(1);
+  });
+});

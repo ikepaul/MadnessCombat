@@ -47,7 +47,7 @@ Downed in co-op (waiting for a revive): WASD drags you along slowly.
 Every action also works mid-jump (punch, shoot, swing, throw, cook/lob a grenade); the jump carries on underneath, and punches/swings from the air come down on whoever is below. Not in the air: grabbing, picking up, pulling out, stealing (and you can't jump while carrying a body).
 
 ## Debug keys
-F1 overlay (H grid, rulers, hurtboxes, tick/fps) · F2 slow-mo 0.25× · F3 pause · F4 or `.` step one tick · 1/2/3 stage palettes (also blood: stage 1 has none) · P post FX on/off · K drop 20 corpses · V effect intensity (full/reduced/off) · M mute · L drop a random gun at each player's feet · Z raise every intact corpse as a zombie.
+F1 overlay (H grid, rulers, hurtboxes, tick/fps) · F2 slow-mo 0.25× · F3 pause · F4 or `.` step one tick · 1/2/3 stage palettes (also blood: stage 1 has none) · P post FX on/off · K drop 20 corpses · V effect intensity (full/reduced/off) · M mute · L drop a random gun at each player's feet · Z raise every intact corpse as a zombie. · F6 (dev builds) tuning panel: every number in TUNING/FEEL/GUNS/GRENADE/THROWN/DISARM, live, saved in localStorage across reloads (`src/dev/`), "Copy changes" to write them back into `src/data/`.
 
 Dev only: `window.__game` is the Phaser game. The browser pane pauses animation frames while it is hidden; drive the loop with `__game.step(t, 16.7)` from the console when checking things there.
 
