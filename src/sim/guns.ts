@@ -5,6 +5,7 @@ import { aimRig } from '../anim/aim';
 import { flatness } from '../anim/skeleton';
 import { isMelee, MELEE } from '../data/melee';
 import { GUNS, isWeapon, WEAPONS, type WeaponDef } from '../data/weapons';
+import { TUNING } from '../data/tuning';
 import { project, type ScreenPoint, scaleAt } from '../render/camera';
 import { type Actor, alive, type Hand, newHand } from './actor';
 import type { PlayerCommand } from './command';
@@ -63,8 +64,25 @@ function canShoot(a: Actor): boolean {
   return (a.state === 'free' || a.state === 'attack') && flatness(a.pose.root) < 0.5 && a.body.state !== 'diving';
 }
 
-/** Every tick for an actor in control: aim, fire, dry click, throw, reload, pick up. */
-export function stepHands(world: World, a: Actor, cmd: PlayerCommand, dt: number): void {
+/**
+ * M10b over-the-shoulder (ep3 f6660-f6710): the enemy in melee contact right behind you, within
+ * TUNING.juggle.backReach. RMB shoots him without turning.
+ */
+export function behindContact(world: World, a: Actor): Actor | undefined {
+  let best: Actor | undefined, bestD = Infinity;
+  for (const o of world.actors) {
+    if (o === a || !alive(o) || o.kind === 'hero' || o.grabbedBy !== undefined || o.state === 'grabbed') continue;
+    if (Math.abs(o.pos.z - a.pos.z) > TUNING.melee.depthBand * 1.6) continue;
+    const d = (a.pos.x - o.pos.x) * a.facing; // > 0: behind
+    if (d < 0.05 || d > TUNING.juggle.backReach || d >= bestD) continue;
+    best = o;
+    bestD = d;
+  }
+  return best;
+}
+
+/** Every tick for an actor in control: aim, fire, dry click, throw, reload, pick up. True if RMB went to an over-the-shoulder shot. */
+export function stepHands(world: World, a: Actor, cmd: PlayerCommand, dt: number): boolean {
   a.walkFactor = 1;
   const kick = (a.pose.kick ??= [0, 0]);
   kick[0] = Math.max(0, kick[0] - dt * 0.6);
@@ -74,6 +92,20 @@ export function stepHands(world: World, a: Actor, cmd: PlayerCommand, dt: number
     a.pose.aimB = aimPoint(a, cmd, 1, world);
   }
   const dual = !!gunIn(a.hands[0]) && !!gunIn(a.hands[1]);
+  // M10b over-the-shoulder: RMB with an enemy in contact behind you fires backward, without turning
+  let backShot = false;
+  if (cmd.press?.[1] && a.playerIndex !== undefined && canShoot(a)) {
+    const o = behindContact(world, a);
+    const i = gunIn(a.hands[1]) ? 1 : gunIn(a.hands[0]) ? 0 : -1;
+    const g = i >= 0 ? gunIn(a.hands[i as 0 | 1]) : undefined;
+    if (o && g && g.h.ammo > 0 && g.h.reload === 0 && g.h.cooldown <= 1e-6) {
+      const target = project(o.pos.x, o.pos.y + 0.79, o.pos.z);
+      a.pose.backShot = { hand: i as 0 | 1, until: world.time + 0.3, target };
+      fire(world, a, i as 0 | 1, g.h, g.w, dual, { target, rigHand: 1, at: o.id });
+      if (o.state === 'dead') world.events.emit('fatality', { actorId: o.id, kind: 'backshot', ...o.pos });
+      backShot = true;
+    }
+  }
   for (const i of [0, 1] as const) {
     const g = gunIn(a.hands[i]);
     if (!g) continue;
@@ -88,7 +120,7 @@ export function stepHands(world: World, a: Actor, cmd: PlayerCommand, dt: number
       }
       continue;
     }
-    const pressed = !!cmd.press?.[i], held = !!cmd.hold?.[i];
+    const pressed = !!cmd.press?.[i] && !(backShot && i === 1), held = !!cmd.hold?.[i] && !(backShot && i === 1);
     if (h.ammo > 0) {
       // (tolerance: summing 1/60 s ticks drifts, and the measured SMG rate is exactly 6 ticks)
       if ((w.auto ? held || pressed : pressed) && h.cooldown <= 1e-6 && canShoot(a)) fire(world, a, i, h, w, dual);
@@ -110,6 +142,7 @@ export function stepHands(world: World, a: Actor, cmd: PlayerCommand, dt: number
   }
   // players also walk over weapons with empty hands; grunts pick up when their brain says so (M7)
   if (a.playerIndex !== undefined ? cmd.pickup || (!a.hands[0] && !a.hands[1]) : cmd.pickup) pickUp(world, a, !!cmd.pickup, cmd);
+  return backShot;
 }
 
 /** gun-reload: one hand at a time, only with a spare and only when not dual-wielding (proposal). */
@@ -125,10 +158,11 @@ function startReload(world: World, a: Actor, dual: boolean): void {
   }
 }
 
-function fire(world: World, a: Actor, i: 0 | 1, h: Hand, w: WeaponDef, dual: boolean): void {
+/** `over` (M10b over-the-shoulder): aim at this point from the back shoulder; the actor `at` takes it in the head, point blank. */
+function fire(world: World, a: Actor, i: 0 | 1, h: Hand, w: WeaponDef, dual: boolean, over?: { target: ScreenPoint; rigHand: 0 | 1; at: number }): void {
   const foot = project(a.pos.x, a.pos.y, a.pos.z), s = scaleAt(a.pos.z);
-  const target = (i === 0 ? a.pose.aim : a.pose.aimB) ?? project(a.pos.x + a.facing * 3, a.pos.y + 0.55, a.pos.z);
-  const rig = aimRig(foot, s, a.facing, i, target, w, a.pose.kick?.[i] ?? 0, shootsProne(a) ? a.pose.root : undefined);
+  const target = over?.target ?? (i === 0 ? a.pose.aim : a.pose.aimB) ?? project(a.pos.x + a.facing * 3, a.pos.y + 0.55, a.pos.z);
+  const rig = aimRig(foot, s, a.facing, over?.rigHand ?? i, target, w, a.pose.kick?.[i] ?? 0, shootsProne(a) ? a.pose.root : undefined);
   h.ammo--;
   h.cooldown = w.interval;
   h.clicked = false;
@@ -164,9 +198,12 @@ function fire(world: World, a: Actor, i: 0 | 1, h: Hand, w: WeaponDef, dual: boo
     }
     if (r.hit) {
       const o = r.hit.actor;
-      const pointBlank = w.pellets > 1 && Math.hypot(o.pos.x - a.pos.x, o.pos.z - a.pos.z) < GUNS.pointBlank;
-      const damage = r.hit.part === 'head' ? w.damageHead : w.damageBody;
-      world.hitBullet(a, o, damage, r.hit.part, Math.sign(dir[0]) || a.facing, pointBlank, { x: o.pos.x, y: o.pos.y + (r.hit.part === 'head' ? 0.79 : 0.4), z: o.pos.z });
+      // M10b: the one behind you takes it in the head, point blank; a juggled grunt is all head (he's spinning)
+      const backTarget = over?.at === o.id;
+      const part = backTarget || (o.flight?.juggle && o.flight.phase === 'air') ? 'head' : r.hit.part;
+      const pointBlank = backTarget || (w.pellets > 1 && Math.hypot(o.pos.x - a.pos.x, o.pos.z - a.pos.z) < GUNS.pointBlank);
+      const damage = part === 'head' ? w.damageHead : w.damageBody;
+      world.hitBullet(a, o, damage, part, Math.sign(dir[0]) || a.facing, pointBlank, { x: o.pos.x, y: o.pos.y + (part === 'head' ? 0.79 : 0.4), z: o.pos.z });
       rays.push({ end: r.end, surface: 'flesh', impact: behind(world, r.end, dir, o) });
     } else rays.push({ end: r.end, surface: r.surface, impact: r.world && r.surface && r.surface !== 'sky' ? { ...r.world, surface: r.surface } : undefined });
   }

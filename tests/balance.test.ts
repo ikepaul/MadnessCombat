@@ -10,7 +10,7 @@ import { IDLE_COMMAND, type PlayerCommand } from '../src/sim/command';
 import { WaveDirector } from '../src/sim/waves';
 import { World } from '../src/sim/world';
 
-/** One bot's command: walk to the nearest grunt, light to stun, heavy on the stunned grunt. */
+/** One bot's command: walk to the nearest grunt, light to stun, heavy on the stunned (or juggled, M10b) grunt. */
 function botCommand(world: World, hero: Actor, reaction: number, state: { wait: number }): PlayerCommand {
   const cmd: PlayerCommand = { ...IDLE_COMMAND };
   if (hero.state === 'downed' || !alive(hero)) return cmd;
@@ -20,7 +20,9 @@ function botCommand(world: World, hero: Actor, reaction: number, state: { wait: 
     const dx = down.pos.x - hero.pos.x, dz = down.pos.z - hero.pos.z;
     if (Math.hypot(dx, dz) > TUNING.coop.reviveRadius * 0.6) { cmd.moveX = Math.sign(dx); cmd.moveZ = Math.abs(dz) > 0.1 ? Math.sign(dz) : 0; }
   }
-  const foes = world.actors.filter((a) => a.ai && alive(a) && !a.entering && a.state !== 'knockback');
+  // M10b: a grunt bounced back off a wall is airborne and juggled: a competent player finishes him
+  const juggled = (a: Actor) => !!a.flight?.juggle && a.flight.phase === 'air';
+  const foes = world.actors.filter((a) => a.ai && alive(a) && !a.entering && (a.state !== 'knockback' || juggled(a)));
   const t = foes.sort((a, b) => Math.abs(a.pos.x - hero.pos.x) - Math.abs(b.pos.x - hero.pos.x))[0];
   if (!t) return cmd;
   const dx = t.pos.x - hero.pos.x, dz = t.pos.z - hero.pos.z;
@@ -31,7 +33,7 @@ function botCommand(world: World, hero: Actor, reaction: number, state: { wait: 
   }
   if (Math.abs(dx) < 0.6 && Math.abs(dz) < 0.15 && hero.state === 'free') {
     state.wait -= world.dt;
-    if (state.wait <= 0) { cmd.attack = t.state === 'stun' ? 'heavy' : 'light'; state.wait = reaction; }
+    if (state.wait <= 0) { cmd.attack = t.state === 'stun' || juggled(t) ? 'heavy' : 'light'; state.wait = reaction; }
   }
   return cmd;
 }

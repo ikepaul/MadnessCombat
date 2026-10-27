@@ -53,6 +53,10 @@ export class Vfx {
   /** Telekinesis ripples (seconds since the push). */
   private ripples: { x: number; y: number; s: number; dir: number; t: number }[] = [];
 
+  /** M10b: floor-crack rings from a spike (s elapsed), popped weapons waiting for the top of their arc. */
+  private rings: { x: number; y: number; s: number; t: number }[] = [];
+  private popped: number[] = [];
+
   /** Extreme gore (stage 3): necks still spraying, seconds left. */
   private fountains: { actorId: number; left: number }[] = [];
 
@@ -66,7 +70,7 @@ export class Vfx {
     // M9: a new room starts without the last one's smoke and sparks
     world.events.on('roomChanged', () => {
       this.puffs = []; this.drops = []; this.smears = []; this.stars = []; this.blasts = []; this.booms = [];
-      this.smoke = []; this.chunks = []; this.fountains = []; this.marks = []; this.bolts = []; this.sparks = []; this.ripples = []; this.bubbles = [];
+      this.smoke = []; this.chunks = []; this.fountains = []; this.rings = []; this.popped = []; this.marks = []; this.bolts = []; this.sparks = []; this.ripples = []; this.bubbles = [];
     });
     // M10: sparks off the cables, dust as the cab hits the bottom
     world.events.on('cableHit', (e) => {
@@ -156,6 +160,17 @@ export class Vfx {
     world.events.on('wallHit', (e) => {
       if (e.speed > 2) this.dust(e.x, e.y + 0.3, e.z, 6);
     });
+    // M10b: launch dust, the spike's floor-crack ring, wall-bounce dust, a glint at the top of a popped weapon's arc
+    world.events.on('juggle', (e) => {
+      if (e.phase === 'launch') this.dust(e.x, 0, e.z, 6);
+      if (e.phase === 'bounce') {
+        const [x, y] = project(e.x, 0, e.z);
+        this.rings.push({ x, y, s: scaleAt(e.z), t: 0 });
+        this.dust(e.x, 0, e.z, 12);
+      }
+    });
+    world.events.on('wallBounce', (e) => this.dust(e.x, e.y + 0.4, e.z, 8));
+    world.events.on('popUp', (e) => this.popped.push(e.itemId));
     // M6: explosions, gibs, blades sticking, guns shot out of hands, catches
     world.events.on('explosion', (e) => {
       const [x, y] = project(e.x, Math.max(0.3, e.y), e.z), s = scaleAt(e.z);
@@ -266,6 +281,24 @@ export class Vfx {
   }
 
   private step(dt: number): void {
+    for (const r of this.rings) r.t += dt;
+    this.rings = this.rings.filter((r) => r.t < 0.35);
+    // popped weapons: a glint once they stop rising
+    for (const id of this.popped) {
+      const it = this.world.items.find((i) => i.id === id);
+      if (it && it.state === 'air' && it.vel.y <= 0) {
+        const [x, y] = project(it.pos.x, it.pos.y, it.pos.z);
+        this.stars.push({ x, y, s: scaleAt(it.pos.z) * 0.45, left: STAR_TICKS + 2, big: false });
+      }
+    }
+    this.popped = this.popped.filter((id) => this.world.items.some((i) => i.id === id && i.state === 'air' && i.vel.y > 0));
+    // a punted head leaves a trail (blood on bloody stages, dust otherwise)
+    for (const it of this.world.items) {
+      if (!it.punt || it.state !== 'air') continue;
+      const [x, y] = project(it.pos.x, it.pos.y, it.pos.z), s = scaleAt(it.pos.z);
+      if (this.blood()) this.mist(x, y, s, -Math.sign(it.vel.x), 1, -0.2);
+      else this.puffs.push({ x, y, vx: 0, vy: -0.2 * s, r: 0.03 * s, grow: 0.12 * s, life: 0, max: 0.25, z: it.pos.z });
+    }
     // extreme gore: the neck keeps spurting in pulses while the body stands and falls
     for (const f of this.fountains) {
       f.left -= dt;
@@ -360,6 +393,20 @@ export class Vfx {
     }
     for (const m of this.smears) this.drawSmear(ctx, m);
     for (const st of this.stars) this.drawStar(ctx, st);
+    // M10b: the spike's crack ring, spreading on the floor
+    for (const r of this.rings) {
+      const u = r.t / 0.35;
+      ctx.globalAlpha = 1 - u;
+      ctx.lineWidth = Math.max(1.5, r.s * 0.02);
+      ctx.strokeStyle = INK;
+      ctx.beginPath(); ctx.ellipse(r.x, r.y, r.s * (0.2 + u * 0.55), r.s * (0.05 + u * 0.13), 0, 0, Math.PI * 2); ctx.stroke();
+      for (let k = 0; k < 6; k++) {
+        const a = (k / 6) * Math.PI * 2 + 0.3;
+        ctx.beginPath(); ctx.moveTo(r.x + Math.cos(a) * r.s * 0.12, r.y + Math.sin(a) * r.s * 0.03);
+        ctx.lineTo(r.x + Math.cos(a) * r.s * (0.25 + u * 0.4), r.y + Math.sin(a) * r.s * (0.06 + u * 0.1)); ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
     for (const p of this.smoke) {
       ctx.globalAlpha = 0.55 * (1 - p.life / p.max);
       ctx.fillStyle = `rgb(${p.shade},${p.shade},${p.shade + 3})`;

@@ -4,6 +4,7 @@ import '../labs/aiLabs';
 import '../labs/gunLabs';
 import '../labs/meleeLabs';
 import '../labs/movementLabs';
+import '../labs/comboLabs';
 import '../labs/toolLabs';
 import '../labs/throwLabs';
 import '../labs/enemyLabs';

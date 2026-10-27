@@ -47,6 +47,10 @@ export interface Item {
   fuse?: number;
   /** World time it was thrown (your own throw can be caught back after a moment). */
   thrownAt?: number;
+  /** M10b head punt: this head floors whoever it hits (instead of a stagger). */
+  punt?: boolean;
+  /** M10b pop & catch: knocked up out of a grunt's hand; enemies leave it alone until this world time. */
+  popUntil?: number;
   /** Stuck in this actor at this actor-local point, at this angle relative to the body. */
   stuckTo?: number;
   stuckLocal?: [number, number];
@@ -228,6 +232,8 @@ function catchItem(world: World, o: Actor, it: Item): void {
   o.catchAt = undefined;
   world.items = world.items.filter((x) => x !== it);
   world.events.emit('catch', { actorId: o.id, itemId: it.id, item: it.kind, ...it.pos });
+  // M10b pop & catch: the first hit with it is already a chain hit
+  o.primedAt = world.time;
 }
 
 /**
@@ -296,7 +302,7 @@ function thrownItemHits(world: World, it: Item): void {
     if (Math.abs(o.pos.z - it.pos.z) > 0.25 || Math.abs(o.pos.x - it.pos.x) > 0.25) continue;
     if (it.pos.y < o.pos.y || it.pos.y > o.pos.y + o.body.height) continue;
     it.hit.push(o.id);
-    if (!allyKnockdown(world, it, o, Math.sign(it.vel.x) || 1)) world.hitActor(world.actorById(it.thrownBy!), o, 'head', Math.sign(it.vel.x) || 1, 0, it.pos);
+    if (!allyKnockdown(world, it, o, Math.sign(it.vel.x) || 1)) world.hitActor(world.actorById(it.thrownBy!), o, it.punt ? 'body' : 'head', Math.sign(it.vel.x) || 1, 0, it.pos);
     it.vel.x *= -0.3;
     it.vel.z *= 0.3;
   }
