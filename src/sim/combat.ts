@@ -84,7 +84,8 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
       }
       stepLocomotion(world, a, cmd, dt);
       if (b.state === 'diving' && b.sweep) sweepContact(world, a);
-      setClip(a, a.pose.welding ? 'weld' : a.pose.handsUp ? 'handsUp' : a.cook !== undefined ? 'cook' : a.holding ? 'carry' : holdsLong(a) ? 'holdLong' : a.ai?.aware === false && a.ai.idle === 'smoke' ? 'smoke' : 'idle');
+      if (b.state === 'air' && b.kick) kickContact(world, a);
+      setClip(a, b.kick ? 'kick' : a.pose.welding ? 'weld' : a.pose.handsUp ? 'handsUp' : a.cook !== undefined ? 'cook' : a.holding ? 'carry' : holdsLong(a) ? 'holdLong' : a.ai?.aware === false && a.ai.idle === 'smoke' ? 'smoke' : 'idle');
       break;
     }
     case 'attack': {
@@ -738,6 +739,22 @@ function sweepContact(world: World, a: Actor): void {
   if (!o || b.swept.includes(o.id)) return;
   b.swept.push(o.id);
   applyHit(world, a, o, 'sweep', a.facing, 0, { x: o.pos.x - a.facing * 0.1, y: 0.12, z: o.pos.z });
+}
+
+/** The flying kick's foot: the first enemy it touches takes a heavy blow, and the kicker bounces off. */
+function kickContact(world: World, a: Actor): void {
+  const K = TUNING.flyKick, b = a.body;
+  const x = a.pos.x + a.facing * K.reach, y = a.pos.y + K.height;
+  for (const o of world.actors) {
+    if (!hittable(a, o) || b.swept.includes(o.id) || (a.kind === 'hero' && o.kind === 'hero')) continue;
+    if (circleHits(o, x, y, K.radius) === null) continue;
+    b.swept.push(o.id);
+    applyHit(world, a, o, 'heavy', a.facing, 0, { x, y, z: o.pos.z });
+    b.vel.x = -a.facing * K.bounceBack;
+    b.vel.y = Math.max(b.vel.y, K.bounceUp);
+    b.takeoff = { x: b.vel.x, z: 0 };
+    return;
+  }
 }
 
 // ---------- grab & throw ----------

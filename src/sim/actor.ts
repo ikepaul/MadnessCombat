@@ -132,8 +132,10 @@ export interface Body {
   cycle: number;
   /** The current dive is a low sweep (feet first, on the back). */
   sweep: boolean;
-  /** Actors already swept by this dive. */
+  /** Actors already swept by this dive (or hit by this flying kick). */
   swept: number[];
+  /** Playtest 2026-10-27: a flying kick (dive in mid-air) is under way. */
+  kick?: boolean;
 }
 
 /**
