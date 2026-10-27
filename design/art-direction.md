@@ -6,7 +6,7 @@
 ## Pillars
 1. **Same proportions and staging as the show, our own designs.** Character size vs. room, camera, floating hands/feet and greyscale-and-red are kept. Faces, character designs, names, logos, music and backgrounds are ours.
 2. **Flat vector + ink outline**, Flash-like clarity. "Finished, not cheap" comes from lighting, depth and effects, **not** from adding detail to characters.
-3. **Colour is information.** The world is greyscale. **Red** = blood and enemy aim telegraphs only. **Green** = zombies only. **White** = flashes, tracers and UI.
+3. **Colour is information.** The world is greyscale. **Red** = blood and enemy aim telegraphs only. **Green** = zombies only. **White** = flashes, tracers and UI. One exception (decided 2026-10-27): a hero's **eye slit turns red at full rage** (and the matching eye-slit icon on the rage bar), `design/rage.md`.
 4. **Readability first.** Silhouettes, contact shadows, telegraphs (shadows for falling things, door opening, aim lines) win over decoration.
 
 ## Measured proportions (from the episodes)

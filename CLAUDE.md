@@ -5,6 +5,7 @@ A browser game where each of the first four episodes of an animated series is on
 - **Plan**: `PLAN.md`. Milestones M0–M13 with checklists and acceptance tests. Work one milestone at a time on a branch `mN-<slug>`, PR to `main`.
 - **Research**: `research/`. One note per mechanic (`research/mechanics/<slug>/notes.md`), measurements, stage outlines, design decisions. Local-only reference clips sit next to the notes (gitignored).
 - **Look & sound**: `design/art-direction.md`, `design/audio-direction.md`, and the interactive `design/style-frame/` (the renderer is ported from it). The do-not-copy list is in the art direction.
+- **Planned next (M17–M20, 2026-10-27)**: `design/qol-pass.md` (quality of life), `design/coop-moves.md` (co-op moves), `design/rage.md` (rage meter, solo and team rage fatalities).
 
 ## Commands
 Node 26 via nvm (`nvm use`; the system Node is too old for Vite 8).

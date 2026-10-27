@@ -4,7 +4,7 @@ How we get from the research catalogue (`research/`) and the art/audio direction
 
 Decisions live in `research/design-decisions.md` (gameplay), `design/art-direction.md` (visuals) and `design/audio-direction.md` (sound and the music brief). Don't re-open them inside a milestone; ask the user if one turns out not to work.
 
-**Order is linear.** It starts in the final art style from day one (the style frame is ported in M0). Unarmed fighting is playable at M3, a dedicated feel & audio milestone follows at M4, guns come at M5–M7, the first complete stage at M8, then stages 2 and 3. Stage 4 (episode 4, added 2026-10-27) comes after the shell: its new mechanics first (M14), then its rooms (M15–M16).
+**Order is linear.** It starts in the final art style from day one (the style frame is ported in M0). Unarmed fighting is playable at M3, a dedicated feel & audio milestone follows at M4, guns come at M5–M7, the first complete stage at M8, then stages 2 and 3. Stage 4 (episode 4, added 2026-10-27) comes after the shell: its new mechanics first (M14), then its rooms (M15–M16). M17–M20 (co-op feel and the rage meter, added 2026-10-27) don't depend on stage 4 and can be built alongside it, in this order: M17 first (M18 uses its depth snap, auto-catch and grab-with-any-hand), then M18, M19, M20. Merge `main` (stage 4 included) before starting each of them: they touch `combat.ts`, `guns.ts` and `hud.ts`, which M14 changes too.
 
 | # | Milestone | Playable result | Size |
 |---|---|---|---|
@@ -27,6 +27,10 @@ Decisions live in `research/design-decisions.md` (gameplay), `design/art-directi
 | M14 | Stage 4 mechanics (added 2026-10-27) | The agent, fire-mode switch, stairs, sword guard/parry, armed zombies, crowds, acting from the ground, in labs and a test room | L |
 | M15 | Stage 4 (first half) | Car-ram arrival, poster/door/office/vending rooms, the stairwell | L |
 | M16 | **Stage 4 complete** | The club: crowd fight, DJ, boss arrival + mass raise, duel, detonator ending; shell knows four stages | L |
+| M17 | Quality-of-life pass (added 2026-10-27) | Second-hand auto pickup, a clear E prompt and hand choice, depth snap for punches, easier catches, cover and aim fixes, grenade marker, throws that find depth, grab with any hand | M |
+| M18 | **Co-op moves** (added 2026-10-27) | Hold & hit, shared chains, ping-pong, wishbone, weapon pass, body bat, double-team, hero toss, carry-spin | L |
+| M19 | Rage meter & solo rage fatalities (added 2026-10-27) | A variety-fed rage bar per player, the full-rage look, Tab fires one of four supers (fists, gun, blade, club) | L |
+| M20 | Team rage fatalities (added 2026-10-27) | The proximity request and the two team supers (back to back, ping-pong rampage) | M |
 
 Not covered by a milestone: **the music itself** (the user composes it from the brief in `design/audio-direction.md`; milestones only build the hooks and integrate tracks when delivered) and gamepad support (decide in M13).
 
@@ -481,6 +485,98 @@ Look & sound:
 
 Acceptance: the crowd alerts together when the DJ is first hit · never more than 3 grunts swinging at once · the raise only raises intact corpses, at most 19 · the ending fires whether or not the boss's hp is low · the stage completes with a scripted bot · all four stages play in sequence from the title screen at 60 fps.
 Labs: `boss-clown` (DJ), `boss-halo` (ep4 duel), `world-last-stand` (detonator), `world-crowd-dancefloor` (the real club).
+
+## M17: Quality-of-life pass (M)
+**Goal:** the small frictions found in playtesting and in the code: picking up, choosing a hand, punching at other depths, catching, shooting past cover, where bullets go, where a grenade lands, throws across depth, grabbing with a gun in hand.
+**Read first:** `design/qol-pass.md` (the whole spec, with the decisions and the numbers), `src/sim/guns.ts` (`pickUp`, `fire`), `src/ui/hud.ts` (`promptTarget`), `src/sim/hitscan.ts` (`castRay`), `src/anim/aim.ts`, `src/sim/items.ts` (`snatch`, `canCatch`), `src/sim/combat.ts` (`hittable`, `canGrab`, `startAttack`).
+
+Build (numbers in a new `TUNING.qol` block, all invented):
+- [ ] **Auto pickup into the empty hand**: walking over a *loaded* gun with one hand full fills the empty hand (decided: loaded guns only). With both hands empty, empty guns are no longer auto-picked (E still takes them). Your own thrown gun is ignored for 1 s. Nothing while holding the sign.
+- [ ] **One pickup plan** (`pickupPlan()` in `guns.ts`) used by both the sim and the E prompt, so they never disagree. The prompt shows the weapon's icon and name, the hand it goes into (mouse icon), its ammo, the swap's outgoing weapon, pulls of stuck blades, and appears with both hands full. The targeted floor item gets a white outline and a glint.
+- [ ] **Smart swap + hold E and click** (decided): tap E swaps the worse hand (empty gun first, then the emptier gun, then a melee weapon at 0.6, ties to the front); hold E and click LMB / RMB swaps that hand (the click doesn't fire). With a free hand E still acts on press. `PlayerCommand.useHeld`.
+- [ ] **Depth help for hero melee** (decided: snap + wider band + cue): the hero's punch/swing/finisher/sweep band 0.2 → 0.3 H; a depth snap during the startup toward the targeted enemy (under the cursor, else the nearest ahead, |Δz| ≤ 0.5 H; ≤ 0.3 H per attack at 3 H/s); a light ring on the shadows of enemies on your depth line, brighter on the snap target. Enemies keep 0.2 H.
+- [ ] **Catching** (decided): the F window 0.15 → 0.25 s; friendly flying weapons (popped disarms, your own rebounds, partner passes from M18) are caught automatically into a free hand; enemy throws still need F.
+- [ ] **Cover**: the cover check becomes a 3D segment test from the muzzle to the hit point against each prop's box, so you can shoot from behind your own cover and over it; enemies behind cover stay covered from the front. F1 draws the shot segments, prop boxes and blocked points.
+- [ ] **Bullets hit the cursor**: `aimRig` corrects the barrel so the muzzle line passes through the cursor (measured today: 16–20 px off). Painter and sim share it.
+- [ ] **Grenade landing marker** while cooking / winding up / holding a live grenade: target ring, the 2 H blast radius, a fuse arc that blinks in the last 0.5 s (`lobTarget()` shared with the lob).
+- [ ] **Throws find depth**: a knife, axe or gun thrown at an enemy under (or within 0.35 H of) the cursor flies in a straight 3D line to his depth.
+- [ ] **F grabs with any free hand**: a one-handed item in front with the back hand empty moves to the back hand, then the grab happens.
+
+Look & sound:
+- [ ] Prompt icons, names, mouse-hand icons, swap arrow, chooser rows; item outline + glint; depth rings; grenade marker; a 3-frame hand-swap layer with a cloth + clack; the soft auto-pickup sound.
+
+Acceptance: walk over a loaded SMG with a pistol in hand → dual wield; an empty one → nothing · the prompt equals the sim's choice in 6 setups · hold E + RMB swaps hand 1 without firing · a grunt 0.45 H deeper is hit by a punch (missed before); enemies still need 0.2 H · a popped weapon is auto-caught; an enemy knife needs F (0.22 s early works) · from behind a table you hit a grunt at your depth across it; a grunt behind a table is still covered from the front · a ray passes within 1 px of the cursor (spread 0) · `lobTarget` = the landing point ±0.05 H · a knife at a grunt 0.6 H deeper kills him · pistol in front + F on a grunt = grabbed, pistol in the back hand fires past him · the balance bot with 0.35 s reactions still loses wave A; the stage bots still finish.
+Labs: `qol-pickup`, `qol-depth`, `qol-cover`, `qol-throw-depth`, `qol-grenade-marker`.
+
+## M18: Co-op moves (L)
+**Goal:** two players fighting *together*, not side by side: nine team moves that build on grabs, throws, juggles and catches.
+**Read first:** `design/coop-moves.md` (research, rules, every move's numbers, looks, sounds and tests), `design/combos-and-fatalities.md` (3f, the original co-op ideas), M4b and M10b above, `src/sim/combat.ts` (`applyHit`, `shieldHit`, `chainBonus`, `stepFlight`, `tryGrab`, `startThrow`, `kickContact`), `src/sim/items.ts`, `src/net/snapshot.ts`.
+
+Rules (decided): co-op only; aim at your partner to target them (lift with F, pass with Q), otherwise F and Q act as always; co-op moves never hurt the partner; their kills are **team kills** (`kill.team`, the fatality feel, the `team` rage type for both players in M19); stage 1 stays bloodless.
+
+Build (numbers in `TUNING.coop`, all invented):
+- [ ] **Hold & hit**: the partner's hits on a grunt you hold replace the human-shield rule: the 3rd hit or any heavier blow kills (team kill, `fatality` kind `held`); a held grunt hit twice dies on any impact when thrown. Live grabs use a new **restrain** hold (victim faces away from the holder).
+- [ ] **Shared chains**: either player's hits on one enemy keep one chain (juggle hand-offs).
+- [ ] **Ping-pong**: a body knocked or thrown into your partner bounces off them airborne; the partner's heavy bats it, and it dies on the next wall or partner.
+- [ ] **Wishbone**: F on a grunt your partner holds (or both grab within 0.5 s) tears him apart in 0.75 s (stage 2+ split in two, stage 1 the head pops). New split render (`Pose.cut`), reused by M19.
+- [ ] **Weapon pass**: Q with the cursor on your partner lobs the item to their hands (over enemies, lead + homing); auto-caught into a free hand (M17), else at their feet.
+- [ ] **Body bat**: a heavy or a swing at a body your partner threw sends it on at 1.5× (≥ 8 H/s) toward your cursor, piercing; wall = kill.
+- [ ] **Double-team**: both players' damaging hits on one enemy within 0.25 s = instant kill (decap / head burst); tough ones +2 instead.
+- [ ] **Hero toss**: F with the cursor on your partner lifts them overhead (the carrier needs empty hands, walks at 0.6×, the carried one is invulnerable and can Space off); F or LMB throws them as a multi-hit flying-kick missile with i-frames; they land on their feet.
+- [ ] **Carry-spin** (the user's idea): while carried, F → the carrier swings them round himself by the ankles on the floor plane (0.75 H, 1.2 s a turn). An armed partner aims and fires normally but only out to the side they're on; unarmed, their body floors enemies in the circle (kills on walls). Carrier F throws them out along the swing, their Space hops off, 4 s max.
+- [ ] Glyph hints for each move (setting `coopHints`), the Controls page's co-op list, `kill.team` / `alsoId`, the `coopMove` event, new `fatality` kinds.
+- [ ] **Partner bot** (`src/dev/partnerBot.ts`): `?coop=bot` puts an AI partner in any stage, and the co-op labs use it (N = its half of the move), so one person can test.
+- [ ] Co-op net: `ActorSnap.grabbedBy`, `carried`; swing angle in the pose; everything else from replayed events.
+
+Look & sound:
+- [ ] Poses (A2 rules): `restrainHold`, `restrained`, `wishboneBrace/Pull/Recover`, `passToss`, `brace`, `liftUp`, `carryOverhead`, `carriedFlat`, `hopOff`, `tossWind`, `giantSwing`, `swungFly`.
+- [ ] VFX: double impact star, split render + cut edge, cloth-tear smear, white flash frames, speed lines and ink ghosts, the spin's floor arc, landing dust rings. SFX: team ping, bump, bat crack, strain + tear / pop, soft pass whoosh, double ting, lift effort, toss whoosh, swing loop panned by angle.
+
+Acceptance: every test listed per move in `design/coop-moves.md` · co-op moves never damage the partner (a full stage-1 wave with two bots spamming them: no partner damage from a co-op move) · the guest sees all nine via replayed events · two competent bots still clear co-op wave A and the balance bot alone is unchanged · 60 fps in the stage 2 office with two players spinning and tossing.
+Labs: `coop-hold-hit`, `coop-chain`, `coop-ping-pong`, `coop-wishbone`, `coop-pass`, `coop-bat`, `coop-double`, `coop-toss`, `coop-spin`.
+
+## M19: Rage meter & solo rage fatalities (L)
+**Goal:** varied kills fill a rage bar; a full bar shows on the hero; Tab fires a super that kills up to six enemies in a choreographed, top-quality animation picked by what you hold.
+**Read first:** `design/rage.md` (sections 1–3, 5–8), `research/design-decisions.md` ("Rage"), `src/sim/sequencer.ts`, `src/feel/feel.ts`, `src/render/feelFx.ts`, `src/scenes/PoseEditorScene.ts`, `src/ui/hud.ts`, `src/scenes/UIScene.ts`.
+
+Decided: last 2 kill types block a gain; 10% a new kind, +5% per varied kill in a row up to 25%; the bar never drains, saved with the checkpoint, reset per stage; white and ink look with only the eye slit red; Tab; strike-all-then-drop for fists, blade and club, kill-as-the-barrel-passes for guns. These supers are the one exception to "fatalities ≤ 0.8 s, never take control" and to "no meter".
+
+Build (numbers in `TUNING.rage` and `FEEL.rage`, invented):
+- [ ] **Pose editor upgrades first** (revamp A11): onion skin, a scrubbable 30 fps timeline with 0.25×/1× playback, per-key easing, copy/paste/mirror, a **pair view** for two-actor poses with a saved offset, preview with smears/stars/ghosts.
+- [ ] **Kill types** (14, `killType()` in `src/sim/rage.ts`) on every `kill` event (`type`), `applyHit(..., via)` for kicks, style and team kills.
+- [ ] **The meter**: `Actor.rage` (value, recent, streak), gains with streak, style/team bonuses, multi-kills, boss bonus; no gain from enemies' kills, kills during a rage move or corpses; cap 1; checkpoint save/restore; reset on a new stage.
+- [ ] **HUD** (`src/ui/rageBar.ts`, `src/ui/killIcons.ts`): bar per player beside the life heads with 10% ticks, rising gain numbers, the last-2 variety strip (repeats shake and grey), the full pulse + red eye-slit icon + the key.
+- [ ] **Full-rage look**: hotter pulsing rim, red eye slit, ink wisps off the shoulders, the ready stinger and the low loop; effect-intensity aware.
+- [ ] **Firing**: `rage` action (Tab, `addCapture`), `PlayerCommand.rage`; the eligibility rules; the victim rules and cap 6; fizzle with no victims.
+- [ ] **The run** (`world.rage`, `src/sim/rageMoves.ts`): time stops for everyone but the participants (actors, items, fuses, director, scripts, exits), heroes invulnerable, release = the world resumes, bystanders stunned 0.4 s; own hit-stops outside the budget, kill-cam off, `FeelSink.slowMo`.
+- [ ] **Cinematic layer**: letterbox, the dimmed/desaturated stopped world with participants on a new rage layer, camera punch-ins, music duck / silence / un-duck, the release flash.
+- [ ] **Rampage** (empty hands), **Spin shot** (a gun; refills held guns), **Cut line** (a blade; the split render), **Home run** (a club or the sign): every beat as in `design/rage.md` section 3.
+- [ ] Co-op net: `ActorSnap.rage`, `Snapshot.rage`, the `rage*` events replayed.
+
+Look & sound:
+- [ ] Every pose in `design/rage.md` 5.2 (M19 list), each through the 12-point checklist in 5.3 with a key-screenshot strip in the PR.
+- [ ] VFX: ignite ring + floor shockwave, marks, dash smears and ghosts, ink-negative impact frames, stuck impact stars, white slash lines, smoke from barrels, casing rain in slow-mo, the release flash. SFX: the M19 list in `design/rage.md` 6.
+
+Acceptance: the rage tests in `design/rage.md` 7 (M19 part) · each move's lab played at 0.25× and 1× against its beat sheet, deviations noted · 60 fps during a Rampage with 6 victims and 20 bodies in the room (full effects) · the balance bot unchanged when it never presses Tab.
+Labs: `rage-meter`, `rage-rampage`, `rage-spin-shot`, `rage-cut-line`, `rage-home-run`.
+
+## M20: Team rage fatalities (M)
+**Goal:** two full bars and a press each = a team super, without precise timing.
+**Read first:** `design/rage.md` (sections 4–8), M18 and M19 above.
+
+Decided: both bars full; Tab near your partner (≤ 3 H, their bar full) sends a request instead of firing your solo move; their Tab within 4 s accepts; your second Tab withdraws and fires your solo move; nothing spent on a timeout.
+
+Build:
+- [ ] **The request** (`world.rageRequest`): open / accept / withdraw / expire rules, the near-simultaneous accept, cancels (down, boss grab, traversal, cutscene); HUD glyph with the countdown ring, waiting ring, the call sound; the `TEAM` tag and floor tether when both are full.
+- [ ] **Back to back** (both hold a gun): gather, back-to-back 180° spin killing as barrels pass (cap 10), the crossing-shot finale, guns refilled.
+- [ ] **Ping-pong rampage** (otherwise): positions, the scripted volley striking one victim per pass (cap 8), the sandwich punch, all drop at the fist bump.
+- [ ] Partner bot answers requests (labs: N).
+
+Look & sound:
+- [ ] Poses `b2bReady`, `b2bFinish`, `sandwichHit`, `fistBump` through the 5.3 checklist; the tether snap, crossing tracers, fist-bump star. SFX: `rageRequest`, `rageAccept`, `b2bClink`, `fistBump`.
+
+Acceptance: the request and team-move tests in `design/rage.md` 7 · a two-laptop playtest note (or the bot route) showing a team move reached with no timing practice · 60 fps during Back to back with 10 victims.
+Labs: `rage-request`, `rage-back-to-back`, `rage-ping-pong`.
 
 ---
 
