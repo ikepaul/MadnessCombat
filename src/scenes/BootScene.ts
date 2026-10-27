@@ -39,6 +39,7 @@ export class BootScene extends Phaser.Scene {
           stage: 1,
           room: (params.get('room') ?? 'arena') as StageRoomId,
           wave: params.get('wave') ?? undefined,
+          beat: params.get('beat') ?? undefined,
           palette,
         });
       }

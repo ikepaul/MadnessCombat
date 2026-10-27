@@ -393,6 +393,15 @@ function stepSummon(world: World, a: Actor, s: BossState, m: Extract<BossAct, { 
 /** Footprint of the landed cannon (H): barrel + stand. */
 const CANNON_HALF = { x: 0.42, z: 0.22, top: 0.72 };
 
+/** A cannon already standing (stage routes that start after the boss): nobody mans it yet. */
+export function placeCannon(world: World, x: number, z: number, facing: 1 | -1): Cannon {
+  const H = CANNON_HALF;
+  const c: Cannon = { x, z, facing, timer: 0, live: true, y: 0, shots: 0 };
+  world.cannons.push(c);
+  world.room.props.push({ kind: 'cannon', x0: x - H.x, x1: x + H.x, z0: z - H.z, z1: z + H.z, top: H.top });
+  return c;
+}
+
 /** It lands: whoever is under it is crushed and shoved clear, and it stays as solid ground. */
 function landCannon(world: World, a: Actor, c: Cannon): void {
   const H = CANNON_HALF;

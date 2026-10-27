@@ -305,6 +305,8 @@ export const TUNING = {
     scavenge: 2,
     /** ...but not one lying within this distance of a player. invented */
     scavengeClear: 1.5,
+    /** M8 wave B: a grunt taking over the cannon fires his first ball this long after he's in place (s). invented */
+    cannonWindup: 0.8,
     /** combat-cover: share of gun grunts that kick a table over for cover. invented (the note's one in four) */
     flipChance: 0.25,
     /** PLAN.md M7: one enemy grenade per encounter (wave); chance per aim opportunity to lob it instead. invented */

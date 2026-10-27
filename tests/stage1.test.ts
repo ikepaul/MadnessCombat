@@ -166,8 +166,8 @@ describe('stage 1 headless', () => {
     world.events.on('grenadePin', () => (intactBefore = intact(world).length));
     world.events.on('explosion', () => world.seq.run(function* () { yield 0.2; intactAfter = intact(world).length; }));
     const log = playStage(world, hero, true);
-    expect(log.waves).toEqual(['A']);
-    expect(log.music).toEqual(['riot', 'boss']);
+    expect(log.waves).toEqual(['A', 'B']);
+    expect(log.music).toEqual(['riot', 'boss', 'riot']);
     expect(log.explosions).toBe(1);
     // the pile went up: fewer bodies left for the boss to raise
     expect(log.gibs).toBeGreaterThan(0);
@@ -177,8 +177,8 @@ describe('stage 1 headless', () => {
     expect((log as typeof log & { phase2: string[] }).phase2).toEqual(['sweep:windup', 'sweep:push', 'cannon:shadow', 'cannon:fall', 'cannon:land']);
     const boss = world.actors.find((a) => a.kind === 'boss')!;
     expect(alive(boss)).toBe(false);
-    // the boombox NPC + wave A's 18 grunts + the boss + every zombie he raised; the dancer lives
-    expect(log.cleared).toEqual([1 + 18 + 1 + log.bolts]);
+    // the boombox NPC + wave A's 18 + the boss + every zombie he raised + wave B's 9; the dancer lives
+    expect(log.cleared).toEqual([1 + 18 + 1 + log.bolts + 9]);
     expect(alive(npc(world, 'dancer'))).toBe(true);
     // nothing left hanging once the last caption has run out
     for (let i = 0; i < 60 * 6; i++) world.step();

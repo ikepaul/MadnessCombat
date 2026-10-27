@@ -288,7 +288,7 @@ Build:
   - [x] Part 1: descent with a shadow, lightning raise (telegraph, max 2 zombies), the ward (diamond, ~1 s + 1.5 s window, front side only), scripted SMG pickup, 3 head hits kill.
   - [x] Part 2: lightning strike (lands where you stood when his hand went up: knockdown + disarm; answers a blocked burst), hover dash (wind-up 0.25 s, ~2 H in 0.27 s) → grab → 6 body slams every 0.58 s (mashing cuts it to 2) → throw (one life). A teammate's head shot makes him let go.
   - [x] Part 3, phase 2 (from his first head wound, or after 30 s; untouchable until the cannon lands so a burst can't skip it): telekinetic sweep sends every intact corpse off the screen, the cannon drops beside him (shadow 0.8 s, crushes what's under it, stays as solid terrain you can stand on but not cover), 4-ball volleys from behind it every 9 s (barrel swings to your depth; jump or go prone), no ward while he works it. Cannonballs knock heroes down and kill grunts/zombies.
-- [ ] Wave B (≈ 9 grunts) with pickups (sawed-off, knives, 2 pistols). A grunt can man the cannon (an enemy uses a prop weapon). Jump onto the cannon, split-aim.
+- [x] Wave B (≈ 9 grunts) with pickups (sawed-off, knives, 2 pistols). A grunt can man the cannon (an enemy uses a prop weapon). Jump onto the cannon, split-aim.
 - [ ] Ending: pick up the boombox, dance emote, body-count card vs. 32.
 
 Look & sound:

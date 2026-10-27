@@ -1,12 +1,13 @@
 // Stage 1 as one script (PLAN.md M8, research/stages.md Stage 1, research/episodes/ep1-log.md).
 // Beat 1, the intro: the boombox NPC by the pole, the dancer in the background. Walk up to the
 // music, get punched flat (teaches the get-up), then take him out (melee tutorial, low sweep).
-// Then wave A, a grenade for the body pile, and the boss (entrance, lightning raise, ward so far).
-// Later M8 steps add his other moves, wave B and the ending.
+// Then wave A, a grenade for the body pile, the boss, and wave B (pickups, a grunt on his cannon).
+// The ending (boombox, dance, body-count card) comes next.
 import { TUNING } from '../tuning';
 import type { Actor } from '../../sim/actor';
-import { spawnBoss } from '../../sim/boss';
+import { placeCannon, spawnBoss } from '../../sim/boss';
 import type { Seq } from '../../sim/sequencer';
+import type { RoomScript, WaveEntry } from '../../sim/waves';
 import type { World } from '../../sim/world';
 import { STAGE1 } from './stage1';
 
@@ -160,22 +161,111 @@ export function* bossFight(s: Seq) {
   yield* s.until(() => !world.actors.some((a) => a.kind === 'zombie' && !dead(a)));
 }
 
-/** The whole stage, beat by beat. */
-export function* stage1(s: Seq) {
-  const cast = placeIntroCast(s);
-  // he lets go of the boombox the moment he dies, whatever killed him
-  const off = s.world.events.on('kill', (e) => { if (e.actorId === cast.boombox.id) { dropBoombox(s.world, cast.boombox); off(); } });
-  yield* intro(s, cast);
-  yield INTRO.beforeRiot;
-
-  // beat 2: the riot (wave A)
-  s.music('riot');
-  yield* s.waves(STAGE1.rooms.arena.script);
-
-  // beat 3: blow up the pile
-  yield* grenadeBeat(s);
-
-  // beat 4: the boss
-  yield* bossFight(s);
-  s.clear();
+/**
+ * Beat 5, wave B (research/stages.md, ep1 1:25-1:38): ~9 grunts, most from the left in the
+ * episode (here: from both edges, more from the cannon's side), a few with pistols and blades.
+ * The first one goes for the cannon. Delays invented within enemy-spawning's 0.5-1.5 s.
+ */
+export function waveB(cannonSide: -1 | 1): RoomScript {
+  const near = cannonSide < 0 ? 'L' : 'R', far = cannonSide < 0 ? 'R' : 'L';
+  const entries: WaveEntry[] = [
+    [1.0, `${near}-mid`, 'grunt', null, { role: 'cannon' }],
+    [0.6, `${near}-front`, 'grunt', 'pistol'],
+    [0.8, `${far}-mid`, 'grunt', 'baton'],
+    [1.0, `${near}-back`, 'grunt', null],
+    [0.7, `${far}-front`, 'grunt', 'knife'],
+    [1.2, `${near}-mid`, 'grunt', 'pistol'],
+    [0.8, `${far}-back`, 'grunt', 'pipe'],
+    [1.0, `${near}-front`, 'grunt', null],
+    [0.9, `${far}-mid`, 'grunt', 'knife'],
+  ];
+  // co-op: 3 more (invented, as wave A's co-op budget)
+  const coop: WaveEntry[] = [...entries, [0.8, `${far}-front`, 'grunt', null], [0.9, `${near}-back`, 'grunt', 'bat'], [1.0, `${far}-back`, 'grunt', 'pistol']];
+  return { spawns: STAGE1.rooms.arena.script.spawns, waves: [{ id: 'B', threshold: 0, maxAlive: 4, entries, coop: { maxAlive: 6, entries: coop } }] };
 }
+
+/**
+ * Beat 5 pickups (ep1: the hero draws a sawed-off, throws a knife, then two pistols): dropped in
+ * front of each hero as the wave builds, so there's always something new in hand.
+ */
+export const WAVE_B = {
+  /** After this many wave-B kills, the next drop comes in. invented */
+  drops: [
+    { after: 0, items: ['sawedoff'] },
+    { after: 2, items: ['knife', 'knife'] },
+    { after: 4, items: ['pistol', 'pistol'] },
+  ] as { after: number; items: ('sawedoff' | 'knife' | 'pistol')[] }[],
+  /** Breather after the boss's last zombie drops (s). invented */
+  pause: 1.5,
+};
+
+export function* waveBBeat(s: Seq) {
+  const world = s.world;
+  yield WAVE_B.pause;
+  const cannon = world.cannons.find((c) => c.live);
+  s.music('riot');
+  const killsAtStart = world.kills;
+  const waves = s.run(function* wave(q: Seq) { yield* q.waves(waveB(cannon && cannon.x < 0 ? -1 : 1)); });
+  s.run(function* caption(q: Seq) {
+    yield* q.card('More of them. Grab what falls.', 3.5, 'caption');
+    if (!cannon) return;
+    // once someone works the cannon: how to deal with it (unless the wave ends first)
+    const manned = () => cannon.byId !== undefined && world.actorById(cannon.byId)?.kind === 'grunt';
+    yield* q.until(() => manned() || waves.done);
+    if (manned()) yield* q.card('They took the cannon. Jump the balls, or get up on it (Shift aims both ways).', 5, 'caption');
+  });
+  const lim = world.room.halfWidth - 0.3;
+  for (const d of WAVE_B.drops) {
+    yield* s.until(() => world.kills - killsAtStart >= d.after || waves.done);
+    if (waves.done) break;
+    for (const p of world.activePlayers) {
+      d.items.forEach((item, k) => s.drop(item, Math.max(-lim, Math.min(lim, p.pos.x + p.facing * (0.6 + 0.35 * k))), p.pos.z, GRENADE_BEAT.dropHeight));
+    }
+  }
+  yield* s.join(waves);
+}
+
+/** The beats in order; `?beat=<name>` starts the stage at one (playtesting). */
+export const STAGE1_BEATS = ['intro', 'riot', 'grenade', 'boss', 'waveB'] as const;
+export type Stage1Beat = (typeof STAGE1_BEATS)[number];
+
+/** The whole stage, beat by beat (from `from`: the beats before it are skipped). */
+export function stage1From(from: Stage1Beat = 'intro') {
+  const at = STAGE1_BEATS.indexOf(from);
+  return function* stage1(s: Seq) {
+    const world = s.world;
+    if (at === 0) {
+      const cast = placeIntroCast(s);
+      // he lets go of the boombox the moment he dies, whatever killed him
+      const off = world.events.on('kill', (e) => { if (e.actorId === cast.boombox.id) { dropBoombox(world, cast.boombox); off(); } });
+      yield* intro(s, cast);
+      yield INTRO.beforeRiot;
+    } else {
+      // skipping in: the dancer is there all stage; later beats get what the earlier ones left
+      const dancer = s.place('grunt', INTRO.dancer.x, INTRO.dancer.z, -1);
+      dancer.variant = 'dancer';
+      for (const p of world.players) { p.pos.x = INTRO.hero.x + 1 - p.playerIndex! * 0.6; p.pos.z = INTRO.hero.z; }
+      if (at >= 2) world.spawnCorpses(8);
+      if (at >= 4) {
+        placeCannon(world, BOSS_BEAT.x * -1, BOSS_BEAT.z, 1);
+        for (const p of world.players) s.giveItem(p, 'smg');
+      }
+    }
+
+    // beat 2: the riot (wave A)
+    if (at <= 1) {
+      s.music('riot');
+      yield* s.waves(STAGE1.rooms.arena.script);
+    }
+    // beat 3: blow up the pile
+    if (at <= 2) yield* grenadeBeat(s);
+    // beat 4: the boss
+    if (at <= 3) yield* bossFight(s);
+    // beat 5: wave B, with pickups and a grunt on the cannon
+    yield* waveBBeat(s);
+    s.clear();
+  };
+}
+
+/** The whole stage from the intro. */
+export const stage1 = stage1From('intro');

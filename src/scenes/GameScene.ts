@@ -30,7 +30,7 @@ import { hasEdges, mergeEdges } from '../sim/command';
 import { WaveDirector } from '../sim/waves';
 import { World } from '../sim/world';
 import { STAGE1, type StageRoomId } from '../data/stages/stage1';
-import { stage1 } from '../data/stages/stage1Script';
+import { STAGE1_BEATS, type Stage1Beat, stage1From } from '../data/stages/stage1Script';
 import { coopLink, type CoopLink } from '../net/link';
 import { applySnapshot, type Snapshot, SnapshotWriter } from '../net/snapshot';
 import { paintReviveBar, paintReviveCircle } from '../render/canvas/revivePainter';
@@ -55,6 +55,8 @@ export interface GameSceneData {
   stage?: 1;
   room?: StageRoomId;
   wave?: string;
+  /** `&beat=riot|grenade|boss|waveB`: start the stage script at that beat (playtesting). */
+  beat?: string;
   /** Co-op (PLAN.md M4b): this laptop hosts the game, or joins as player 2. */
   coop?: 'host' | 'guest';
 }
@@ -236,7 +238,7 @@ export class GameScene extends Phaser.Scene {
     if (data.wave) {
       const start = Math.max(0, def.script.waves.findIndex((w) => w.id === data.wave));
       this.world.director = new WaveDirector(def.script, start);
-    } else this.world.seq.run(stage1);
+    } else this.world.seq.run(stage1From(data.beat && (STAGE1_BEATS as readonly string[]).includes(data.beat) ? data.beat as Stage1Beat : 'intro'));
     this.stageInfo = { stage: STAGE1.stage, room: roomId, targetBodyCount: STAGE1.targetBodyCount };
   }
 

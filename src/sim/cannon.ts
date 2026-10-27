@@ -3,7 +3,7 @@
 // of the sky first (shadow, drop, crush; src/sim/boss.ts drives it), fires only while someone
 // mans it, swings its barrel to the target's depth, and its balls knock down and kill.
 import { TUNING } from '../data/tuning';
-import type { Actor } from './actor';
+import { type Actor, alive } from './actor';
 import { applyHit } from './combat';
 import type { World } from './world';
 
@@ -31,6 +31,11 @@ const HALF_WIDTH = 0.2;
 export function stepCannons(world: World, dt: number): void {
   for (const c of world.cannons) {
     if ((c.y ?? 0) > 0 || (c.shots !== undefined && c.shots <= 0)) continue;
+    // a manned cannon fires only while its gunner stands at it, able (hit, knocked down or dead: it stops)
+    if (c.byId !== undefined) {
+      const m = world.actorById(c.byId);
+      if (!m || !alive(m) || (m.kind !== 'boss' && m.state !== 'free' && m.state !== 'attack')) continue;
+    }
     c.timer -= dt;
     if (c.timer <= 0) {
       c.timer += C.interval;
