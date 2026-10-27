@@ -36,11 +36,12 @@ const F = 1 / 30;
 
 /**
  * M14 melee-blade-deflect (ep4 2:45, the sword turning a burst until one round gets through):
- * walk speed while guarding, every Nth blow from the front still gets through, and a guard raised
- * this soon before a hit parries it (the bullet goes back at the shooter, a blade attacker is
- * stunned). All invented.
+ * walk speed while guarding, every Nth blow from the front still gets through (measured: two
+ * rounds glance off, the third hits, ep4 f5052-f5061), and a guard raised this soon before a hit
+ * parries it (the bullet goes back at the shooter, a blade attacker is stunned). Walk and parry
+ * window invented.
  */
-export const GUARD = { walk: 0.4, leakEvery: 4, parryWindow: 0.15 } as const;
+export const GUARD = { walk: 0.4, leakEvery: 3, parryWindow: 0.15 } as const;
 
 /**
  * M14 gun block (ep4 1:46, an SMG turning a sword aside): F pressed this soon before a blade or

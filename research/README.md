@@ -33,7 +33,7 @@ Other tools: `framediff.py` (duplicate-frame/cut detection), `contact.py` (label
 - **Confidence**: high = clear and repeated or measured frame by frame. Medium = seen once or measured from a wide shot. Low = inferred.
 - Every value in a note is either **measured** (with frames cited) or marked **invented**.
 - Scope rule: **no timestamp, no mechanic**. Nothing from episode 5 onward, nothing from the spin-off games.
-- **Episode 4** was researched from contact sheets in the browser (2026-10-27), not from local clips: its times are YouTube seconds read at 0.35–1 s spacing (±0.3 s) and its frame rate/resolution are unchecked. Cut its clips with `make_clips.py` and re-measure before tuning.
+- **Episode 4** was first logged from contact sheets in the browser (times in `episodes/ep4-log.md` are YouTube seconds, ±0.3 s); its clips are now cut (same 1484×1080, 30 fps as ep1-3) and the values in `measurements.md` ("Episode 4") and the ep4 mechanic notes are re-measured from the frames.
 
 ## Sources
 - The four episodes (YouTube playlist above): Madness Combat 1 (2:07), 2: Redeemer (4:06), 3: Avenger (4:01), 4: Apotheosis (3:18 on YouTube; 4:44 in the original release with its preloader).

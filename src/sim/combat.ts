@@ -38,8 +38,8 @@ export function attackTiming(kind: AttackKind, weapon?: string): { startup: numb
   return M[kind as 'light' | 'heavy' | 'uppercut' | 'finisher'];
 }
 
-/** M14 move-stairs: a body slides down a staircase this fast (H/s). invented */
-const STAIR_SLIDE = 2;
+/** M14 move-stairs: a body slides down a staircase this fast (H/s): ≈ 1 H in ≈ 0.25 s, ep4 f3426-f3432. */
+const STAIR_SLIDE = 4;
 
 /** Revamp A6: a hit reaction plays out over this long (s). invented */
 export const REACT_LIFE = 0.6;

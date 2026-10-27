@@ -10,7 +10,9 @@ Clips (local only): `clip-1` close-up of a thumb flipping a rifle's selector thr
 ## Measured
 | Value | Measured | How |
 |---|---|---|
-| Close-up length | ≈ 2.2 s (59.4 → 61.6 s) | contact sheet |
+| Close-up length | ≈ 2.3 s (f1779 → ~f1848) | frames-1-b (re-measured from the clip) |
+| Thumb reaches the selector | f1815 (1.2 s into the close-up) | frames-1-b |
+| Lever flip | ≈ 0.1 s (f1830 → f1833) | frames-1-b |
 
 ## Game translation
 - Rifles that support it (AK-class first) get `modes: ['semi', 'auto']` in `src/data/weapons.ts`. Picked-up rifles start in **semi**.

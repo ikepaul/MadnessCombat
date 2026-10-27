@@ -11,10 +11,11 @@ Clips (local only): `clip-1` the hero, out of ammo, holds a sword up while the z
 ## Measured
 | Value | Measured | How |
 |---|---|---|
-| Deflected burst | ≈ 2.4 s, several rounds | 165.8 → 168.2 s |
+| Deflected burst | ≈ 0.3 s: guard up f5040, rounds f5052-f5061 | frames-1-b (re-measured from the clip) |
+| Rounds through the guard | two glance off (ricochet lines f5055, f5058), the next hits the head (f5061) ≈ 1 in 3 | frames-1-b |
 
 ## Game translation
-- **Guard** with a sword-class weapon (sword, katana, scimitar): hold RMB (long weapons keep RMB = thrust; swords get guard). While guarding, bullets from the front within a 70° cone hit the blade (spark + ricochet tick) instead of you, **one in four gets through** (invented; the show lets one through), and you walk at 40%.
+- **Guard** with a sword-class weapon (sword, katana, scimitar): hold RMB (long weapons keep RMB = thrust; swords get guard). While guarding, bullets from the front within a 70° cone hit the blade (spark + ricochet tick) instead of you, **one in three gets through** (measured: two deflected, the third hit), and you walk at 40%.
 - **Parry** (invented, the upgrade): pressing guard within 0.15 s before a hit (bullet or blade) reflects it: a bullet goes back along its ray and can hit the shooter; a blade swing staggers the attacker (a chain hit for the M10b combos).
 - **Gun block** (low confidence): a melee swing that reaches a hero holding a gun, while he presses F within 0.2 s, is turned aside and the attacker is stunned at contact range (a point-blank shot opportunity).
 

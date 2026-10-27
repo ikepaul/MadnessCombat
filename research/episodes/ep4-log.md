@@ -16,14 +16,15 @@ Wiki: body count **80** (57 grunts, 19 zombies, 1 agent, 1 zombie agent, the hal
 | 56.6–58.4 s | The hero, now with an AK taken from the pile, shoots a grunt appearing in the dark doorway | pick up rifle |
 | 59.1–61.6 s | Close-up: thumb flips the rifle's **fire selector** (safe → semi → full auto); then full-auto burst, wall splatter | **fire-mode switch** |
 | 62–69 s | **Room 3** (office: desk, wanted poster, computer): full-auto AK vs. grunts from the right door | — |
-| 69.8–72.2 s | The **agent** (black suit, shades, pistol) steps out of the back door; close-ups; he faces the hero | new elite enemy |
+| 69.8–72.2 s | The **agent** (black suit, shades, pistol) steps out of the back door; close-ups; he faces the hero |
+| 74.4–76.7 s | (from the clip) The agent shoots from behind the desk, muzzle flashes at f2250 and f2268 | new elite enemy |
 | 74.4–80.8 s | Melee with the agent at the desk: he takes head wounds and keeps fighting; several exchanges before he drops (wiki: killed with a **baton**, the hero takes his **big pistol**) | tough elite, multi-hit, weapon drop |
 | 81–82 s | Hero walks out right | — |
 | 82–86.6 s | **Room 4** (vending machine, copier, white door): a thrown grunt **knocks the vending machine flat** | throw into object, destructible prop |
 | 86–101 s | Melee crowd: knife, sword, baton grunts from the left door and the right doorway. Hero fights with a pistol and picked-up blades (wiki: takes a **dragon sword** from its owner) | blade melee, door waves |
 | 102.6–110 s | Close-ups: blades (a sword, a baton, a combat knife) swing at the hero; he **turns a sword aside with the SMG** in one hand and shoots the knife grunt at contact range; a grunt threatening him with a dropped SMG is shot (wiki) | gun block / parry (low confidence), point-blank fire |
 | 111–112.6 s | Room cleared, bodies piled on the right | — |
-| 112.8–121.2 s | **Stairwell**: a diagonal staircase from a landing (right) down to the left; the hero comes down it fighting grunts coming up; a shot grunt **tumbles down the steps**; camera pans down to the lower floor (dark door) | **stairs** (sloped floor, bodies tumble) |
+| 112.8–121.2 s | **Stairwell**: a diagonal staircase from a landing (right) down to the left; the hero holds the landing and shoots down at grunts coming up (re-measured from the clip); a shot grunt **tumbles down the steps**; camera pans down to the lower floor (dark door) | **stairs** (sloped floor, bodies tumble) |
 | 121.8–123.6 s | **The club** (dark): a dense crowd of ≈ 35 dancing grunts facing a stage | crowd |
 | 124.2–126 s | The clown (masked, zombie) as **DJ** on the stage between two speaker stacks | — |
 | 126.6–128.4 s | The hero at the door shoots the DJ across the room (iron-sight first-person shot per wiki); hit in the head, blood on the poster | long-range shot |

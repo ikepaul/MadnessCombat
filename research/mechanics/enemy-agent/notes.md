@@ -6,14 +6,16 @@ Clips (local only): `clip-1` the agent steps out of the back door, close-ups, me
 
 ## What happens on screen
 - A new enemy: dark formal clothes, dark glasses, a big pistol. He appears from a doorway behind the hero while the hero is busy with grunts.
-- He closes to melee range instead of keeping distance. Takes **at least two head wounds** (wound stars at 75.2 s and 76 s) and keeps fighting; goes down after a longer exchange (≈ 6 s).
+- (Re-measured from the clip:) he first shoots from behind the desk (it covers him to the chest), then the hero closes in and they fight at the desk. In the game he closes in himself; using the desk as cover is a possible upgrade. Takes **at least two head wounds** (wound stars at 75.2 s and 76 s) and keeps fighting; goes down after a longer exchange (≈ 6 s).
 - Drops the big pistol, which the hero keeps.
 
 ## Measured
 | Value | Measured | How |
 |---|---|---|
-| Fight length | ≈ 6 s (74.4 → 80.8 s) | contact sheet |
-| Head wounds before dropping | ≥ 2 | contact sheet |
+| Entrance → dead | ≈ 5.6 s (f2232 → f2400) | frames-1 (re-measured from the clip) |
+| Shooting from behind the desk | ≈ 2.3 s, muzzle flashes at f2250 and f2268 | frames-1-c |
+| Melee at the desk | ≈ 3 s (f2310 → f2400), he slumps over the desk | frames-1-d, -e |
+| Head wounds before dropping | ≥ 2 (f2352, f2376) | frames-1-d, -e |
 
 ## Game translation
 - New kind `agent`. Character sheet first, in our own design (do not copy the show's suit-and-shades look beyond "formal and dark").
