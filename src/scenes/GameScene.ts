@@ -309,7 +309,7 @@ export class GameScene extends Phaser.Scene {
     const snaps = (this.snaps = new SnapshotWriter(this.world, Date.now()));
     link.onInput = (cmd) => (this.world.commands[1] = mergeEdges(this.world.commands[1], cmd));
     // a (re)joining guest gets the whole room first
-    link.onPeer = (connected) => { if (connected) snaps.needFull = true; };
+    link.onPeer = (connected) => { if (connected) { snaps.needFull = true; snaps.joining = true; } };
   }
 
   /** Co-op guest: an empty puppet world until the host's first snapshot arrives. */

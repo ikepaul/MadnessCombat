@@ -44,12 +44,20 @@ export function stepElevator(world: World, dt: number): void {
   if (st.phase === 'falling') {
     st.speed = Math.max(-E.fallSpeed, st.speed - E.fallAccel * dt);
   }
-  // E under the hatch: climb up onto the roof
+}
+
+/**
+ * E under the hatch: climb up onto the roof. Runs before the actors move (World.step), while this
+ * tick's E press is still there (it's cleared once the actors have used their commands).
+ */
+export function checkHatch(world: World): void {
   const deck = roof(world), hatch = world.room.elevator?.hatch;
-  if (!deck || !hatch) return;
+  if (!world.elevator || !deck || !hatch) return;
+  // a little slack round the hole, so standing roughly under it is enough
+  const near = { x0: hatch.x0 - E.hatchSlack, x1: hatch.x1 + E.hatchSlack, z0: hatch.z0 - E.hatchSlack, z1: hatch.z1 + E.hatchSlack };
   for (const p of world.activePlayers) {
     const cmd = world.commands[p.playerIndex!];
-    if (!cmd?.pickup || p.traversing || p.state !== 'free' || p.pos.y > 0.05 || !inZone(hatch, p.pos.x, p.pos.z)) continue;
+    if (!cmd?.pickup || p.traversing || p.state !== 'free' || p.pos.y > 0.05 || !inZone(near, p.pos.x, p.pos.z)) continue;
     world.commands[p.playerIndex!] = { ...cmd, pickup: false };
     p.traversing = { kind: 'hatch', t: 0 };
     p.pos.x = (hatch.x0 + hatch.x1) / 2;
