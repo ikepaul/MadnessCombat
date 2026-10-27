@@ -266,7 +266,19 @@ function withoutItemPunches(a: Actor, cmd: PlayerCommand): PlayerCommand {
 /** Grab needs the front hand; the back hand may keep a one-handed gun (fire it past the shield). */
 function canGrab(a: Actor): boolean {
   const back = a.hands[1];
+  // M17: a one-handed item in the front hand moves to the empty back hand first (freeFrontHand)
+  if (a.playerIndex !== undefined && a.hands[0] && !back && oneHanded(a.hands[0].item)) return true;
   return !a.hands[0] && (!back || (isWeapon(back.item) && WEAPONS[back.item].oneHanded));
+}
+
+const oneHanded = (item: string) => (isWeapon(item) ? WEAPONS[item].oneHanded : isMelee(item) && !MELEE[item].twoHanded);
+
+/** M17 (design/qol-pass.md 9): F grabs with any free hand: the front hand's item goes to the back. */
+function freeFrontHand(world: World, a: Actor): void {
+  const h = a.hands[0];
+  if (!h || a.hands[1] || !oneHanded(h.item)) return;
+  a.hands = [null, h];
+  world.events.emit('handSwap', { actorId: a.id, item: h.item, ...a.pos });
 }
 
 export function enter(a: Actor, s: Actor['state']): void {
@@ -1097,6 +1109,7 @@ function tryGrab(world: World, a: Actor): void {
   for (const it of world.items) {
     if (it.kind !== 'grenade' || !it.live || it.state === 'held' || Math.abs(it.pos.z - a.pos.z) > 0.35) continue;
     if (Math.hypot(it.pos.x - a.pos.x, it.pos.y - a.pos.y) > GRENADE.pickRange + 0.2) continue;
+    freeFrontHand(world, a);
     it.state = 'held';
     it.heldBy = a.id;
     it.vel = { x: 0, y: 0, z: 0 };
@@ -1134,7 +1147,10 @@ function tryGrab(world: World, a: Actor): void {
     // turn to it (it may be behind you)
     if (Math.abs(o.pos.x - a.pos.x) > 0.02) a.facing = o.pos.x > a.pos.x ? 1 : -1;
     // combat-disarm: F on an armed enemy steals the weapon instead of grabbing the body
+    // M17: with the front hand full (it would swap to the back), F on an armed enemy stays the M14 gun block
+    if (a.hands[0] && alive(o) && (o.hands[0] || o.hands[1])) return;
     if (alive(o) && stealTarget(world, a, o)) return;
+    freeFrontHand(world, a);
     if (o.corpse?.phase === 'frozen') world.events.emit('corpseThawed', { actorId: o.id });
     if (o.corpse) { o.corpse.phase = 'tumble'; o.corpse.slumped = false; }
     if (alive(o)) {
@@ -1151,6 +1167,7 @@ function tryGrab(world: World, a: Actor): void {
     world.events.emit('grab', { actorId: a.id, targetId: o.id, ...o.pos });
   } else {
     const it = world.items.find((i) => i.id === pick.itemId)!;
+    freeFrontHand(world, a);
     it.state = 'held';
     it.heldBy = a.id;
     a.holding = { kind: 'item', id: it.id };

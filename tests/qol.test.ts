@@ -221,3 +221,25 @@ describe('M17 depth help for hero melee', () => {
     expect(hero.hp).toBe(hero.maxHp);
   });
 });
+
+describe('M17 F grabs with any free hand', () => {
+  it('a pistol in front moves to the back hand and the grunt is grabbed; RMB fires past him', () => {
+    const { world, hero } = setup(0);
+    hero.hands = [newHand('pistol'), null];
+    const g = grunt(world, 0.45);
+    const swaps = record(world, 'handSwap');
+    tick(world, { grab: true });
+    expect(hero.holding).toEqual({ kind: 'actor', id: g.id });
+    expect(hero.hands[0]).toBeNull();
+    expect(hero.hands[1]?.item).toBe('pistol');
+    expect(swaps).toHaveLength(1);
+  });
+
+  it('two guns: F grabs nothing', () => {
+    const { world, hero } = setup(0);
+    hero.hands = [newHand('pistol'), newHand('pistol')];
+    grunt(world, 0.45);
+    tick(world, { grab: true });
+    expect(hero.holding).toBeUndefined();
+  });
+});
