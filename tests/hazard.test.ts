@@ -64,7 +64,16 @@ describe('stage 1 music cues (assets/music/cues.json)', () => {
     expect(tracks[room.diegetic!]).toBeDefined();
   });
 
-  it('stem files follow the delivery naming s{stage}_{cue}_{stem}.wav', () => {
-    for (const [id, t] of Object.entries(tracks)) for (const f of t.stems) expect(f, id).toMatch(new RegExp(`^${id}_[a-z0-9]+\\.wav$`));
+  it('stem files of the stage cue tracks follow the delivery naming s{stage}_{cue}_{stem}.wav', () => {
+    for (const [id, t] of Object.entries(tracks)) {
+      if (!/^s\d+_/.test(id)) continue; // tracks delivered before the naming (Music V1) keep their file names
+      for (const f of t.stems) expect(f, id).toMatch(new RegExp(`^${id}_[a-z0-9]+\\.wav$`));
+    }
+  });
+
+  it("the stage's room keeps the delivered combat track (cues without files fall back to it)", () => {
+    const arena = (cues.rooms as Record<string, { combat: string | null }>)['stage1-arena'];
+    expect(arena.combat).toBe('madness-combat-v1');
+    expect(tracks['madness-combat-v1'].stems).toEqual(['MadnessCombat.V1.wav']);
   });
 });

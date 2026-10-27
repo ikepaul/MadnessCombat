@@ -60,16 +60,26 @@ export class MusicSystem {
     await this.setTrack(cue.combat);
   }
 
-  /** M8: a stage script's cue (`riot`, `boss`, ...) -> the room's track for it (null = ambience only). */
+  /**
+   * M8: a stage script's cue (`riot`, `boss`, ...) -> the room's track for it; a cue whose track
+   * isn't delivered yet keeps the room's combat track. null = ambience only (the ending's quiet).
+   */
   async setCue(cue: string | null): Promise<void> {
-    await this.setTrack(cue ? this.room?.cues?.[cue] ?? null : null);
+    if (!cue) { await this.setTrack(null); return; }
+    const id = this.room?.cues?.[cue], track = id ? CUES.tracks[id] : undefined;
+    await this.setTrack(track && delivered(track) ? id! : this.room?.combat ?? null);
   }
 
+  /** The track playing now (or loading). */
+  private current: string | null = null;
+
   /**
-   * Swap the combat track, keeping the ambience. A track whose files aren't all delivered yet
-   * leaves the ambience playing alone.
+   * Swap the combat track, keeping the ambience. The same track again carries on where it is; a
+   * track whose files aren't all delivered yet leaves the ambience playing alone.
    */
   async setTrack(trackId: string | null): Promise<void> {
+    if (trackId !== null && trackId === this.current) return;
+    this.current = trackId;
     const gen = ++this.trackGen;
     this.layers.forEach((g) => g.disconnect());
     this.layers = [];
@@ -114,6 +124,7 @@ export class MusicSystem {
   stop(): void {
     if (this.ambience !== undefined) this.engine.stop(this.ambience, 0.5);
     this.ambience = undefined;
+    this.current = null;
     this.trackGen++;
     this.layers.forEach((g) => g.disconnect());
     this.layers = [];
