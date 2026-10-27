@@ -63,3 +63,24 @@ Each episode broken into fixed-screen rooms (decided layout), with the enemies, 
 | 11 | Final lift room (3:38–3:48) | Target + **2 elite bodyguards** with automatic weapons. Shotgun them → the halo boss **stabs you from behind** → **last stand**: shoot behind you (boss), kill the target, die. Credits + body count (target 91). |
 
 **Enemy budget:** ≈ 75 grunts (every melee and gun variant, squad leader), 3 elite bodyguards, ≈ 7 zombies, the sun brute, clown ×2 phases, halo boss, the target.
+
+---
+
+## Stage 4 (episode 4: Apotheosis, 3:18 on YouTube): the club hunt
+**Starting loadout:** an SMG and a pistol taken from the car (after the ram). **Objective:** reach the club in the basement and kill the masked DJ. The kill counter stays on (as stage 3).
+**Teaches:** vehicle ram, fire-mode switch, the agent, stairs, crowd fighting, blade deflecting bullets, armed zombies, fighting from the ground, the detonator ending.
+Beat log: `episodes/ep4-log.md`. Darker look: night outside, dim club (palette 4, own design).
+
+| # | Room (episode time) | Gameplay |
+|---|---|---|
+| 1 | Night alley (0:30–0:45) | Scripted **car ram**: the car crushes two smoking guards against the wall (kill counter 2). Get out, take the SMG + pistol from the car (E at the open door). The building door is the exit. |
+| 2 | Poster room (0:45–0:49) | 2 guards at the right door, unaware → quick entry kills. Teaches nothing new; a breather. |
+| 3 | Door room (0:49–1:02) | **Door waves** from the right doorway (≈ 8 SMG/pistol grunts). The SMG runs dry → an AK on the pile. **Fire-mode switch** (semi → auto) with a short close-up the first time. |
+| 4 | Office (1:02–1:21) | Full-auto AK vs. door waves (≈ 6). **The agent** steps out of the back door: soaks head hits, fights in melee, the baton on the floor is the intended answer. Drops his **big pistol**. |
+| 5 | Vending room (1:21–1:52) | Blade waves from both doors (sword, knife, baton, ≈ 12). Thrown bodies **knock the vending machine flat** (it becomes low cover). Take a **sword** from its owner. A grunt picks up a dropped SMG and threatens you (the empty-gun gag from ep3, reversed: this one is loaded). |
+| 6 | Stairwell (1:52–2:01) | A **staircase** down to the left: grunts come up it (≈ 5), shot ones **tumble down the steps**. Exit: the dark door at the bottom. |
+| 7 | The club, crowd (2:01–2:29) | ≈ 35 **dancers** (unaware, dancing) facing the DJ's stage. Shooting the DJ: he drops and **gets back up** (mask, immune) and sends the crowd at you. **Crowd fight**: packed, all sides, sword + SMG. One grunt cowers and smokes in the corner by the right door (doesn't fight). Ends when the DJ is cornered at the speakers. |
+| 8 | The club, boss (2:29–2:45) | The right door is **smashed in** (crushes the cowering grunt). The **halo boss** (own design, shades variant) + a **zombie agent with a rifle**. **Mass raise** of every intact corpse (cap ≈ 19). Pistol + sword vs. the horde. |
+| 9 | The club, finale (2:45–3:05) | Out of ammo → **deflect** the zombie agent's burst with the sword (block window, chip damage gets through) → the hero is **downed**; from the floor, kill the zombie agent. Blade clash with the boss (sword + pistol) → scripted down → **detonator ending**: hold E to blow up, both die. The DJ dances among the bodies; end card + body count vs. 80. |
+
+**Enemy budget:** ≈ 57 grunts (≈ 22 in rooms 2–6, ≈ 35 dancers), 1 agent, ≈ 19 zombies, 1 zombie agent, the DJ (non-combatant), the halo boss. Biggest risk: 35 dancers + 19 zombies in one room (performance, AI crowding).

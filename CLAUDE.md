@@ -1,6 +1,6 @@
 # Project guide
 
-A browser game where each of the first three episodes of an animated series is one stage. We copy **mechanics only** (movement, timings, enemy types, set pieces), never names, character designs, music or text.
+A browser game where each of the first four episodes of an animated series is one stage (stage 4 added 2026-10-27, milestones M14–M16). We copy **mechanics only** (movement, timings, enemy types, set pieces), never names, character designs, music or text.
 
 - **Plan**: `PLAN.md`. Milestones M0–M13 with checklists and acceptance tests. Work one milestone at a time on a branch `mN-<slug>`, PR to `main`.
 - **Research**: `research/`. One note per mechanic (`research/mechanics/<slug>/notes.md`), measurements, stage outlines, design decisions. Local-only reference clips sit next to the notes (gitignored).

@@ -1,6 +1,6 @@
-# Mechanics research: episodes 1–3
+# Mechanics research: episodes 1–4
 
-Reference catalogue for a game where each of the first three episodes of the *Madness Combat* animated series is one stage. It copies **mechanics only**: movement, timings, enemy types, weapons and set-piece rules. No art, names or characters. Everything here is described with neutral labels ("halo boss", "clown", "target", "grunt"), and the game will use its own designs and names.
+Reference catalogue for a game where each of the first four episodes (episode 4 added 2026-10-27) of the *Madness Combat* animated series is one stage. It copies **mechanics only**: movement, timings, enemy types, weapons and set-piece rules. No art, names or characters. Everything here is described with neutral labels ("halo boss", "clown", "target", "grunt"), and the game will use its own designs and names.
 
 The build plan that turns this catalogue into the game is [`../PLAN.md`](../PLAN.md).
 
@@ -21,7 +21,7 @@ The build plan that turns this catalogue into the game is [`../PLAN.md`](../PLAN
 
 ### Rebuilding the local footage
 ```bash
-yt-dlp -f "137+140/136+140/best[ext=mp4]" --merge-output-format mp4 -o "reference/video/ep%(playlist_index)s.%(ext)s" --playlist-items 1-3 "https://www.youtube.com/playlist?list=PL4F761764995C5F15"
+yt-dlp -f "137+140/136+140/best[ext=mp4]" --merge-output-format mp4 -o "reference/video/ep%(playlist_index)s.%(ext)s" --playlist-items 1-4 "https://www.youtube.com/playlist?list=PL4F761764995C5F15"
 python3 -m venv .venv && .venv/bin/pip install numpy pillow opencv-python-headless
 .venv/bin/python -I tools/research/make_clips.py
 ```
@@ -32,11 +32,12 @@ Other tools: `framediff.py` (duplicate-frame/cut detection), `contact.py` (label
 - **H** = one character's body height. ≈ 270 px in the ep1 foreground, ≈ 190–230 px further back (the rooms have perspective). Distances and speeds are given in H so they're engine-independent.
 - **Confidence**: high = clear and repeated or measured frame by frame. Medium = seen once or measured from a wide shot. Low = inferred.
 - Every value in a note is either **measured** (with frames cited) or marked **invented**.
-- Scope rule: **no timestamp, no mechanic**. Nothing from episode 4 onward, nothing from the spin-off games.
+- Scope rule: **no timestamp, no mechanic**. Nothing from episode 5 onward, nothing from the spin-off games.
+- **Episode 4** was researched from contact sheets in the browser (2026-10-27), not from local clips: its times are YouTube seconds read at 0.35–1 s spacing (±0.3 s) and its frame rate/resolution are unchecked. Cut its clips with `make_clips.py` and re-measure before tuning.
 
 ## Sources
-- The three episodes (YouTube playlist above): Madness Combat 1 (2:07), 2: Redeemer (4:06), 3: Avenger (4:01).
-- Madness Combat fan wiki (madnesscombat.fandom.com) episode pages: plot, weapon lists, body counts (ep1 32, ep2 86, ep3 91). Wikipedia has no article on the series.
+- The four episodes (YouTube playlist above): Madness Combat 1 (2:07), 2: Redeemer (4:06), 3: Avenger (4:01), 4: Apotheosis (3:18 on YouTube; 4:44 in the original release with its preloader).
+- Madness Combat fan wiki (madnesscombat.fandom.com) episode pages: plot, weapon lists, body counts (ep1 32, ep2 86, ep3 91, ep4 80). Wikipedia has no article on the series.
 
 ## Mechanics index
 
@@ -51,12 +52,14 @@ Other tools: `framediff.py` (duplicate-frame/cut detection), `contact.py` (label
 | [Jump onto objects / high ground](mechanics/move-jump-onto-object/notes.md) | 1, 3 | 2 | high |
 | [Knockdown & get-up](mechanics/move-knockdown-getup/notes.md) | 1, 3 | 2 | high |
 | [Prone dodge & prone fire](mechanics/move-prone-dodge/notes.md) | 1 | 1 | high |
+| [Stairs (sloped floor, bodies tumble down)](mechanics/move-stairs/notes.md) | 4 | 1 | high |
 | [Walk](mechanics/move-walk/notes.md) | 1 | 2 | high |
 
 ### Melee
 
 | Mechanic | Episodes | Clips | Confidence |
 |---|---|---|---|
+| [Blade deflects bullets (guard, parry)](mechanics/melee-blade-deflect/notes.md) | 4 | 2 | high (deflect) / low (gun block) |
 | [Decapitation & heads as projectiles](mechanics/melee-decapitation/notes.md) | 1 | 2 | high |
 | [Environment as a weapon (street sign, pinning)](mechanics/melee-environment-weapon/notes.md) | 3 | 2 | high |
 | [Grab & throw enemies / bodies](mechanics/melee-grab-throw/notes.md) | 1, 2, 3 | 3 | high |
@@ -72,6 +75,7 @@ Other tools: `framediff.py` (duplicate-frame/cut detection), `contact.py` (label
 |---|---|---|---|
 | [Assault rifles & machine gun](mechanics/gun-auto-rifle/notes.md) | 2, 3 | 2 | high |
 | [Dual wield & split aim](mechanics/gun-dual-wield/notes.md) | 1, 2 | 2 | high |
+| [Fire-mode selector (semi → auto)](mechanics/gun-fire-mode/notes.md) | 4 | 1 | high |
 | [Out of ammo → throw the gun](mechanics/gun-empty-throw/notes.md) | 3 | 2 | high |
 | [Gunfire basics: hitscan tracers (SMG)](mechanics/gun-hitscan-smg/notes.md) | 1 | 1 | high |
 | [Weapon pickup & dropped weapons](mechanics/gun-pickup-drop/notes.md) | 2, 3 | 2 | high |
@@ -100,7 +104,8 @@ Other tools: `framediff.py` (duplicate-frame/cut detection), `contact.py` (label
 
 | Mechanic | Episodes | Clips | Confidence |
 |---|---|---|---|
-| [Enemy behaviour quirks](mechanics/enemy-behaviours/notes.md) | 2, 3 | 3 | high |
+| [Agent (suited elite)](mechanics/enemy-agent/notes.md) | 4 | 1 | medium |
+| [Enemy behaviour quirks](mechanics/enemy-behaviours/notes.md) | 2, 3, 4 | 3 | high |
 | [Bodyguards (elite)](mechanics/enemy-elite-bodyguard/notes.md) | 2, 3 | 2 | medium |
 | [Grunt variants (armed)](mechanics/enemy-grunt-armed/notes.md) | 2, 3 | 2 | high |
 | [Grunt (unarmed)](mechanics/enemy-grunt-unarmed/notes.md) | 1, 2 | 1 | high |
@@ -108,14 +113,14 @@ Other tools: `framediff.py` (duplicate-frame/cut detection), `contact.py` (label
 | [Squad leader (sunglasses)](mechanics/enemy-squad-leader/notes.md) | 3 | 1 | medium |
 | [The sun (surreal brute)](mechanics/enemy-sun-brute/notes.md) | 3 | 1 | high |
 | [Welder (plasma cutter)](mechanics/enemy-welder/notes.md) | 2 | 1 | high |
-| [Zombie (raised corpse)](mechanics/enemy-zombie/notes.md) | 1, 2, 3 | 2 | high |
+| [Zombie (raised corpse, armed in ep4)](mechanics/enemy-zombie/notes.md) | 1, 2, 3, 4 | 2 | high |
 
 ### Bosses
 
 | Mechanic | Episodes | Clips | Confidence |
 |---|---|---|---|
-| [Clown (recurring mini-boss)](mechanics/boss-clown/notes.md) | 2, 3 | 4 | high |
-| [Halo boss (the "savior" necromancer)](mechanics/boss-halo/notes.md) |  | 7 | high |
+| [Clown (recurring mini-boss; the DJ in ep4)](mechanics/boss-clown/notes.md) | 2, 3, 4 | 4 | high |
+| [Halo boss (the "savior" necromancer)](mechanics/boss-halo/notes.md) | 1, 2, 3, 4 | 7 | high |
 | [The target (the hat-wearing objective)](mechanics/boss-target/notes.md) | 2, 3 | 3 | high |
 
 ### World, levels & UI
@@ -125,12 +130,14 @@ Other tools: `framediff.py` (duplicate-frame/cut detection), `contact.py` (label
 | [Collapsing arena (floor falls into a void)](mechanics/world-arena-collapse/notes.md) | 3 | 1 | high |
 | [Arena lock (walls drop from the sky)](mechanics/world-arena-lock/notes.md) | 3 | 1 | high |
 | [Breaching through the floor/roof](mechanics/world-breach/notes.md) | 2 | 1 | high |
-| [Destructible environment](mechanics/world-destructible/notes.md) | 2, 3 | 2 | high |
+| [Dance-floor crowd (turns hostile)](mechanics/world-crowd-dancefloor/notes.md) | 4 | 2 | high |
+| [Destructible environment](mechanics/world-destructible/notes.md) | 2, 3, 4 | 2 | high |
 | [Elevator set piece](mechanics/world-elevator-fight/notes.md) | 2 | 2 | high |
 | [Falling hazards that become terrain](mechanics/world-falling-hazard/notes.md) | 1, 3 | 1 | high |
 | [Improbability mode (physics modifier)](mechanics/world-improbability-mode/notes.md) | 3 | 1 | high |
 | [Interrogation & knockout (non-lethal)](mechanics/world-interrogate-knockout/notes.md) | 2 | 2 | high |
 | [Kill counter HUD](mechanics/world-kill-counter/notes.md) | 3 | 2 | high |
-| [Last stand (scripted ending)](mechanics/world-last-stand/notes.md) | 2, 3 | 1 | high |
+| [Last stand (scripted ending; detonator in ep4)](mechanics/world-last-stand/notes.md) | 2, 3, 4 | 1 | high |
 | [Target tracker (objective radar)](mechanics/world-objective-radar/notes.md) | 2 | 2 | high |
 | [Persistence: corpses, weapons, blood, decals](mechanics/world-persistence-decals/notes.md) | 2, 3 | 2 | high |
+| [Vehicle ram (car entrance)](mechanics/world-vehicle-ram/notes.md) | 4 | 1 | medium |

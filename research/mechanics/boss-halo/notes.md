@@ -40,3 +40,12 @@ Clips (local only):
 
 ## Invented / not shown
 - HP values, phase thresholds, shield uptime pattern, mash-out mechanic.
+
+## Episode 4 additions (2026-10-27)
+Seen in: ep4 2:29–3:05. Confidence: high (frames + wiki).
+- Enters by **smashing a door in** (the door slab flies and crushes whoever is behind it).
+- Arrives with a lieutenant: an **armed zombie agent** (rifle).
+- **Mass raise of the whole room**: flame-like flickers run over the carpet of corpses and ≈ 19 stand up within ≈ 1 s (ep2 raised ≈ 8). Stays out of the horde fight.
+- Duel: **sword in one hand, big pistol in the other** (blade clash, then point-blank shots). Dies with the hero in the detonator blast.
+- Wears dark glasses here (own design: give our boss a different accessory if we want a stage-4 look change).
+- Game: raise cap 19 (performance), sword + pistol "dual" act in the boss state machine, door-smash entrance reusing `world-destructible`.

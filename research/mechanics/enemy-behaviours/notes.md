@@ -16,3 +16,9 @@ Clips (local only): `clip-1` friendly fire · `clip-2` cover + return fire · `c
 - Hitscan rays from enemies hit whatever is first along the ray, including other enemies. Free friendly fire = emergent kills and a reason to position enemies in a line.
 - Floor-weapon scavenging (≤ 2 H radius) when unarmed.
 - Morale (invented, light): when the last 1–2 enemies of a wave are alone, they may sweat and back off. Purely cosmetic in the first milestone.
+
+## Episode 4 additions (2026-10-27)
+Seen in: ep4 2:20–2:30. Confidence: medium (wiki describes it).
+- **Cowering grunt**: one grunt in the club never fights; he sweats while the crowd dies, then lights a cigarette. Killed by the door being smashed in.
+- **Crowd turning hostile on a signal**: see `world-crowd-dancefloor`.
+- A grunt picks up a dropped SMG and threatens the hero with it (ep4 ~1:47, the ep3 empty-gun gag without the gag).

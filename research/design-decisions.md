@@ -6,7 +6,7 @@ Decisions taken with the user while researching (2026-10-26). The mechanic notes
 
 | Topic | Decision | Notes |
 |---|---|---|
-| Scope | Episodes 1–3 only, one stage per episode. Mechanics, movement, enemy types and set pieces are copied. Art, names and characters are not. | No timestamp, no mechanic. |
+| Scope | Episodes 1–3, one stage per episode. **Extended 2026-10-27 (the user): episode 4 becomes stage 4** (research in `episodes/ep4-log.md`, rooms in `stages.md`, milestones M14–M16). Mechanics, movement, enemy types and set pieces are copied. Art, names and characters are not. | No timestamp, no mechanic. |
 | Tech | TypeScript + Phaser, runs in the browser. | Lets us check builds side by side with the reference frames. Versions and architecture: `../PLAN.md`. |
 | Damage | **Revised 2026-10-26:** the player has 3 lives and every hit taken (punch, bullet, anything) costs exactly 1. Every kill heals 1 life (up to 3). Grunts have 4 hp: light punch 1 (stuns), heavy 2 (knocks down), so 4 lights or 2 heavies. Guns: 1 shot to the head or 2 to the body kills a grunt (M5). A kill with a heavy attack decapitates. Hard or slow-to-do moves (fast wall slams) still kill outright. Combos that kill faster come later (M4). | Replaces "grunts die from 1 bullet / 1 good hit". Zombies, brutes and bosses have their own rules. |
 | Co-op | **2026-10-26:** the final game is **2-player co-op** on two laptops on the same Wi-Fi (single player stays available). Every hit costs a life as before; a hero out of lives goes **down** and is revived by a teammate standing in their circle for **5 s** (the bar drains quickly when they step out). The room restarts when nobody is left standing. | Online play later would need a real server and lag handling. |
@@ -31,7 +31,8 @@ Decisions taken with the user while researching (2026-10-26). The mechanic notes
 | Music | **The user composes it** from the brief in `../design/audio-direction.md`. SFX from CC0/royalty-free libraries, layered and processed. | |
 
 ## Defaults assumed (say if you want them changed)
-- Kill counter HUD on **all** stages (only ep3 has one), plus an end-of-stage body-count card against the episode's count (32 / 86 / 91).
+- Kill counter HUD on **all** stages (only ep3 has one), plus an end-of-stage body-count card against the episode's count (32 / 86 / 91 / 80).
+- Stage 4 (proposed with the research, 2026-10-27): its own palette (night/club: the darkest, red and green stay reserved), kill counter on, starts with the car's SMG + pistol, gore level like stage 3.
 - No sprint, no double jump, no wall jump (none appear in the show).
 - Corpses, weapons and decals never despawn within a room. Only intact corpses can be raised as zombies, so grenades/gibbing counter the halo boss.
 - Enemy ranged attacks have a visible aim telegraph (≈ 0.4 s) before the hitscan shot, because hitscan can't be dodged.
@@ -56,4 +57,5 @@ Decisions taken with the user while researching (2026-10-26). The mechanic notes
 - **Co-op combos** (shared chains, hand-off juggles, double-teams, weapon passes): later, with M13. In M10b chains stay per attacker; both players can use every move.
 
 ## Still open (to ask later)
+- Stage 4 (before M14): the **ending**: the show's mutual kill with a detonator (proposal: hold E while downed in the final duel; not detonating restarts the room), or a different finish? Does the DJ (our clown) stay a non-combatant who survives? Fire-mode key: R with a full magazine, or its own key? Sword guard on RMB (thrust stays on long weapons only)? The show's on-screen gag HUD text is not copied: our own gag, or none?
 - Pistol-whip (gun-butt hit at contact range): its own key (F with a gun in hand) or automatic? Not in the M10b slice.

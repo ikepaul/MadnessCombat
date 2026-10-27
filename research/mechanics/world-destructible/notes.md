@@ -11,3 +11,9 @@ Clips (local only): `clip-1` cables shot, the cab falls, the hero hangs on and c
 ## Game translation
 - Tag specific props/surfaces `destructible` with a trigger (shot count, explosion, or heavy body impact) and a result (drop the cab, open a hole = new entrance between rooms).
 - Not a general destruction system: only scripted points per room, like the show.
+
+## Episode 4 additions (2026-10-27)
+Seen in: ep4 1:24.6–1:25.4 (vending machine), 2:28.9–2:30.9 (door). Confidence: medium.
+- A grunt thrown into the vending machine **knocks it flat**; it stays on the floor (low cover).
+- A door **smashed in** from outside flies into the room and crushes a grunt standing behind it.
+- Game: props get a `toppled` state (thrown body ≥ 4 H/s, invented); doors get a scripted `smash` (slab becomes a floor prop, crush on its path).
