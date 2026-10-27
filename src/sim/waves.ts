@@ -167,6 +167,8 @@ export function applySpawnOpts(world: World, a: Actor, opts: SpawnOpts): void {
   ai.role = opts.role;
   // enemy-elite-bodyguard: 2 hits (a head shot: 1)
   if (opts.variant === 'bodyguard') a.hp = a.maxHp = TUNING.ai.bodyguardHits;
+  // M9 the mini-boss (riot helmet): tougher than a grunt; the steal is the way in (boss-clown)
+  if (opts.variant === 'riot') a.hp = a.maxHp = TUNING.ai.riotHp;
   if (opts.aware === false) {
     ai.aware = false;
     ai.idle = opts.idle ?? 'stand';
@@ -175,7 +177,7 @@ export function applySpawnOpts(world: World, a: Actor, opts: SpawnOpts): void {
   if (!opts.squad) return;
   let heads = squadHeads.get(world);
   if (!heads) squadHeads.set(world, (heads = new Map()));
-  if (opts.variant === 'leader' || opts.variant === 'vip') { heads.set(opts.squad, a.id); return; }
+  if (opts.variant === 'leader' || opts.variant === 'vip' || opts.variant === 'riot') { heads.set(opts.squad, a.id); return; }
   const head = heads.get(opts.squad);
   if (head === undefined) return;
   if (opts.variant === 'bodyguard') {

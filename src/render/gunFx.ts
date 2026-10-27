@@ -30,6 +30,7 @@ export class GunFx {
 
   /** `onSettle` bakes a landed casing or magazine into the decal layer. */
   constructor(world: World, private onSettle: (d: SettledDebris) => void) {
+    world.events.on('roomChanged', () => { this.flashes = []; this.tracers = []; this.puffs = []; this.debris = []; });
     world.events.on('shot', (e) => {
       const w = WEAPONS[e.weapon], s = scaleAt(e.z);
       const shooter = world.actorById(e.actorId);

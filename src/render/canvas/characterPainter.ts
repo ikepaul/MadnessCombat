@@ -10,6 +10,7 @@ import { BLOOD, BLOOD_DARK, INK, type Palette, ZOMBIE, ZOMBIE_HI } from '../../d
 import { isWeapon, WEAPONS, type WeaponDef } from '../../data/weapons';
 import type { Actor, ActorKind, HeldItem, NpcVariant } from '../../sim/actor';
 import { NPC_SUIT, paintBoombox, paintNpcBody, paintNpcHead } from './npcPainter';
+import { isStage2Cast, paintStage2Body, paintStage2Head, STAGE2_SUIT } from './stage2CastPainter';
 import { project, type ScreenPoint, scaleAt } from '../camera';
 import { burst, type Ctx } from './draw';
 import { paintGrenade, paintGun, paintMelee } from './weaponPainter';
@@ -40,7 +41,7 @@ export function actorColors(kind: ActorKind, pal: Palette, variant?: Actor['vari
   // style frame M7 sheet: the bodyguard's suit sits between a grunt's and the hero's
   const guard = variant === 'bodyguard';
   // M8 NPCs: white tee (boombox NPC), dark tracksuit (dancer)
-  const npc = isNpc(variant) ? NPC_SUIT[variant] : undefined;
+  const npc = isNpc(variant) ? NPC_SUIT[variant] : isStage2Cast(variant) ? STAGE2_SUIT[variant] : undefined;
   return {
     suit: hero ? pal.hero : guard ? BODYGUARD_SUIT : npc ? npc[0] : pal.suit,
     suitShade: hero ? pal.heroShade : guard ? BODYGUARD_SHADE : npc ? npc[1] : pal.suitShade,
@@ -122,6 +123,8 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
   // back hand (behind the body unless it swings out in front, as in a cross punch), feet
   const backInFront = sk.handB[0] > 0.2;
   if (rigB && gunB) gunInHand(ctx, rigB, gunB, col.hand, true);
+  // a guard smoking with a gun in his front hand holds the cigarette in the back one
+  else if (smoking(a) && (rigF || pose.held)) cigarette(ctx, sk.handB, time);
   else if (!backInFront && !support) {
     // a melee weapon in the back hand (the second knife), held like the front one
     if (pose.heldB && isMelee(pose.heldB)) {
@@ -158,6 +161,7 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
     ctx.fillStyle = '#2a2b2f'; ctx.fill();
   }
   if (isNpc(a.variant)) paintNpcBody(ctx, a.variant, bodyPath);
+  else if (isStage2Cast(a.variant)) paintStage2Body(ctx, a.variant, bodyPath);
   if (a.playerIndex === 1) {
     // co-op player 2 (style-frame sheet): a light strap across the body, shoulder to hip
     ctx.save(); bodyPath(ctx); ctx.clip();
@@ -177,6 +181,7 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
     paintHead(ctx, col.skin, col.skinHi, pose.dead);
     if (a.variant === 'leader' || a.variant === 'bodyguard') paintHeadGear(ctx, a.variant);
     else if (isNpc(a.variant)) paintNpcHead(ctx, a.variant);
+    else if (isStage2Cast(a.variant)) paintStage2Head(ctx, a.variant);
     if (opts.blood) for (const [wx, wy] of pose.wounds) if (wy <= -0.6) burst(ctx, wx - 0.01, wy + 0.79, 0.035, BLOOD, 7);
     // enemy-behaviours: the last one left sweats
     if (pose.sweat && !pose.dead) sweat(ctx, time);

@@ -243,8 +243,12 @@ export interface Actor {
   catchAt?: number;
   /** Hits absorbed while held as a human shield (combat-human-shield). */
   shieldHits?: number;
+  /** M9: can't be hurt (the target before his final room, the boss's cameo); rays pass through. */
+  invulnerable?: boolean;
+  /** M9 room transitions: climbing out, vaulting in, walking out (moved by the stage runner, not stepped). */
+  traversing?: { kind: 'vault' | 'climb' | 'crawl' | 'out' | 'drop'; t: number };
   /** M7 grunt variants: squad leader (shades, gun), elite bodyguard (2 hits, headshot 1), the VIP they guard. */
-  variant?: 'leader' | 'bodyguard' | 'vip' | NpcVariant;
+  variant?: 'leader' | 'bodyguard' | 'vip' | 'riot' | 'target' | NpcVariant;
   /** M8: something carried that isn't a weapon (the boombox NPC's boombox), drawn at the front hand. */
   carry?: 'boombox';
   /** Being taken down (stealth kill) by this actor: held still until the kill (M7). */

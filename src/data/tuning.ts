@@ -50,6 +50,22 @@ export const TUNING = {
   },
 
   /** Hit points. research/design-decisions.md: grunts die from 1 good hit, the player survives ~3. */
+  /** M9 stages as room graphs (src/sim/stage.ts). */
+  stage: {
+    /** Ink wipe: covers the screen in this long, uncovers in the same (decided 2026-10-27: ~0.35 s). */
+    wipe: 0.35,
+    /** Walking out / starting the climb before the wipe starts (s). invented */
+    traverse: 0.45,
+    /** move-climb-vault: ladder ~1.1 H/s (ep2 f990-f1040); the vault over the parapet ~1 s (f1090-f1130). */
+    climbSpeed: 1.1,
+    vaultTime: 0.9,
+    vaultDistance: 1.0,
+    vaultHeight: 0.6,
+    /** Dropping in through a vent or a breach starts this high (H). invented */
+    dropHeight: 2.6,
+    /** world-breach: enemies in a room entered from above are caught off guard this long (s). invented */
+    surprise: 1.0,
+  },
   /** M7 stealth (melee-stealth-kill, move-drop-from-above). */
   stealth: {
     /** melee-stealth-kill: knife takedown ~0.6 s from contact (ep3 f620-f640). */
@@ -94,6 +110,11 @@ export const TUNING = {
     /** boss-halo: floats down from above the frame, ep1 f1420-f1440 (0.67 s). Starts above the screen top. */
     descend: 0.67,
     startHeight: 4.8,
+    /** M9 cameo: rises back out of the frame at this speed (H/s). invented */
+    leaveSpeed: 6,
+    /** M9 boss-halo clip 5: the fling covers ~3.6 H in ~0.33 s (ep2): 3.0 in the air + the skid. Wind-up and mass raise (s). */
+    fling: { distance: 3.0, airtime: 0.33, windup: 0.35 },
+    massRaise: { max: 8, cast: 0.6 },
     /** Hover height under his feet and its bob (H, s). style frame, invented */
     hover: 0.14,
     hoverBob: 0.03,
@@ -323,11 +344,15 @@ export const TUNING = {
     guardGap: 0.8,
     /** enemy-elite-bodyguard: hits to kill (invented; a head shot always kills). */
     bodyguardHits: 2,
+    /** M9 boss-clown: the riot-helmet mini-boss takes 2 rifle head shots or 4 to the body. invented */
+    riotHp: 8,
     /** M7 ranged grunts (enemy-grunt-armed). */
     ranged: {
       /** Keep this far from the player in x (H): pistols/rifles, and shotguns (close range). invented within the note's 3-5 H */
       keep: [3, 5] as const,
       keepShotgun: [1.4, 2.4] as const,
+      /** M9 boss-clown: the riot-helmet mini-boss walks right in, firing (ep2 1:51). invented */
+      keepRiot: [1.0, 1.8] as const,
       /** Aim telegraph: gun raised + red line this long before the shot. enemy-grunt-armed: ~0.4 s (invented) */
       telegraph: 0.4,
       /** Seconds between shots (or bursts). PLAN.md M7: 0.6-1.2 s (invented) */

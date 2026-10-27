@@ -30,7 +30,10 @@ export type BossAct =
   | { kind: 'volley'; t: number; from: { x: number; z: number }; started: boolean };
 
 export interface BossState {
-  phase: 'enter' | 'fight';
+  /** M9: `cameo` = he drops in to interrupt (stage 2), driven by the room script; `leave` = rising out; `gone` = removed. */
+  phase: 'enter' | 'fight' | 'cameo' | 'leave' | 'gone';
+  /** M9: a cameo appearance (no fight AI, untouchable). */
+  cameo?: boolean;
   /** Seconds in the phase. */
   t: number;
   act?: BossAct;
@@ -85,13 +88,14 @@ export function stepBoss(world: World, a: Actor & { boss: BossState }, dt: numbe
     const u = Math.min(1, s.t / B.descend), e = 1 - (1 - u) * (1 - u);
     a.pos.y = B.startHeight + (B.hover - B.startHeight) * e;
     if (u >= 1) {
-      s.phase = 'fight';
+      s.phase = s.cameo ? 'cameo' : 'fight';
       s.t = 0;
       world.events.emit('bossArrive', { actorId: a.id, phase: 'land', ...a.pos });
     }
     return;
   }
 
+  if (s.phase === 'cameo' || s.phase === 'leave' || s.phase === 'gone') { stepCameo(a, s, dt); return; }
   a.pos.y = B.hover + Math.sin(s.t * B.hoverRate) * B.hoverBob;
   s.raiseIn -= dt;
   s.strikeIn -= dt;
@@ -112,6 +116,32 @@ export function stepBoss(world: World, a: Actor & { boss: BossState }, dt: numbe
   a.pose.cast = handUp > 0 ? Math.min(1, handUp) : Math.max(0, (a.pose.cast ?? 0) - dt / 0.2);
   a.pose.grip = act?.kind === 'grab' ? Math.min(1, (a.pose.grip ?? 0) + dt / 0.15) : Math.max(0, (a.pose.grip ?? 0) - dt / 0.2);
   a.pose.push = act?.kind === 'sweep' ? Math.min(1, act.t / SW.windup) : Math.max(0, (a.pose.push ?? 0) - dt / 0.3);
+}
+
+/** M9 cameo: he hovers while the room script works him (fling, mass raise), then rises out of the frame. */
+function stepCameo(a: Actor, s: BossState, dt: number): void {
+  if (s.phase === 'leave') {
+    a.pos.y += B.leaveSpeed * dt;
+    if (a.pos.y >= B.startHeight) s.phase = 'gone';
+    return;
+  }
+  if (s.phase === 'cameo') a.pos.y = B.hover + Math.sin(s.t * B.hoverRate) * B.hoverBob;
+}
+
+/** M9: the boss drops in for a scripted interruption (stage 2), untouchable, no fight AI. */
+export function spawnBossCameo(world: World, x: number, z: number, facing: 1 | -1): Actor & { boss: BossState } {
+  const a = spawnBoss(world, x, z, facing) as Actor & { boss: BossState };
+  a.boss.cameo = true;
+  a.invulnerable = true;
+  return a;
+}
+
+/** M9: rise out of the frame and go. */
+export function bossLeave(world: World, a: Actor & { boss: BossState }): void {
+  a.boss.phase = 'leave';
+  a.pose.cast = 0;
+  a.pose.push = 0;
+  world.events.emit('bossArrive', { actorId: a.id, phase: 'leave', ...a.pos });
 }
 
 /**

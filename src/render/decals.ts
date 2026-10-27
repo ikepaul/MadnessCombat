@@ -98,6 +98,12 @@ export class Decals {
   }
 
   /** Re-bake everything (room or blood toggle changed). */
+  /** M9: a new room starts clean (blood and holes stay with the room they were made in). */
+  clear(): void {
+    this.baked = [];
+    this.growing = [];
+  }
+
   rebake(): void {
     this.layer.clear();
     const blood = this.blood();

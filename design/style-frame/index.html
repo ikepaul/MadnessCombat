@@ -19,7 +19,7 @@
 </head>
 <body>
 <header>
-  <div class="group"><span>View</span><button data-k="view" data-v="scene" class="on">Scene</button><button data-k="view" data-v="sheet">Character sheet</button><button data-k="view" data-v="cast1">Stage 1 cast</button></div>
+  <div class="group"><span>View</span><button data-k="view" data-v="scene" class="on">Scene</button><button data-k="view" data-v="sheet">Character sheet</button><button data-k="view" data-v="cast1">Stage 1 cast</button><button data-k="view" data-v="cast2">Stage 2 cast</button></div>
   <div class="group"><span>Face</span><button data-k="face" data-v="slit" class="on">A · slit</button><button data-k="face" data-v="dots">B · dots</button><button data-k="face" data-v="blank">C · blank</button></div>
   <div class="group"><span>Palette</span><button data-k="palette" data-v="neutral" class="on">Stage 1 · neutral</button><button data-k="palette" data-v="cool">Stage 2 · cool</button><button data-k="palette" data-v="warm">Stage 3 · warm</button></div>
   <div class="group"><span>FX</span><button data-k="fx" data-v="heavy" class="on">Heavy</button><button data-k="fx" data-v="subtle">Subtle</button><button data-k="fx" data-v="off">Off</button></div>
@@ -264,6 +264,32 @@ function drawCharacter(c, pal, face) {
     ctx.beginPath(); ctx.moveTo(0.0, -0.575); ctx.lineTo(0.13, -0.575); ctx.lineTo(0.07, -0.43); ctx.closePath(); ctx.fillStyle = '#ececee'; ctx.fill(); ctx.lineWidth = 0.008; ctx.strokeStyle = INK; ctx.stroke();
     ctx.beginPath(); ctx.moveTo(0.055, -0.565); ctx.lineTo(0.085, -0.565); ctx.lineTo(0.075, -0.45); ctx.lineTo(0.065, -0.45); ctx.closePath(); ctx.fillStyle = '#2a2b2f'; ctx.fill();
   }
+  if (c.variant === 'mbGas' || c.variant === 'mbRiot') { // M9 options: tactical vest with three pouches
+    ctx.save(); bodyPath(); ctx.clip();
+    ctx.fillStyle = '#2b2c31'; ctx.fillRect(-0.21, -0.5, 0.42, 0.3);
+    ctx.fillStyle = '#4a4c53'; for (const px of [-0.02, 0.07, 0.16]) { ctx.beginPath(); ctx.roundRect(px - 0.035, -0.36, 0.07, 0.09, 0.012); ctx.fill(); ctx.lineWidth = 0.007; ctx.strokeStyle = INK; ctx.stroke(); }
+    if (c.variant === 'mbRiot') { ctx.fillStyle = '#a3141c'; ctx.fillRect(-0.21, -0.5, 0.42, 0.025); }
+    ctx.restore(); bodyPath(); ctx.lineWidth = 0.016; ctx.strokeStyle = INK; ctx.stroke();
+  }
+  if (c.variant === 'mbMascot') { // costume: fuzzy belly patch + stitched seam
+    ctx.save(); bodyPath(); ctx.clip();
+    ctx.beginPath(); ctx.ellipse(0.06, -0.26, 0.12, 0.17, 0, 0, 7); ctx.fillStyle = '#f2f2f3'; ctx.fill();
+    ctx.lineWidth = 0.006; ctx.strokeStyle = 'rgba(20,20,22,0.45)'; ctx.setLineDash([0.02, 0.015]); ctx.beginPath(); ctx.ellipse(0.06, -0.26, 0.12, 0.17, 0, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+    ctx.restore(); bodyPath(); ctx.lineWidth = 0.016; ctx.strokeStyle = INK; ctx.stroke();
+  }
+  if (c.variant === 'tgCombover' || c.variant === 'tgBureau') { // shirt V + tie (red accent for A, dark for B)
+    ctx.beginPath(); ctx.moveTo(0.0, -0.575); ctx.lineTo(0.13, -0.575); ctx.lineTo(0.07, -0.43); ctx.closePath(); ctx.fillStyle = '#f2f2f3'; ctx.fill(); ctx.lineWidth = 0.008; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0.05, -0.57); ctx.lineTo(0.09, -0.57); ctx.lineTo(0.085, -0.33); ctx.lineTo(0.07, -0.3); ctx.lineTo(0.055, -0.33); ctx.closePath();
+    ctx.fillStyle = c.variant === 'tgCombover' ? '#a3141c' : '#2a2b2f'; ctx.fill(); ctx.lineWidth = 0.007; ctx.stroke();
+  }
+  if (c.variant === 'tgFur') { // long coat over the body, fluffy white collar, a chain
+    ctx.save(); bodyPath(); ctx.clip(); ctx.strokeStyle = '#c9cacf'; ctx.lineWidth = 0.014;
+    ctx.beginPath(); ctx.moveTo(0.0, -0.56); ctx.quadraticCurveTo(0.08, -0.36, 0.17, -0.55); ctx.stroke(); ctx.restore();
+    ctx.beginPath();
+    for (let k = 0; k <= 10; k++) { const a = Math.PI + k / 10 * Math.PI, rr = k % 2 ? 0.05 : 0.07; ctx.lineTo(Math.cos(a) * 0.2 + 0.0, -0.58 + Math.sin(a) * 0.02 - (k % 2 ? 0 : 0.035)); }
+    for (let k = 10; k >= 0; k--) { const a = Math.PI + k / 10 * Math.PI; ctx.lineTo(Math.cos(a) * 0.17, -0.55 + (k % 2 ? 0.03 : 0.045)); }
+    ctx.closePath(); ctx.fillStyle = '#efeff1'; ctx.fill(); ctx.lineWidth = 0.01; ctx.strokeStyle = INK; ctx.stroke();
+  }
   if (c.variant === 'dancer') { // tracksuit: one light stripe down the side
     ctx.save(); bodyPath(); ctx.clip(); ctx.fillStyle = '#dcdcdf'; ctx.fillRect(-0.005, -0.62, 0.035, 0.62); ctx.restore();
     bodyPath(); ctx.lineWidth = 0.016; ctx.strokeStyle = INK; ctx.stroke();
@@ -498,6 +524,45 @@ function headGear(kind) {
     ctx.beginPath(); ctx.moveTo(-0.025, -0.03); ctx.quadraticCurveTo(-0.06, -0.16, -0.035, -0.245); ctx.stroke();
     ctx.beginPath(); ctx.ellipse(-0.025, 0.0, 0.055, 0.072, 0, 0, 7); ctx.fillStyle = '#2a2b2f'; ctx.fill(); ctx.lineWidth = 0.01; ctx.strokeStyle = INK; ctx.stroke();
     ctx.beginPath(); ctx.ellipse(-0.02, 0.0, 0.025, 0.035, 0, 0, 7); ctx.fillStyle = '#6b6d73'; ctx.fill();
+  } else if (kind === 'mbGas') { // M9 option A: hood + gas mask, round goggles with a faint red glow, side filter
+    ctx.beginPath(); ctx.ellipse(-0.01, -0.005, 0.215, 0.24, 0, 0, 7); ctx.fillStyle = '#3a3b40'; ctx.fill(); ctx.lineWidth = 0.016; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.beginPath(); ctx.roundRect(0.0, -0.13, 0.215, 0.25, 0.07); ctx.fillStyle = '#7d7f85'; ctx.fill(); ctx.stroke();
+    for (const ex of [0.075, 0.165]) {
+      ctx.beginPath(); ctx.arc(ex, -0.045, 0.04, 0, 7); ctx.fillStyle = '#1b1c20'; ctx.fill(); ctx.lineWidth = 0.012; ctx.strokeStyle = INK; ctx.stroke();
+      ctx.beginPath(); ctx.arc(ex, -0.045, 0.022, 0, 7); ctx.fillStyle = 'rgba(200,40,40,0.45)'; ctx.fill();
+    }
+    ctx.beginPath(); ctx.arc(0.19, 0.075, 0.055, 0, 7); ctx.fillStyle = '#5a5c62'; ctx.fill(); ctx.lineWidth = 0.012; ctx.stroke();
+    ctx.beginPath(); ctx.arc(0.19, 0.075, 0.03, 0, 7); ctx.lineWidth = 0.008; ctx.stroke();
+  } else if (kind === 'mbRiot') { // M9 option B: riot helmet with a smoked visor and a red stripe
+    ctx.beginPath(); ctx.ellipse(-0.005, -0.03, 0.225, 0.215, 0, Math.PI * 1.02, Math.PI * 1.98); ctx.lineTo(0.2, 0.02); ctx.lineTo(-0.215, 0.03); ctx.closePath();
+    ctx.fillStyle = '#4a4c53'; ctx.fill(); ctx.lineWidth = 0.016; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.save(); ctx.clip(); ctx.fillStyle = '#a3141c'; ctx.fillRect(-0.03, -0.26, 0.05, 0.3); ctx.restore();
+    ctx.beginPath(); ctx.roundRect(0.0, -0.1, 0.235, 0.17, 0.04); ctx.fillStyle = 'rgba(28,30,36,0.62)'; ctx.fill(); ctx.lineWidth = 0.012; ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 0.01; ctx.beginPath(); ctx.moveTo(0.03, -0.075); ctx.lineTo(0.09, -0.075); ctx.stroke();
+  } else if (kind === 'mbMascot') { // M9 option C: oversized bear-mascot head, button eyes, stitched grin (no face paint)
+    for (const ex of [-0.13, 0.13]) { ctx.beginPath(); ctx.arc(ex, -0.27, 0.08, 0, 7); ctx.fillStyle = '#e9e9eb'; ctx.fill(); ctx.lineWidth = 0.016; ctx.strokeStyle = INK; ctx.stroke(); ctx.beginPath(); ctx.arc(ex, -0.27, 0.04, 0, 7); ctx.fillStyle = '#c4c4c8'; ctx.fill(); }
+    ctx.beginPath(); ctx.arc(0.0, -0.02, 0.29, 0, 7); ctx.fillStyle = '#e9e9eb'; ctx.fill(); ctx.lineWidth = 0.016; ctx.strokeStyle = INK; ctx.stroke();
+    const hg = ctx.createLinearGradient(-0.29, 0, 0.29, 0); hg.addColorStop(0, 'rgba(0,0,0,0.16)'); hg.addColorStop(0.6, 'rgba(0,0,0,0)'); hg.addColorStop(1, 'rgba(255,255,255,0.2)');
+    ctx.fillStyle = hg; ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0.14, 0.05, 0.13, 0.1, 0, 0, 7); ctx.fillStyle = '#f7f7f8'; ctx.fill(); ctx.lineWidth = 0.01; ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(0.2, 0.01, 0.035, 0.025, 0, 0, 7); ctx.fillStyle = '#2a2b2f'; ctx.fill();
+    for (const ex of [0.06, 0.17]) { ctx.beginPath(); ctx.arc(ex, -0.09, 0.033, 0, 7); ctx.fillStyle = '#2a2b2f'; ctx.fill(); ctx.fillStyle = '#8b8c91'; for (const [dx, dy] of [[-0.01, -0.01], [0.01, -0.01], [-0.01, 0.01], [0.01, 0.01]]) { ctx.beginPath(); ctx.arc(ex + dx, -0.09 + dy, 0.005, 0, 7); ctx.fill(); } }
+    ctx.lineWidth = 0.01; ctx.strokeStyle = INK; ctx.beginPath(); ctx.moveTo(0.06, 0.1); ctx.quadraticCurveTo(0.15, 0.17, 0.25, 0.08); ctx.stroke();
+    for (let k = 0; k < 5; k++) { const u = 0.1 + k * 0.035, y = 0.1 + Math.sin((u - 0.06) / 0.19 * Math.PI) * 0.035; ctx.beginPath(); ctx.moveTo(u, y - 0.018); ctx.lineTo(u, y + 0.018); ctx.stroke(); }
+  } else if (kind === 'tgCombover') { // M9 target option A: slick combover strands, a fussy little brow
+    ctx.beginPath(); ctx.ellipse(-0.01, -0.12, 0.205, 0.12, 0, Math.PI, Math.PI * 1.95); ctx.quadraticCurveTo(0.1, -0.14, -0.2, -0.1); ctx.closePath();
+    ctx.fillStyle = '#3a3b40'; ctx.fill(); ctx.lineWidth = 0.012; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 0.007; for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.moveTo(-0.15 + k * 0.03, -0.17 - k * 0.02); ctx.quadraticCurveTo(0.02, -0.24 + k * 0.015, 0.16, -0.14 + k * 0.01); ctx.stroke(); }
+    ctx.strokeStyle = INK; ctx.lineWidth = 0.02; ctx.beginPath(); ctx.moveTo(0.05, -0.1); ctx.lineTo(0.15, -0.115); ctx.stroke();
+  } else if (kind === 'tgBureau') { // M9 target option B: thick square glasses over the slit, side part
+    ctx.beginPath(); ctx.ellipse(-0.01, -0.12, 0.205, 0.12, 0, Math.PI, Math.PI * 2); ctx.closePath(); ctx.fillStyle = '#5a5c62'; ctx.fill(); ctx.lineWidth = 0.012; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.strokeStyle = '#1b1c20'; ctx.lineWidth = 0.018;
+    ctx.beginPath(); ctx.roundRect(0.03, -0.085, 0.075, 0.06, 0.01); ctx.stroke(); ctx.beginPath(); ctx.roundRect(0.125, -0.085, 0.075, 0.06, 0.01); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0.105, -0.06); ctx.lineTo(0.125, -0.06); ctx.moveTo(0.03, -0.065); ctx.lineTo(-0.15, -0.075); ctx.stroke();
+  } else if (kind === 'tgFur') { // M9 target option C: slicked-back dark hair, a big signet ring glint is on the hand
+    ctx.beginPath(); ctx.ellipse(-0.03, -0.09, 0.2, 0.15, 0, Math.PI * 0.95, Math.PI * 1.9); ctx.quadraticCurveTo(-0.05, -0.13, -0.2, -0.02); ctx.closePath();
+    ctx.fillStyle = '#25262b'; ctx.fill(); ctx.lineWidth = 0.012; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 0.008; ctx.beginPath(); ctx.moveTo(0.1, -0.2); ctx.quadraticCurveTo(-0.05, -0.22, -0.17, -0.1); ctx.stroke();
   } else if (kind === 'dancer') { // M8 dancer NPC: knit beanie with a pom
     ctx.beginPath(); ctx.ellipse(0.0, -0.1, 0.212, 0.165, 0, Math.PI, 0); ctx.closePath(); ctx.fillStyle = '#cfd0d3'; ctx.fill(); ctx.lineWidth = 0.014; ctx.strokeStyle = INK; ctx.stroke();
     ctx.beginPath(); ctx.roundRect(-0.215, -0.135, 0.43, 0.06, 0.02); ctx.fillStyle = '#b6b7bb'; ctx.fill(); ctx.stroke();
@@ -508,7 +573,12 @@ function headGear(kind) {
 }
 
 // ---------- stage 1 cast (M8, own designs) ----------
-const VARIANT_SUIT = { bodyguard: ['#5c5e66', '#4a4c53'], boombox: ['#e3e3e5', '#bfc0c4'], dancer: ['#4a4b51', '#3a3b40'] };
+const VARIANT_SUIT = {
+  bodyguard: ['#5c5e66', '#4a4c53'], boombox: ['#e3e3e5', '#bfc0c4'], dancer: ['#4a4b51', '#3a3b40'],
+  // M9 design pass (options): mini-boss A gas mask, B riot helmet, C mascot; target A combover, B bureaucrat, C fur collar
+  mbGas: ['#55575e', '#45474d'], mbRiot: ['#3f4148', '#30323a'], mbMascot: ['#dadadd', '#bcbcc1'],
+  tgCombover: ['#d6d6d9', '#b5b5ba'], tgBureau: ['#7a7c83', '#63656b'], tgFur: ['#2f3036', '#222328'],
+};
 const BOLT = '#eafcff', BOLT_GLOW = 'rgba(110,215,255,';
 const BOSS = { coat: '#2c2c32', coatShade: '#1d1d22', collar: '#3c3c44', skin: '#c6c6cb', glove: '#3c3c44', scale: 1.1 };
 
@@ -646,6 +716,31 @@ function drawCast(pal, face) {
   notes.forEach((n, i) => ctx.fillText(n, 70, 60 + i * 30));
 }
 
+// ---------- stage 2 cast (M9 design pass: options for sign-off) ----------
+function drawCast2(pal, face) {
+  ctx.fillStyle = pal.back; ctx.fillRect(0, 0, W, SH);
+  ctx.fillStyle = pal.floor; ctx.fillRect(0, 860, W, SH - 860);
+  ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.beginPath(); ctx.moveTo(0, 860); ctx.lineTo(W, 860); ctx.stroke();
+  const s = 330, base = 900, t = sim.frame;
+  const label = (txt, x, y = base + 66) => { ctx.font = '600 18px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = INK; ctx.fillText(txt, x, y); };
+  const cast = [
+    ['mbGas', 'Mini-boss A · gas mask'], ['mbRiot', 'Mini-boss B · riot helmet (chosen)'], ['mbMascot', 'Mini-boss C · mascot'],
+    ['tgCombover', 'Target A · combover'], ['tgBureau', 'Target B · bureaucrat (chosen)'], ['tgFur', 'Target C · fur collar'],
+  ];
+  cast.forEach(([v, l], i) => {
+    const x = 230 + i * 290 + (i >= 3 ? 60 : 0);
+    drawCharacter({ kind: 'grunt', variant: v, facing: i < 3 ? 1 : -1, t, screen: { x, y: base, s } }, pal, face);
+    label(l, x);
+  });
+  ctx.strokeStyle = 'rgba(20,20,22,0.25)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(1035, 360); ctx.lineTo(1035, 960); ctx.stroke();
+  ctx.textAlign = 'left'; ctx.font = '500 20px system-ui, sans-serif'; ctx.fillStyle = 'rgba(20,20,22,0.85)';
+  const notes = ['M9 design pass, signed off 2026-10-27: mini-boss B (riot helmet) and target B (bureaucrat). Own designs: no clown face paint, no hat + moustache.',
+    'Mini-boss (stages 2-3): elite grunt with a rifle and a squad; later a jetpack gunner, a melee duelist and a zombie. Needs a silhouette that reads at 1 H.',
+    'Target (stages 2-3): never fights fair. Flees from room to room, hides behind his desk at the end, sweats and surrenders.',
+    'Red stays the only accent colour (riot stripe, combover tie). Everything else greys, like the rest of the cast.'];
+  notes.forEach((n, i) => ctx.fillText(n, 70, 60 + i * 30));
+}
+
 // ---------- character sheet ----------
 function drawSheet(pal, face) {
   ctx.fillStyle = pal.back; ctx.fillRect(0, 0, W, SH);
@@ -722,6 +817,7 @@ function frame(now) {
   const pal = PALETTES[state.palette];
   if (state.view === 'scene') { drawScene(pal, state.face); if (state.grid === 'on') gridOverlay(); }
   else if (state.view === 'cast1') drawCast(pal, state.face);
+  else if (state.view === 'cast2') drawCast2(pal, state.face);
   else drawSheet(pal, state.face);
   if (state.fx !== 'off') post();
   if (state.view === 'scene') killCounter(sim.kills);
@@ -744,6 +840,7 @@ if (params.has('frame')) {
   for (let i = 0; i <= n; i++) { if (sim.hitstop > 0) sim.hitstop--; else step(); if (state.view === 'scene') drawScene(pal, state.face); }
   if (state.view === 'sheet') drawSheet(pal, state.face);
   if (state.view === 'cast1') drawCast(pal, state.face);
+  if (state.view === 'cast2') drawCast2(pal, state.face);
   if (state.grid === 'on' && state.view === 'scene') gridOverlay();
   if (state.fx !== 'off') post();
   if (state.view === 'scene') killCounter(sim.kills);

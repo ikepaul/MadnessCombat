@@ -306,17 +306,17 @@ Done notes: the whole stage is one sequencer script (`src/data/stages/stage1Scri
 **Read first:** `research/stages.md` (Stage 2 rooms 1–6), `move-climb-vault`, `world-breach`, `world-objective-radar`, `boss-clown` (clip 1), `boss-halo` (clip 5), `boss-target` (clip 1).
 
 Build:
-- [ ] **Design pass first**: our own designs for the clown-type mini-boss and the target (character sheet, user sign-off).
-- [ ] **Stage = room graph**: one-way exits of type door, ladder/vault, vent, breach, lift, fall, climb. Each plays a short transition and loads the next room. Room-entry options (entering from a vent/breach = enemies surprised ≈ 1 s, invented). Checkpoint per room.
-- [ ] Tracker HUD (direction of the target's room; centred = breach point).
-- [ ] Loadout per stage (wire + suppressed pistol). Blood on from stage 2.
-- [ ] Rooms 1–6 per `stages.md`: outside wall, corner + ladder, rooftop A (cover), rooftop B (breach), target's office (the target flees with a friendly-fire shot, door waves ≈ 15–20, pump shotgun, the boss peeks in), corridor (shotgun grunts, **clown** + squad: rifle, weak to steal, **boss interruption**: telekinetic fling ≈ 3.6 H in 0.33 s, pin ≈ 0.25 s, mass raise of 8 zombies, then he leaves).
-- [ ] Target NPC: always running to the next door, can't be killed before the final room.
+- [x] **Design pass first**: our own designs for the clown-type mini-boss and the target (character sheet, user sign-off).
+- [x] **Stage = room graph**: one-way exits of type door, ladder/vault, vent, breach, lift, fall, climb. Each plays a short transition and loads the next room. Room-entry options (entering from a vent/breach = enemies surprised ≈ 1 s, invented). Checkpoint per room.
+- [x] Tracker HUD (direction of the target's room; centred = breach point).
+- [x] Loadout per stage (wire + suppressed pistol). Blood on from stage 2.
+- [x] Rooms 1–6 per `stages.md`: outside wall, corner + ladder, rooftop A (cover), rooftop B (breach), target's office (the target flees with a friendly-fire shot, door waves ≈ 15–20, pump shotgun, the boss peeks in), corridor (shotgun grunts, **clown** + squad: rifle, weak to steal, **boss interruption**: telekinetic fling ≈ 3.6 H in 0.33 s, pin ≈ 0.25 s, mass raise of 8 zombies, then he leaves).
+- [x] Target NPC: always running to the next door, can't be killed before the final room.
 
 Look & sound:
-- [ ] Cool stage palette. Rooftop/outdoor night variant, building exteriors (own designs), tracker device UI (radar rings + blip).
-- [ ] Room transitions (short wipe/cut in our style, ladder/vault animations), breach explosion through the ceiling with debris and a persistent hole.
-- [ ] Infiltration ambience + combat layers switching on alert. Stealth = music drops to the bed only.
+- [x] Cool stage palette. Rooftop/outdoor night variant, building exteriors (own designs), tracker device UI (radar rings + blip).
+- [x] Room transitions (short wipe/cut in our style, ladder/vault animations), breach explosion through the ceiling with debris and a persistent hole.
+- [x] Infiltration ambience + combat layers switching on alert. Stealth = music drops to the bed only.
 
 Acceptance: rooms chain in order with each transition type · a breach opens only with an explosion on the marked tile · the clown can be disarmed and killed with his own rifle · the mass raise only raises intact corpses.
 Labs: `move-climb-vault`, `world-breach`, `world-objective-radar`, `boss-clown` (clip 1), `boss-halo` (clip 5), `boss-target` (clip 1).

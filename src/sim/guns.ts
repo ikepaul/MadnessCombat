@@ -135,7 +135,11 @@ function fire(world: World, a: Actor, i: 0 | 1, h: Hand, w: WeaponDef, dual: boo
   for (let p = 0; p < w.pellets; p++) {
     const ang = base + (world.rng() * 2 - 1) * spread;
     const dir: ScreenPoint = [Math.cos(ang), Math.sin(ang)];
-    const r = castRay(world, rig.muzzle, dir, a.pos.z, skip);
+    // point blank: the barrel can reach past a body right in front of you, so the hit test starts
+    // back along the barrel (behind the grip); the tracer still starts at the muzzle
+    const back = (w.length + 0.2) * scaleAt(a.pos.z);
+    const r = castRay(world, [rig.muzzle[0] - dir[0] * back, rig.muzzle[1] - dir[1] * back], dir, a.pos.z, skip);
+    if (r.hit && r.hit.t < back) r.end = rig.muzzle;
     if (r.ward) {
       // M8: stopped on the boss's ward, sparks fly off it
       world.events.emit('wardHit', { actorId: r.ward.id, at: r.end });

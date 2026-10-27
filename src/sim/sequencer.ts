@@ -49,6 +49,11 @@ export class Seq {
     return t;
   }
 
+  /** Cancel every running script except those named `keep` (a room change ends the room's scripts). */
+  cancelAll(keep?: string): void {
+    for (const t of this.tasks) if (t.name !== keep) t.cancel();
+  }
+
   /** Scripts still running. */
   get busy(): boolean {
     return this.tasks.some((t) => !t.done);

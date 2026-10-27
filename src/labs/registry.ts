@@ -14,6 +14,8 @@ export interface Lab {
   step?(world: World): void;
   /** Extra live readout for the lab bar. */
   info?(world: World): string;
+  /** The stage palette the lab shows by default (M9: stage 2 labs are cool, with blood). */
+  palette?: import('../data/palettes').PaletteId;
   /** Tool labs with their own Phaser scene instead of a world (pose editor). */
   scene?: string;
 }

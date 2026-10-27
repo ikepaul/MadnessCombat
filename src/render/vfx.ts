@@ -47,6 +47,11 @@ export class Vfx {
 
   /** `blood()` = the current stage shows blood (off for stage 1). */
   constructor(private world: World, private blood: () => boolean) {
+    // M9: a new room starts without the last one's smoke and sparks
+    world.events.on('roomChanged', () => {
+      this.puffs = []; this.drops = []; this.smears = []; this.stars = []; this.blasts = []; this.booms = [];
+      this.smoke = []; this.chunks = []; this.marks = []; this.bolts = []; this.sparks = []; this.ripples = [];
+    });
     world.events.on('alert', (e) => { this.marks = this.marks.filter((m) => m.actorId !== e.actorId); this.marks.push({ actorId: e.actorId, left: MARK_TICKS }); });
     world.events.on('land', (e) => this.dust(e.x, e.y, e.z, 6 + Math.min(6, e.fallSpeed)));
     world.events.on('dive', (e) => this.dust(e.x, e.y, e.z, 8));
@@ -137,6 +142,24 @@ export class Vfx {
     world.events.on('bossArrive', (e) => { if (e.phase === 'land') this.dust(e.x, 0, e.z, 10); });
     // the hover dash kicks up the ground under him; each slam throws up dust and an impact star
     world.events.on('bossDash', (e) => { if (e.phase === 'go') this.dust(e.x, 0, e.z, 8); });
+    // M9: the fling rolls the same ripple at the player; the mass raise flashes over every body;
+    // dropping in through a vent or a blasted hole brings dust and bits of ceiling with it
+    world.events.on('bossFling', (e) => {
+      const a = world.actorById(e.actorId);
+      if (!a) return;
+      const [x, y] = project(a.pos.x + e.dir * 0.4, a.pos.y + 0.7, a.pos.z);
+      this.ripples.push({ x, y, s: scaleAt(a.pos.z), dir: e.dir, t: 0 });
+    });
+    world.events.on('zombieRise', (e) => { if (e.phase === 'start') this.dust(e.x, 0, e.z, 5); });
+    world.events.on('roomEnter', () => {
+      for (const p of world.players) {
+        if (p.pos.y < 1) continue;
+        const [x, y] = project(p.pos.x, world.room.height - 0.05, p.pos.z), s = scaleAt(p.pos.z);
+        for (let i = 0; i < 16; i++) {
+          this.smoke.push({ x: x + (Math.random() - 0.5) * 0.6 * s, y, vx: (Math.random() - 0.5) * 0.4 * s, vy: (0.3 + Math.random() * 0.6) * s, r: (0.05 + Math.random() * 0.06) * s, grow: 0.15 * s, life: 0, max: 0.8 + Math.random() * 0.6, shade: 150 + Math.floor(Math.random() * 40) });
+        }
+      }
+    });
     // the sweep: a distortion ripple rolling out of his palm; the cannon landing: a dust burst
     world.events.on('bossSweep', (e) => {
       if (e.phase !== 'push') return;

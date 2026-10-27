@@ -135,6 +135,21 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
       play('moan', at(a.pos.x, a.pos.y + 0.8, a.pos.z));
     }
   });
+  // M9: room transitions, the boss's stage 2 cameo
+  world.events.on('roomTransition', (e) => { if (e.phase === 'out') play('wipe', {}); });
+  world.events.on('exitTaken', (e) => {
+    const p = world.player;
+    if (!p) return;
+    if (e.kind === 'ladder' || e.kind === 'climb') { play('rungs', at(p.pos.x, 0.5, p.pos.z)); play('rungs', at(p.pos.x, 1, p.pos.z, { delay: 0.25 })); }
+    else if (e.kind === 'vent') play('hitMetal', at(p.pos.x, 2, p.pos.z));
+  });
+  world.events.on('roomEnter', () => {
+    const p = world.player;
+    if (p && p.pos.y > 1) play('cloth', at(p.pos.x, p.pos.y, p.pos.z));
+  });
+  world.events.on('bossFling', (e) => { play('telekinesis', at(e.x, e.y + 0.7, e.z)); play('whooshHeavy', at(e.x, e.y + 0.7, e.z, { rate: 0.7 })); });
+  world.events.on('massRaise', (e) => { play('crackle', at(e.x, e.y + 1.2, e.z)); play('thunder', at(e.x, e.y + 1.5, e.z, { gain: 0.7 })); play('moan', at(e.x, 0.8, e.z, { delay: 0.6 })); });
+  world.events.on('targetFled', (e) => play('door', at(e.x, 1, e.z)));
   // M8: the stage-1 boss
   world.events.on('bossArrive', (e) => { if (e.phase === 'descend') play('rumble', at(e.x, 1, e.z)); });
   world.events.on('bossCast', (e) => play('crackle', at(e.x, e.y + 1.2, e.z)));

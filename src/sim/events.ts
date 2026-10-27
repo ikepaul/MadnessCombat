@@ -107,6 +107,14 @@ export interface GameEvents {
   zombieRise: At & { phase: 'start' | 'up' };
   /** A zombie lost its head and keeps coming. */
   zombieHeadless: At;
+  // M9: room graph
+  /** A player took an exit (walked in, pressed E, or a blast on a breach tile). */
+  exitTaken: { exit: string; kind: string; byId: number };
+  exitOpen: { exit: string; kind: string };
+  /** Entered a room (a checkpoint). */
+  roomEnter: { stage: number; room: string; entry: string };
+  /** The ink wipe: `out` covers the screen, `in` uncovers the next room. */
+  roomTransition: { phase: 'out' | 'in'; kind: string };
   /** enemy-squad-leader: the leader died, his squad charges (one per member). */
   squadCharge: At;
 
@@ -120,7 +128,12 @@ export interface GameEvents {
 
   // M8: the stage-1 boss (src/sim/boss.ts)
   /** He starts floating down from above the frame, or has settled at his hover height. */
-  bossArrive: At & { phase: 'descend' | 'land' };
+  bossArrive: At & { phase: 'descend' | 'land' | 'leave' };
+  /** M9 (boss-halo clip 5): the telekinetic fling across the room; the mass raise (`count` corpses). */
+  bossFling: At & { targetId: number; dir: 1 | -1 };
+  massRaise: At & { count: number };
+  /** The target ran out of the room (boss-target). */
+  targetFled: At;
   /** Lightning telegraph: his hand goes up toward a corpse (the bolt follows after TUNING.boss.castTime). */
   bossCast: At & { targetId: number };
   /** A lightning bolt from his hand to its target (raise: a corpse). */
@@ -147,6 +160,8 @@ export type HitKind =
   | 'takedown'
   // M8: the boss's lightning strike
   | 'lightning'
+  // M9: the boss's telekinetic fling (boss-halo clip 5)
+  | 'fling'
   // M8: a cannonball, or the cannon landing on you
   | 'cannon';
 

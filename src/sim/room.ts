@@ -43,7 +43,17 @@ export interface CannonPropDef {
   top: number;
 }
 
-export type PropDef = TableDef | PoleDef | CannonPropDef;
+/** M9: a waist-high crate on a rooftop (combat-cover: slip behind it, lean out). Solid, can be stood on. */
+export interface CrateDef {
+  kind: 'crate';
+  x0: number; x1: number; z0: number; z1: number;
+  top: number;
+}
+
+export type PropDef = TableDef | PoleDef | CannonPropDef | CrateDef;
+
+/** A floor area (H). */
+export interface Zone { x0: number; x1: number; z0: number; z1: number }
 
 export interface LampDef {
   x: number;
@@ -68,6 +78,17 @@ export interface RoomDef {
   zBack: number;
   /** Open air: sky and ground, no walls or ceiling, bodies don't slam into the bounds. */
   outdoor?: boolean;
+  /** M9 outdoor scenery: open ground (stage 1), a street under a building's wall, a flat roof. */
+  scene?: 'ground' | 'street' | 'roof';
+  /** Night sky (stage 2's opening). */
+  night?: boolean;
+  /** Ladders up the back wall (a ladder exit's picture). */
+  ladders?: { x: number; z: number; top: number }[];
+  /** world-breach: the marked roof tile; holes = blasted holes in the ceiling (persistent). */
+  breach?: Zone;
+  holes?: Zone[];
+  /** Street flavour: a manhole cover at (x, z). */
+  manhole?: { x: number; z: number };
   doors: DoorDef[];
   props: PropDef[];
   lamps: LampDef[];
