@@ -265,11 +265,16 @@ export class InkHud {
       // what leaves the hand, dimmed and struck through
       g.lineStyle(4, INK_HEX, 1).lineBetween(x, y, x + 22, y).lineBetween(x + 14, y - 8, x + 22, y).lineBetween(x + 14, y + 8, x + 22, y);
       x += 30;
-      old.setTexture(iconKey(this.scene, plan.replaces[0].item)).setPosition(x, y).setScale(0.45).setAlpha(0.5).setVisible(true);
-      g.lineStyle(3, INK_HEX, 0.9).lineBetween(x, y + 12, x + ICON_W * 0.45 * 0.8, y - 12);
+      const out = plan.replaces[0].item;
+      old.setTexture(iconKey(this.scene, out)).setPosition(x, y).setScale(0.45).setAlpha(0.75).setVisible(true);
+      // the strike line spans the drawn weapon (iconKey draws it from x 15 at k px per H)
+      const len = isWeapon(out) ? WEAPONS[out].length : isMelee(out) ? MELEE[out].length : 0.2;
+      const w = (15 + len * Math.min(260, (ICON_W - 30) / len)) * 0.45;
+      g.lineStyle(4, INK_HEX, 1).lineBetween(x + 2, y + 10, x + w, y - 10);
     }
     if (!chooser) return;
-    // hold E: LMB / RMB rows with what each hand holds now; the smart pick is brighter
+    // hold E: LMB / RMB rows with what each hand holds now, on an ink plate; the smart pick is brighter
+    g.fillStyle(INK_HEX, 0.82).fillRoundedRect(x0 - 10, y + 26, 160, 104, 10);
     [row0, row1].forEach((im, i) => {
       const h = me.hands[i];
       if (!h) return;
