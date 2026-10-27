@@ -133,7 +133,10 @@ function* elevator(s: Seq, _entry: string): Beat {
   s.cameraShake(20, 0.5);
   ambush.cancel();
   yield 0.4;
-  takeExit(world, 'cable');
+  if (!world.coop) { takeExit(world, 'cable'); return; }
+  // co-op: each climbs the cable himself, the first waits up there for the other
+  openExit(world, 'cable');
+  caption(s, 'Up the cable: E at it. Both of you.', 4);
 }
 
 /** The door ambush (world-elevator-fight step 5): gunmen stepping into the cab. */

@@ -121,6 +121,11 @@ export interface GameEvents {
   /** A player took an exit (walked in, pressed E, or a blast on a breach tile). */
   exitTaken: { exit: string; kind: string; byId: number };
   exitOpen: { exit: string; kind: string };
+  /**
+   * Co-op exits (playtest 2026-10-27): `ahead` = a player went on and waits for his partner; at a
+   * ceiling vent `brace` = cupped his hands, `boost` = the partner was sent up, `pull` = pulled up after.
+   */
+  coopExit: At & { exit: string; kind: string; phase: 'ahead' | 'brace' | 'unbrace' | 'boost' | 'pull' };
   /** Entered a room (a checkpoint). */
   roomEnter: { stage: number; room: string; entry: string };
   /** The ink wipe: `out` covers the screen, `in` uncovers the next room. */

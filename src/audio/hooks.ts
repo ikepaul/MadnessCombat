@@ -227,6 +227,16 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
     if (e.kind === 'ladder' || e.kind === 'climb') { play('rungs', at(p.pos.x, 0.5, p.pos.z)); play('rungs', at(p.pos.x, 1, p.pos.z, { delay: 0.25 })); }
     else if (e.kind === 'vent') play('hitMetal', at(p.pos.x, 2, p.pos.z));
   });
+  // co-op exits: going on ahead, the boost under a ceiling vent
+  world.events.on('coopExit', (e) => {
+    if (e.phase === 'ahead') {
+      if (e.kind === 'ladder' || e.kind === 'climb') { play('rungs', at(e.x, 0.5, e.z)); play('rungs', at(e.x, 1, e.z, { delay: 0.25 })); }
+      else if (e.kind === 'vent') play('hitMetal', at(e.x, 0.3, e.z));
+      else play('cloth', at(e.x, 1, e.z));
+    } else if (e.phase === 'brace' || e.phase === 'unbrace') play('cloth', at(e.x, 0.8, e.z));
+    else if (e.phase === 'boost') { play('grab', at(e.x, 0.6, e.z)); play('whooshLight', at(e.x, 1.5, e.z)); play('hitMetal', at(e.x, 2.6, e.z, { delay: 0.25 })); }
+    else { play('catchSlap', at(e.x, 2.4, e.z)); play('voxEffort', at(e.x, 1.6, e.z, { delay: 0.3 })); }
+  });
   world.events.on('roomEnter', () => {
     const p = world.player;
     if (p && p.pos.y > 1) play('cloth', at(p.pos.x, p.pos.y, p.pos.z));

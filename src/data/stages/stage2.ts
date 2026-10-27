@@ -161,8 +161,8 @@ export const STAGE2: StageDef = {
     elevator: {
       room: ELEVATOR,
       entries: { door: { x: 1.2, z: 8.85, facing: -1, from: 'walk' } },
-      // taken by the script once the cab has fallen: up the cable
-      exits: [{ id: 'cable', kind: 'climb', x0: 99, x1: 99, z0: 99, z1: 99, to: 'swords', entry: 'shaft', locked: true }],
+      // once the cab has fallen: up the cable (solo the script takes it; co-op it opens, E at the cable)
+      exits: [{ id: 'cable', kind: 'climb', x0: -0.25, x1: 0.75, z0: 8.8, z1: 9.5, to: 'swords', entry: 'shaft', locked: true }],
       tracker: [0.2, -0.9],
       script: stage2Scripts.elevator,
     },

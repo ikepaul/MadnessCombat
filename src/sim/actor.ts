@@ -303,7 +303,9 @@ export interface Actor {
   /** M9: can't be hurt (the target before his final room, the boss's cameo); rays pass through. */
   invulnerable?: boolean;
   /** M9 room transitions: climbing out, vaulting in, walking out (moved by the stage runner, not stepped). */
-  traversing?: { kind: 'vault' | 'climb' | 'crawl' | 'crawlIn' | 'leap' | 'out' | 'drop' | 'hatch' | 'shoved'; t: number };
+  traversing?: { kind: 'vault' | 'climb' | 'crawl' | 'crawlIn' | 'leap' | 'out' | 'drop' | 'hatch' | 'shoved' | 'brace' | 'pulled' | 'ride'; t: number };
+  /** Co-op exits (playtest 2026-10-27): gone ahead through this exit, waiting for the partner (out of the fight). */
+  parked?: string;
   /** M11 move-fall-transition: falling in from the sky (lands face down). */
   skyFall?: boolean;
   /** M7 grunt variants: squad leader (shades, gun), elite bodyguard (2 hits, headshot 1), the VIP they guard. */

@@ -357,7 +357,7 @@ export function applyHit(
   bullet?: { damage: number; pointBlank: boolean },
 ): void {
   if (o.state === 'getUp' || o.state === 'downed') return; // i-frames (invented); downed heroes are out of the fight
-  if (o.invulnerable) return; // M9: the target before his last room, the boss's cameo
+  if (o.invulnerable || o.parked) return; // M9: the target before his last room, the boss's cameo; co-op: gone ahead
   // M8: the living boss has his own damage rule (src/sim/boss.ts)
   if (o.kind === 'boss' && o.state !== 'dead') { bossHit(world, by, o, kind, part, dirX, dirZ, at); return; }
   // held up by the boss for the body slams: nobody else gets a hit in (not a human shield)

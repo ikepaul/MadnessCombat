@@ -11,6 +11,7 @@ import type { PaletteId } from '../data/palettes';
 import { type Actor, alive } from './actor';
 import { enter, setClip } from './combat';
 import type { PlayerCommand } from './command';
+import type { GameEvents } from './events';
 import type { Beat, Seq } from './sequencer';
 import type { RoomDef } from './room';
 import type { World } from './world';
@@ -94,6 +95,7 @@ export function checkExits(world: World): void {
   if (world.exitTaken || world.transition) return;
   for (const x of world.exits) {
     if (!x.open || HOW[x.def.kind] === 'blast') continue;
+    if (world.coop) { if (coopExit(world, x.def)) return; continue; }
     for (const p of world.activePlayers) {
       if (!inZone(x.def, p.pos.x, p.pos.z) || p.state !== 'free' || p.holding) continue;
       const cmd: PlayerCommand | undefined = world.commands[p.playerIndex!];
@@ -105,10 +107,113 @@ export function checkExits(world: World): void {
   }
 }
 
+/** A vent up in the ceiling (not a grille low in the back wall). */
+function ceilingVent(world: World, e: ExitDef): boolean {
+  const zx = (e.x0 + e.x1) / 2;
+  return e.kind === 'vent' && !world.room.wallVents?.some((v) => zx >= v.x0 && zx <= v.x1);
+}
+
+/** Co-op: this exit takes a boost (a ceiling vent, and both players still standing). */
+export function needsBoost(world: World, e: ExitDef): boolean {
+  return world.coop && ceilingVent(world, e) && world.activePlayers.length > 1;
+}
+
+/** Co-op: the partner braced under a ceiling vent, if `p` is close enough to be boosted off him. */
+export function boostBase(world: World, p: Actor): Actor | undefined {
+  const base = world.activePlayers.find((q) => q !== p && q.traversing?.kind === 'brace');
+  return base && Math.hypot(base.pos.x - p.pos.x, base.pos.z - p.pos.z) <= T.boostReach ? base : undefined;
+}
+
+/**
+ * Co-op exits (playtest 2026-10-27): one player no longer drags the other out of the room.
+ * Walk-in exits wait until everyone still standing is in them. E at a ladder, the cable, a lift
+ * or a wall vent sends that player ahead (parked: out of the fight, then out of sight) until the
+ * other follows. A ceiling vent takes a boost: one cups his hands under it (E), the other steps
+ * in (E) and goes up, then pulls him up after. A downed partner comes along (revived next room).
+ */
+function coopExit(world: World, e: ExitDef): boolean {
+  const standing = world.activePlayers;
+  if (HOW[e.kind] === 'walk') {
+    if (!standing.length || !standing.every((p) => p.state === 'free' && !p.holding && !p.traversing && inZone(e, p.pos.x, p.pos.z))) return false;
+    take(world, e, standing[0]);
+    return true;
+  }
+  const boost = needsBoost(world, e);
+  for (const p of standing) {
+    const cmd: PlayerCommand | undefined = world.commands[p.playerIndex!];
+    if (!cmd?.pickup || p.state !== 'free' || p.holding) continue;
+    const braced = p.traversing?.kind === 'brace';
+    const base = boost && !braced ? boostBase(world, p) : undefined;
+    if (!braced && (p.traversing || (!base && !inZone(e, p.pos.x, p.pos.z)))) continue;
+    world.commands[p.playerIndex!] = { ...cmd, pickup: false };
+    if (!boost) { goAhead(world, e, p); continue; }
+    if (braced) {
+      // changed his mind: back up
+      p.traversing = undefined;
+      p.pose.root = { ...STANDING };
+      emitCoop(world, p, e, 'unbrace');
+    } else if (!base) {
+      p.traversing = { kind: 'brace', t: 0 };
+      p.pos.x = (e.x0 + e.x1) / 2;
+      p.pos.z = (e.z0 + e.z1) / 2;
+      setClip(p, 'idle');
+      emitCoop(world, p, e, 'brace');
+    } else {
+      // up off his hands, then he's pulled up after
+      startTraversal(world, e, p, true);
+      p.pos.x = base.pos.x + base.facing * 0.2;
+      emitCoop(world, p, e, 'boost');
+      base.parked = e.id;
+      base.traversing = { kind: 'pulled', t: 0 };
+    }
+  }
+  // everyone still standing has gone on: the room is left (the last one's climb plays under the wipe)
+  if (world.activePlayers.length || !world.players.some((p) => p.parked === e.id)) return false;
+  take(world, e, world.players.find((p) => p.parked === e.id));
+  return true;
+}
+
+function goAhead(world: World, e: ExitDef, p: Actor): void {
+  startTraversal(world, e, p, true);
+  emitCoop(world, p, e, 'ahead');
+}
+
+function emitCoop(world: World, p: Actor, e: ExitDef, phase: GameEvents['coopExit']['phase']): void {
+  world.events.emit('coopExit', { actorId: p.id, x: p.pos.x, y: p.pos.y, z: p.pos.z, exit: e.id, kind: e.kind, phase });
+}
+
+/** Co-op: gone ahead and out of sight (up the ladder or the vent, into the duct): not drawn. */
+export function outOfSight(world: World, a: Actor): boolean {
+  const tr = a.traversing;
+  if (!a.parked || !tr) return false;
+  if (tr.kind === 'crawlIn') return tr.t > T.crawlHide;
+  // up through the ceiling vent; a climb goes on up out of the top of the frame
+  if (tr.kind === 'leap' || tr.kind === 'pulled') return a.pos.y > world.room.height;
+  return tr.kind === 'climb' && a.pos.y > world.room.height + 1.5;
+}
+
 /** The open exit `p` could take with E right now (the HUD shows the key over him). */
 export function usableExitAt(world: World, p: Actor): ExitDef | undefined {
   if (p.state !== 'free' || p.holding || p.traversing || world.exitTaken || world.transition) return undefined;
-  return world.exits.find((x) => x.open && HOW[x.def.kind] === 'use' && inZone(x.def, p.pos.x, p.pos.z))?.def;
+  return world.exits.find((x) => x.open && HOW[x.def.kind] === 'use' && (inZone(x.def, p.pos.x, p.pos.z) || (needsBoost(world, x.def) && !!boostBase(world, p))))?.def;
+}
+
+/** Co-op: the exit `p`'s partner went ahead through (the HUD points `p` to it). */
+export function partnerAhead(world: World, p: Actor): ExitDef | undefined {
+  const q = world.players.find((o) => o !== p && o.parked);
+  return q && !world.exitTaken ? world.exits.find((x) => x.def.id === q.parked)?.def : undefined;
+}
+
+/** Co-op: `p` stands in an open walk-in exit, waiting for his partner to come too. */
+export function waitingInExit(world: World, p: Actor): boolean {
+  if (!world.coop || world.exitTaken || world.transition || p.state !== 'free') return false;
+  return world.exits.some((x) => x.open && HOW[x.def.kind] === 'walk' && inZone(x.def, p.pos.x, p.pos.z));
+}
+
+/** The middle of an exit's floor zone, clamped to the room (where the HUD points). */
+export function exitSpot(world: World, e: ExitDef): { x: number; z: number } {
+  const h = world.room.halfWidth - 0.3;
+  return { x: Math.max(-h, Math.min(h, (e.x0 + e.x1) / 2)), z: Math.max(world.room.zFront, Math.min(world.room.zBack, (e.z0 + e.z1) / 2)) };
 }
 
 /** world-breach: an explosion on an open breach tile blows the hole and takes the exit. */
@@ -180,6 +285,8 @@ function placeAtEntry(p: Actor, e: EntryDef, i: number): void {
   p.flight = undefined;
   p.holding = undefined;
   p.traversing = undefined;
+  p.parked = undefined;
+  p.pose.tuck = 0;
   enter(p, 'free');
   p.pose.root = { ...STANDING };
   setClip(p, 'idle');
@@ -245,16 +352,34 @@ export function stepTraversal(world: World, a: Actor, dt: number): void {
       a.pose.groundY = 0;
       break;
     }
-    case 'leap': {
-      // a vent in the ceiling (playtest: no more climbing a bare wall): a jump up to grab the
-      // edge with both hands, then pulled up through it
-      const top = world.room.height - 1.05;
-      const u = Math.min(1, tr.t / 0.28);
-      a.pos.y = u < 1 ? top * (1 - (1 - u) * (1 - u)) : top + (tr.t - 0.28) * 1.6;
-      a.pose.tuck = u < 1 ? 0.5 * (1 - u) : 0;
-      a.pose.groundY = 0;
+    case 'leap':
+      leap(world, a, tr.t);
+      break;
+    case 'brace': {
+      // co-op: crouched under the ceiling vent, hands cupped low for the partner's foot; a hit
+      // knocks him out of it
+      if (a.state !== 'free') { a.traversing = undefined; a.pose.root = { ...STANDING }; break; }
+      const k = Math.min(1, tr.t / 0.15);
+      a.pose.root = aboutFeet(0.45 * k, 1 - 0.18 * k);
+      a.pose.tuck = 0.7 * k;
       break;
     }
+    case 'pulled': {
+      // co-op: straightens up under the vent, reaches up for the partner's hand, goes up after him
+      if (tr.t < T.pullDelay) {
+        const k = Math.min(1, tr.t / 0.25);
+        a.pose.root = aboutFeet(0.45 * (1 - k), 0.82 + 0.18 * k);
+        a.pose.tuck = 0.7 * (1 - k);
+        if (k >= 1 && a.pose.clip !== 'handsUp') { setClip(a, 'handsUp'); emitCoop(world, a, world.exits.find((x) => x.def.id === a.parked)!.def, 'pull'); }
+      } else {
+        a.pose.root = { ...STANDING };
+        leap(world, a, tr.t - T.pullDelay, 1.0);
+      }
+      break;
+    }
+    case 'ride':
+      // co-op: standing in the lift cab, waiting for the partner
+      break;
     case 'out':
       a.pos.x += a.facing * TUNING.move.walkSpeed * dt;
       a.pose.walkPhase = (a.pose.walkPhase ?? 0) + dt * 9;
@@ -276,26 +401,47 @@ export function stepTraversal(world: World, a: Actor, dt: number): void {
   }
 }
 
+/**
+ * `p` starts leaving through `e` (climb, crawl in, leap up, walk out, drop). `parked` (co-op):
+ * he goes ahead alone and waits for his partner; a lift ride then just stands in the cab.
+ */
+function startTraversal(world: World, e: ExitDef, p: Actor, parked = false): NonNullable<Actor['traversing']>['kind'] {
+  const zx = (e.x0 + e.x1) / 2, zz = (e.z0 + e.z1) / 2;
+  // a vent with a grille in the back wall is crawled into; any other vent is in the ceiling
+  const wallVent = !ceilingVent(world, e) && e.kind === 'vent';
+  let kind: NonNullable<Actor['traversing']>['kind'] = e.kind === 'ladder' || e.kind === 'climb' ? 'climb' : e.kind === 'vent' ? (wallVent ? 'crawlIn' : 'leap') : e.kind === 'breach' || e.kind === 'fall' || e.kind === 'blasted' ? 'drop' : 'out';
+  if (parked && kind === 'out') kind = 'ride';
+  if (kind !== 'out' && kind !== 'ride') { p.pos.x = zx; p.pos.z = zz; }
+  // lying down, the body reaches ~1 H ahead of the feet: centre it on the vent's opening
+  if (kind === 'crawlIn') p.pos.x = zx - p.facing * 0.45;
+  else p.facing = (zx >= p.pos.x || e.x1 >= world.room.halfWidth ? 1 : -1) as 1 | -1;
+  if (e.x1 >= world.room.halfWidth + 0.5) p.facing = 1;
+  if (e.x0 <= -world.room.halfWidth - 0.5) p.facing = -1;
+  p.traversing = { kind, t: 0 };
+  if (parked) p.parked = e.id;
+  setClip(p, kind === 'climb' ? 'climb' : kind === 'leap' ? 'handsUp' : 'idle');
+  return kind;
+}
+
+/**
+ * Up into a ceiling vent (playtest: no more climbing a bare wall): a jump up to grab the edge
+ * with both hands, then pulled up through it. `climb` H/s once at the edge (slower when pulled).
+ */
+function leap(world: World, a: Actor, t: number, climb = 1.6): void {
+  const top = world.room.height - 1.05;
+  const u = Math.min(1, t / 0.28);
+  a.pos.y = u < 1 ? top * (1 - (1 - u) * (1 - u)) : top + (t - 0.28) * climb;
+  a.pose.tuck = u < 1 ? 0.5 * (1 - u) : 0;
+  a.pose.groundY = 0;
+}
+
 /** The players leave through `e`: the traversal, then the wipe covers the screen. */
 function* traverse(s: Seq, e: ExitDef): Beat {
   const world = s.world;
   s.lockInput(true);
-  const zx = (e.x0 + e.x1) / 2, zz = (e.z0 + e.z1) / 2;
-  // a vent with a grille in the back wall is crawled into; any other vent is in the ceiling
-  const wallVent = world.room.wallVents?.some((v) => zx >= v.x0 && zx <= v.x1);
-  const kind: NonNullable<Actor['traversing']>['kind'] = e.kind === 'ladder' || e.kind === 'climb' ? 'climb' : e.kind === 'vent' ? (wallVent ? 'crawlIn' : 'leap') : e.kind === 'breach' || e.kind === 'fall' || e.kind === 'blasted' ? 'drop' : 'out';
-  for (const p of world.activePlayers) {
-    if (p.state !== 'free') continue;
-    if (kind !== 'out') { p.pos.x = zx; p.pos.z = zz; }
-    // lying down, the body reaches ~1 H ahead of the feet: centre it on the vent's opening
-    if (kind === 'crawlIn') p.pos.x = zx - p.facing * 0.45;
-    else p.facing = (zx >= p.pos.x || e.x1 >= world.room.halfWidth ? 1 : -1) as 1 | -1;
-    if (e.x1 >= world.room.halfWidth + 0.5) p.facing = 1;
-    if (e.x0 <= -world.room.halfWidth - 0.5) p.facing = -1;
-    p.traversing = { kind, t: 0 };
-    setClip(p, kind === 'climb' ? 'climb' : kind === 'leap' ? 'handsUp' : 'idle');
-  }
-  if (kind !== 'drop') yield T.traverse;
+  // co-op: whoever went ahead is already on his way
+  for (const p of world.activePlayers) if (p.state === 'free') startTraversal(world, e, p);
+  if (e.kind !== 'breach' && e.kind !== 'fall' && e.kind !== 'blasted') yield T.traverse;
   world.events.emit('roomTransition', { phase: 'out', kind: e.kind });
   world.transition = true;
   yield T.wipe;
