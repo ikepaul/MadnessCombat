@@ -135,6 +135,31 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
       play('moan', at(a.pos.x, a.pos.y + 0.8, a.pos.z));
     }
   });
+  // M10: the elevator (motor while it climbs), the welder's cutter, the cables, the ending
+  let motor: number | undefined, cutter: number | undefined;
+  const stopLoop = (v: number | undefined) => { if (v !== undefined) engine.stop(v, 0.25); return undefined; };
+  world.events.on('elevator', (e) => {
+    if (e.phase === 'start') motor = engine.play('motor', { gain: 1 });
+    else motor = stopLoop(motor);
+    if (e.phase === 'stop') play('ding', {});
+    if (e.phase === 'fall') play('fallWhistle', { gain: 1.2, rate: 0.8 });
+    if (e.phase === 'crash') { play('explosion', { gain: 0.8, rate: 0.7 }); play('heavyLand', {}); engine.duck(0.6); }
+  });
+  world.events.on('weld', (e) => {
+    if (e.phase === 'start') cutter = engine.play('cutter', at(e.x, e.y + 0.2, e.z));
+    else cutter = stopLoop(cutter);
+  });
+  world.events.on('roomChanged', () => { motor = stopLoop(motor); cutter = stopLoop(cutter); });
+  world.events.on('roofLanding', (e) => { play('thump', at(e.x - 0.6, e.y, e.z)); play('thump', at(e.x + 0.6, e.y, e.z, { delay: 0.25 })); });
+  world.events.on('slotCut', (e) => play('clang', at(e.x, e.y, e.z, { gain: 0.6 })));
+  world.events.on('cableHit', (e) => play(e.broke ? 'cableSnap' : 'hitMetal', at(e.x, e.y, e.z)));
+  world.events.on('hatch', (e) => { play('rungs', at(e.x, 1.2, e.z)); play('cloth', at(e.x, 1.5, e.z)); });
+  world.events.on('speech', (e) => play('tick', at(e.x, e.y + 1.4, e.z, { rate: e.icon === 'photo' ? 0.8 : 1.3 })));
+  world.events.on('knockout', (e) => play('impactHeavy', at(e.x, e.y + 0.8, e.z)));
+  world.events.on('holdUp', (e) => play('voxHurt', at(e.x, e.y + 0.8, e.z, { rate: 1.2 })));
+  world.events.on('surrender', (e) => { play('voxHurt', at(e.x, e.y + 0.8, e.z, { rate: 1.25 })); play('hitMetal', at(e.x, 0.4, e.z, { delay: 0.3 })); });
+  world.events.on('dazed', (e) => play('tick', at(e.x, e.y + 0.6, e.z, { rate: 1.6 })));
+  world.events.on('bossShot', (e) => { play('shotDeagle', at(e.x, e.y + 0.8, e.z)); play('stinger', { delay: 0.05 }); engine.duck(1.5); });
   // M9: room transitions, the boss's stage 2 cameo
   world.events.on('roomTransition', (e) => { if (e.phase === 'out') play('wipe', {}); });
   world.events.on('exitTaken', (e) => {

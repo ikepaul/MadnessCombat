@@ -216,3 +216,114 @@ export function paintCrate(ctx: Ctx, c: CrateDef, pal: Palette): void {
   ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.3)';
   line(ctx, P(c.x0 + 0.05, 0.05, c.z0), P(c.x1 - 0.05, c.top - 0.05, c.z0));
 }
+
+/**
+ * M10 world-elevator-fight: the cab in its shaft (our own design). The shaft's concrete, guide
+ * rails and passing landings scroll with `offset` (H) while the cab moves; the cab is an open box
+ * (back panel, side walls, floor), its ceiling with the hatch and any cut slot, the slab's front
+ * edge, and the cables rising from the roof. `cut` 0..1 = the welder's glowing cut line.
+ */
+export function paintElevator(ctx: Ctx, room: RoomDef, pal: Palette, st?: { offset: number; cut?: number; phase: string }): void {
+  const hw = room.halfWidth, h = room.height, zf = room.zFront, zb = room.zBack, el = room.elevator!;
+  const off = st?.offset ?? 0, zs = zb + 0.9;
+  ctx.lineJoin = 'round';
+  // the shaft: dark concrete, seams and landings sliding past
+  ctx.fillStyle = '#25282e';
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  const seam = 1.1, landing = 6;
+  ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+  for (let k = -6; k < 12; k++) {
+    const y = k * seam - (off % seam);
+    line(ctx, P(-12, y, zs), P(12, y, zs));
+  }
+  for (let k = -2; k < 3; k++) {
+    // a floor landing going by: a lit band with a closed door
+    const y = k * landing - (off % landing);
+    const [, a] = P(0, y + 0.4, zs), [, b] = P(0, y, zs);
+    ctx.fillStyle = '#3a3e46'; ctx.fillRect(0, a, SCREEN_W, b - a);
+    const [dx0, dy0] = P(-0.6, y + 2.4, zs), [dx1, dy1] = P(0.6, y + 0.4, zs);
+    ctx.fillStyle = '#4b5059'; ctx.fillRect(dx0, dy0, dx1 - dx0, dy1 - dy0);
+    ctx.lineWidth = 2.5; ctx.strokeStyle = INK; ctx.strokeRect(dx0, dy0, dx1 - dx0, dy1 - dy0);
+    line(ctx, [(dx0 + dx1) / 2, dy0], [(dx0 + dx1) / 2, dy1]);
+  }
+  // guide rails on both sides
+  for (const sx of [-1, 1]) {
+    ctx.lineWidth = 10; ctx.strokeStyle = '#4a4e57';
+    line(ctx, P(sx * (hw + 0.35), -4, zs - 0.3), P(sx * (hw + 0.35), 12, zs - 0.3));
+    ctx.lineWidth = 2; ctx.strokeStyle = INK;
+    line(ctx, P(sx * (hw + 0.35), -4, zs - 0.3), P(sx * (hw + 0.35), 12, zs - 0.3));
+  }
+  // the cables, up from the roof (cut ones drawn by the fall: they whip off)
+  if (st?.phase !== 'falling' && st?.phase !== 'crashed') {
+    const c = el.cable;
+    for (const dx of [-0.05, 0.05]) {
+      ctx.lineWidth = 7; ctx.strokeStyle = INK;
+      line(ctx, P(c.x + dx, h + 0.05, c.z), P(c.x + dx * 0.3, h + 8, c.z));
+      ctx.lineWidth = 4; ctx.strokeStyle = '#9aa0a9';
+      line(ctx, P(c.x + dx, h + 0.05, c.z), P(c.x + dx * 0.3, h + 8, c.z));
+    }
+    // the clamp on the roof
+    const [kx, ky] = P(c.x, h + 0.08, c.z);
+    ctx.fillStyle = '#4a4e57'; ctx.fillRect(kx - 16, ky - 10, 32, 14); ctx.lineWidth = 2.5; ctx.strokeStyle = INK; ctx.strokeRect(kx - 16, ky - 10, 32, 14);
+  }
+  // the cab: back panel, walls, floor, ceiling
+  const panel = dim(pal.back, 0.12), wall = dim(pal.sideL, 0.16), floor = dim(pal.floor, 0.2), ceil = dim(pal.ceil, 0.25);
+  const zn = zf - 0.4;
+  poly(ctx, [P(-hw, h, zn), P(hw, h, zn), P(hw, h, zb), P(-hw, h, zb)]); ctx.fillStyle = ceil; ctx.fill();
+  poly(ctx, [P(-hw, h, zn), P(-hw, h, zb), P(-hw, 0, zb), P(-hw, 0, zn)]); ctx.fillStyle = wall; ctx.fill();
+  poly(ctx, [P(hw, h, zn), P(hw, h, zb), P(hw, 0, zb), P(hw, 0, zn)]); ctx.fillStyle = dim(wall, 0.06); ctx.fill();
+  poly(ctx, [P(-hw, 0, zn), P(hw, 0, zn), P(hw, 0, zb), P(-hw, 0, zb)]); ctx.fillStyle = floor; ctx.fill();
+  const [bx0, by0] = P(-hw, h, zb), [bx1, by1] = P(hw, 0, zb);
+  ctx.fillStyle = panel; ctx.fillRect(bx0, by0, bx1 - bx0, by1 - by0);
+  // brushed panel seams and a handrail
+  ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+  for (let x = -hw + 0.6; x < hw; x += 0.6) line(ctx, P(x, 0, zb), P(x, h, zb));
+  ctx.lineWidth = 4; ctx.strokeStyle = '#b9bdc4'; line(ctx, P(-hw, 0.95, zb), P(hw, 0.95, zb));
+  // floor plate pattern
+  ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+  for (let z = zf; z < zb; z += 0.35) line(ctx, P(-hw, 0, z), P(hw, 0, z));
+  // holes in the ceiling: the hatch (a frame) and the welder's slot (ragged)
+  const deck = room.decks?.[0];
+  for (const hole of deck?.holes ?? []) {
+    const isHatch = hole.x0 === el.hatch.x0;
+    const q = [P(hole.x0, h, hole.z0), P(hole.x1, h, hole.z0), P(hole.x1, h, hole.z1), P(hole.x0, h, hole.z1)];
+    poly(ctx, q); ctx.fillStyle = '#121316'; ctx.fill();
+    ctx.lineWidth = isHatch ? 4 : 3; ctx.strokeStyle = isHatch ? '#3d4048' : '#ff9a3c'; ctx.stroke();
+  }
+  if (!deck?.holes.some((x) => x.x0 === el.hatch.x0)) {
+    // the hatch shut (it's always open here, but keep the frame readable)
+    poly(ctx, [P(el.hatch.x0, h, el.hatch.z0), P(el.hatch.x1, h, el.hatch.z0), P(el.hatch.x1, h, el.hatch.z1), P(el.hatch.x0, h, el.hatch.z1)]);
+    ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.stroke();
+  }
+  // the welder's cut, glowing as it goes round the slot
+  if (st?.cut !== undefined) {
+    const sl = el.slot, pts = [P(sl.x0, h, sl.z0), P(sl.x1, h, sl.z0), P(sl.x1, h, sl.z1), P(sl.x0, h, sl.z1), P(sl.x0, h, sl.z0)];
+    const lens = pts.slice(1).map((p2, i) => Math.hypot(p2[0] - pts[i][0], p2[1] - pts[i][1]));
+    let left = st.cut * lens.reduce((a, b) => a + b, 0);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 0; i < lens.length && left > 0; i++) {
+      const k = Math.min(1, left / lens[i]);
+      ctx.lineTo(pts[i][0] + (pts[i + 1][0] - pts[i][0]) * k, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * k);
+      left -= lens[i];
+    }
+    ctx.lineWidth = 10; ctx.strokeStyle = 'rgba(255,140,40,0.35)'; ctx.stroke();
+    ctx.lineWidth = 3; ctx.strokeStyle = '#fff2c8'; ctx.stroke();
+    ctx.restore();
+  }
+  // the roof slab's front edge, and the cab's outline
+  const [ex0, ey0] = P(-hw, h + 0.14, zn), [ex1, ey1] = P(hw, h, zn);
+  ctx.fillStyle = '#3f434a'; ctx.fillRect(ex0, ey0, ex1 - ex0, ey1 - ey0);
+  ctx.lineWidth = 3; ctx.strokeStyle = INK;
+  ctx.strokeRect(ex0, ey0, ex1 - ex0, ey1 - ey0);
+  for (const [x, y] of [[-hw, h], [hw, h], [-hw, 0], [hw, 0]] as const) line(ctx, P(x, y, zn), P(x, y, zb));
+  ctx.strokeRect(bx0, by0, bx1 - bx0, by1 - by0);
+  // a caged lamp in the ceiling
+  const [lx, ly] = P(-0.8, h - 0.02, (zf + zb) / 2);
+  const g = ctx.createRadialGradient(lx, ly, 0, lx, ly, 260);
+  g.addColorStop(0, 'rgba(255,246,225,0.22)'); g.addColorStop(1, 'rgba(255,246,225,0)');
+  ctx.fillStyle = g; ctx.fillRect(lx - 260, ly - 260, 520, 520);
+  ctx.beginPath(); ctx.ellipse(lx, ly + 4, 22, 8, 0, 0, Math.PI * 2); ctx.fillStyle = '#fff6dc'; ctx.fill(); ctx.lineWidth = 2; ctx.stroke();
+}

@@ -37,6 +37,8 @@ export class Vfx {
   private booms: Boom[] = [];
   private smoke: Smoke[] = [];
   private chunks: Chunk[] = [];
+  /** M10: pictogram speech bubbles (world-interrogate-knockout), seconds left. */
+  private bubbles: { actorId: number; icon: string; left: number; max: number }[] = [];
   /** M7: "!" marks over enemies that just noticed something (ticks left). */
   private marks: { actorId: number; left: number }[] = [];
   /** M8: lightning bolts (screen points) and ward ricochet sparks, ticks left. */
@@ -50,7 +52,17 @@ export class Vfx {
     // M9: a new room starts without the last one's smoke and sparks
     world.events.on('roomChanged', () => {
       this.puffs = []; this.drops = []; this.smears = []; this.stars = []; this.blasts = []; this.booms = [];
-      this.smoke = []; this.chunks = []; this.marks = []; this.bolts = []; this.sparks = []; this.ripples = [];
+      this.smoke = []; this.chunks = []; this.marks = []; this.bolts = []; this.sparks = []; this.ripples = []; this.bubbles = [];
+    });
+    // M10: sparks off the cables, dust as the cab hits the bottom
+    world.events.on('cableHit', (e) => {
+      const [x, y] = project(e.x, e.y, e.z);
+      this.stars.push({ x, y, s: scaleAt(e.z), left: STAR_TICKS, big: e.broke });
+    });
+    world.events.on('elevator', (e) => { if (e.phase === 'crash') for (const x of [-1, 0, 1]) this.dust(x, 0, 8.8, 14); });
+    world.events.on('speech', (e) => {
+      this.bubbles = this.bubbles.filter((b) => b.actorId !== e.actorId);
+      this.bubbles.push({ actorId: e.actorId, icon: e.icon, left: e.seconds, max: e.seconds });
     });
     world.events.on('alert', (e) => { this.marks = this.marks.filter((m) => m.actorId !== e.actorId); this.marks.push({ actorId: e.actorId, left: MARK_TICKS }); });
     world.events.on('land', (e) => this.dust(e.x, e.y, e.z, 6 + Math.min(6, e.fallSpeed)));
@@ -200,6 +212,8 @@ export class Vfx {
   }
 
   private step(dt: number): void {
+    for (const b of this.bubbles) b.left -= dt;
+    this.bubbles = this.bubbles.filter((b) => b.left > 0);
     for (const m of this.marks) m.left--;
     this.marks = this.marks.filter((m) => m.left > 0);
     for (const b of this.bolts) b.left--;
@@ -293,6 +307,7 @@ export class Vfx {
     for (const sp of this.sparks) this.drawSparks(ctx, sp);
     for (const r of this.ripples) this.drawRipple(ctx, r);
     for (const m of this.marks) this.drawMark(ctx, m);
+    for (const b of this.bubbles) this.drawBubble(ctx, b);
     for (const b of this.blasts) {
       ctx.save();
       ctx.translate(b.x, b.y);
@@ -428,6 +443,40 @@ export class Vfx {
       // back out of the ward's face, toward whoever fired
       const a = (sp.facing > 0 ? 0 : Math.PI) + (rnd() - 0.5) * 1.8, l = (0.05 + rnd() * 0.12) * sp.s * (1.6 - k * 0.6);
       ctx.beginPath(); ctx.moveTo(sp.x + Math.cos(a) * l * 0.4, sp.y + Math.sin(a) * l * 0.4); ctx.lineTo(sp.x + Math.cos(a) * l, sp.y + Math.sin(a) * l); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /**
+   * A pictogram speech bubble over the head (own design, no words): a photo of the target, a
+   * question mark, a shrug ("?!"). Pops in, sits, fades.
+   */
+  private drawBubble(ctx: Ctx, b: { actorId: number; icon: string; left: number; max: number }): void {
+    const a = this.world.actorById(b.actorId);
+    if (!a) return;
+    const [x, y] = project(a.pos.x + a.facing * 0.25, a.pos.y + 1.45, a.pos.z), s = scaleAt(a.pos.z);
+    const age = b.max - b.left, pop = Math.min(1, age / 0.12);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(s * (0.8 + 0.2 * pop), s * (0.8 + 0.2 * pop));
+    ctx.globalAlpha = Math.min(1, b.left / 0.2);
+    // the bubble with its tail toward the speaker
+    ctx.beginPath(); ctx.roundRect(-0.28, -0.22, 0.56, 0.4, 0.1);
+    ctx.moveTo(-a.facing * 0.04, 0.18); ctx.lineTo(-a.facing * 0.14, 0.32); ctx.lineTo(-a.facing * 0.14 + a.facing * 0.02, 0.18);
+    ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.lineWidth = 0.025; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.fillStyle = INK;
+    if (b.icon === 'photo') {
+      // a little framed photo: the target (glasses, side part)
+      ctx.save(); ctx.rotate(-0.08);
+      ctx.fillStyle = '#e6e7ea'; ctx.fillRect(-0.15, -0.15, 0.3, 0.27); ctx.lineWidth = 0.015; ctx.strokeRect(-0.15, -0.15, 0.3, 0.27);
+      ctx.beginPath(); ctx.arc(0, -0.02, 0.075, 0, Math.PI * 2); ctx.fillStyle = '#c9cbd0'; ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, -0.04, 0.075, Math.PI, 0); ctx.fillStyle = '#5a5c62'; ctx.fill();
+      ctx.lineWidth = 0.012; ctx.strokeRect(-0.045, -0.025, 0.035, 0.025); ctx.strokeRect(0.01, -0.025, 0.035, 0.025);
+      ctx.restore();
+    } else {
+      ctx.font = `0.3px Anton`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(b.icon === 'shrug' ? '?!' : '?', 0, 0);
     }
     ctx.restore();
   }

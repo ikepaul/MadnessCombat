@@ -98,6 +98,12 @@ export const SOUNDS = {
   fallWhistle: def('fallWhistle', 'world', 0.6, { variants: 1, limit: 1, reverb: 0.2 }),
   heavyLand: def('heavyLand', 'impacts', 1, { variants: 2, limit: 1, reverb: 0.5 }),
   telekinesis: def('telekinesis', 'weapons', 0.8, { variants: 2, limit: 1, reverb: 0.3 }),
+  // M10: the elevator, the welder, the ending (generated)
+  motor: def('motorLoop', 'world', 0.45, { variants: 1, limit: 1, reverb: 0.1, loop: true }),
+  cutter: def('cutterLoop', 'weapons', 0.5, { variants: 1, limit: 1, reverb: 0.1, loop: true }),
+  ding: def('ding', 'world', 0.6, { variants: 1, limit: 1, reverb: 0.3 }),
+  cableSnap: def('cableSnap', 'impacts', 1, { variants: 2, limit: 1, reverb: 0.4 }),
+  stinger: def('stinger', 'music', 1, { variants: 1, limit: 1, reverb: 0.4 }),
   // M9: stage 2 (generated)
   ambCity: def('cityLoop', 'world', 0.3, { variants: 1, limit: 1, reverb: 0, loop: true }),
   wipe: def('wipe', 'ui', 0.5, { variants: 1, limit: 1, reverb: 0 }),

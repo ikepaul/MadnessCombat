@@ -127,8 +127,10 @@ function* elevator(s: Seq, _entry: string): Beat {
     caption(s, 'Now the cables. Shoot them from the roof.', 4);
     yield () => st.phase === 'falling';
   }
+  s.cameraShake(8, EL.fallTime);
   yield EL.fallTime;
   crash(world, world.activePlayers[0]);
+  s.cameraShake(20, 0.5);
   ambush.cancel();
   yield 0.4;
   takeExit(world, 'cable');

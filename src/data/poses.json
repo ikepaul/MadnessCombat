@@ -48,7 +48,11 @@
     "smokeDrag": { "body": [-0.01, 0, -0.05], "head": [0.0, -0.8, -0.1], "handF": [0.18, -0.71, 0], "handB": [-0.14, -0.3, 0] },
     "climbA": { "body": [0, 0, 0], "head": [0.02, -0.8, -0.15], "handF": [0.14, -0.98, 0], "handB": [0.06, -0.72, 0], "footF": [0.06, -0.16, 0], "footB": [-0.04, -0.03, 0] },
     "climbB": { "body": [0, 0, 0], "head": [0.02, -0.8, -0.15], "handF": [0.12, -0.72, 0], "handB": [0.08, -0.98, 0], "footF": [0.04, -0.03, 0], "footB": [-0.02, -0.16, 0] },
-    "vault": { "body": [0.06, -0.02, 0.85], "head": [0.4, -0.62, 0.85], "handF": [0.6, -0.42, 0.3], "handB": [0.5, -0.48, 0.3], "footF": [-0.18, -0.26, 0.6], "footB": [-0.28, -0.2, 0.6] }
+    "vault": { "body": [0.06, -0.02, 0.85], "head": [0.4, -0.62, 0.85], "handF": [0.6, -0.42, 0.3], "handB": [0.5, -0.48, 0.3], "footF": [-0.18, -0.26, 0.6], "footB": [-0.28, -0.2, 0.6] },
+    "weldCrouch": { "body": [0.05, 0.12, 0.35], "head": [0.2, -0.68, 0.35], "handF": [0.42, -0.15, 0.6], "handB": [0.3, -0.2, 0.4], "footF": [0.15, -0.03, 0], "footB": [-0.12, -0.03, 0] },
+    "weldCrouch2": { "body": [0.05, 0.12, 0.37], "head": [0.21, -0.68, 0.38], "handF": [0.46, -0.12, 0.7], "handB": [0.31, -0.19, 0.4], "footF": [0.15, -0.03, 0], "footB": [-0.12, -0.03, 0] },
+    "handsUp": { "body": [0, 0, -0.05], "head": [-0.02, -0.79, -0.05], "handF": [0.14, -1.02, 0], "handB": [-0.1, -1.0, 0] },
+    "handsUp2": { "body": [0, 0, -0.04], "head": [-0.02, -0.79, -0.08], "handF": [0.15, -1.0, 0.1], "handB": [-0.11, -0.98, -0.1] }
   },
   "clips": {
     "idle": { "loop": true, "keys": [[0, "idle", "linear"]] },
@@ -82,6 +86,8 @@
     "smoke": { "loop": true, "keys": [[0, "smokeHold", "linear"], [70, "smokeHold", "linear"], [80, "smokeDrag", "inOut"], [100, "smokeDrag", "linear"], [110, "smokeHold", "inOut"], [120, "smokeHold", "linear"]] },
     "wire": { "keys": [[0, "idle", "linear"], [8, "wirePull", "out"], [30, "wirePull2", "inOut"], [45, "wirePull2", "linear"], [53, "idle", "inOut"]] },
     "climb": { "loop": true, "keys": [[0, "climbA", "inOut"], [9, "climbB", "inOut"], [18, "climbA", "inOut"]] },
-    "vault": { "keys": [[0, "vault", "linear"], [20, "vault", "linear"], [27, "idle", "inOut"]] }
+    "vault": { "keys": [[0, "vault", "linear"], [20, "vault", "linear"], [27, "idle", "inOut"]] },
+    "weld": { "loop": true, "keys": [[0, "weldCrouch", "inOut"], [3, "weldCrouch2", "inOut"], [6, "weldCrouch", "inOut"]] },
+    "handsUp": { "loop": true, "keys": [[0, "handsUp", "inOut"], [6, "handsUp2", "inOut"], [12, "handsUp", "inOut"]] }
   }
 }

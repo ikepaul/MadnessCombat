@@ -4,10 +4,12 @@ import { INK, type Palette } from '../../data/palettes';
 import { type DoorDef, type PoleDef, type PropDef, ROOM_DRAW_NEAR_Z, type RoomDef, type TableDef } from '../../sim/room';
 import { project as P, SCREEN_H, SCREEN_W, scaleAt } from '../camera';
 import { type Ctx, line, linear, mulberry32, poly, shade } from './draw';
-import { paintCeilingHole, paintCrate, paintLadder, paintRoof, paintStreet } from './sceneryPainter';
+import { paintCeilingHole, paintCrate, paintElevator, paintLadder, paintRoof, paintStreet } from './sceneryPainter';
 
-export function paintRoom(ctx: Ctx, room: RoomDef, pal: Palette): void {
+export function paintRoom(ctx: Ctx, room: RoomDef, pal: Palette, elevator?: { offset: number; cut?: number; phase: string }): void {
   ctx.clearRect(0, 0, SCREEN_W, SCREEN_H);
+  // M10: the elevator cab in its shaft (re-painted every frame while it moves)
+  if (room.elevator) { paintElevator(ctx, room, pal, elevator); return; }
   if (room.outdoor) {
     // M9: stage 2's night street and rooftops
     if (room.scene === 'street') paintStreet(ctx, room, pal);

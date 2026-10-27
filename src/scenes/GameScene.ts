@@ -358,7 +358,7 @@ export class GameScene extends Phaser.Scene {
 
   private bakeRoom(): void {
     this.roomLayer.clear();
-    paintRoom(this.roomLayer.ctx, this.world.room, PALETTES[this.paletteId]);
+    paintRoom(this.roomLayer.ctx, this.world.room, PALETTES[this.paletteId], this.world.elevator);
     this.roomLayer.upload();
     this.decals.rebake();
     this.bakeCorpses();
@@ -423,6 +423,12 @@ export class GameScene extends Phaser.Scene {
     const pal = PALETTES[this.paletteId];
     const ctx = this.actorLayer.ctx;
     const blood = this.blood;
+    // M10: the elevator shaft scrolls (and the welder's cut glows): the room layer is live there
+    if (this.world.elevator) {
+      this.roomLayer.clear();
+      paintRoom(this.roomLayer.ctx, this.world.room, PALETTES[this.paletteId], this.world.elevator);
+      this.roomLayer.upload();
+    }
     const flashes = SETTINGS.effects !== 'off';
     this.actorLayer.clear();
     // doors sit in the side walls, behind everything in the room

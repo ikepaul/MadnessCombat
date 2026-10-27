@@ -34,6 +34,11 @@
       "ambience": null,
       "combat": "madness-combat-v1"
     },
+    "s2-elevator": { "ambience": "ambRoom", "combat": "madness-combat-v1" },
+    "s2-swords": { "ambience": "ambRoom", "combat": "madness-combat-v1" },
+    "s2-lobby": { "ambience": "ambRoom", "combat": "madness-combat-v1" },
+    "s2-crates": { "ambience": "ambRoom", "combat": "madness-combat-v1" },
+    "s2-final": { "ambience": "ambRoom", "combat": "madness-combat-v1" },
     "test-room": {
       "ambience": null,
       "combat": "madness-combat-v1"
