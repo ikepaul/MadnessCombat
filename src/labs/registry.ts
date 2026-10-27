@@ -18,6 +18,8 @@ export interface Lab {
   palette?: import('../data/palettes').PaletteId;
   /** Tool labs with their own Phaser scene instead of a world (pose editor). */
   scene?: string;
+  /** M18 co-op labs: the partner bot's half of the move, on the N key (src/dev/partnerBot.ts). */
+  partnerTask?: (world: World, bot: import('../sim/actor').Actor, me: import('../sim/actor').Actor) => import('../sim/command').PlayerCommand | undefined;
 }
 
 const labs = new Map<string, Lab>();
