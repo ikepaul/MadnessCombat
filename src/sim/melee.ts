@@ -334,7 +334,7 @@ export function stealTarget(world: World, a: Actor, o: Actor): boolean {
 
 function finishSteal(world: World, a: Actor, targetId: number): void {
   const o = world.actorById(targetId);
-  if (!o || !alive(o) || o.state === 'grabbed' || Math.abs(o.pos.z - a.pos.z) > 0.3 || Math.abs(o.pos.x - a.pos.x) > 1.0) return;
+  if (!o || !alive(o) || o.state === 'grabbed' || Math.abs(o.pos.z - a.pos.z) > 0.5 || Math.abs(o.pos.x - a.pos.x) > 1.2) return;
   const i: 0 | 1 | undefined = o.hands[0] ? 0 : o.hands[1] ? 1 : undefined;
   if (i === undefined) return;
   const h = o.hands[i]!;
