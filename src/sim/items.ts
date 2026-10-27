@@ -11,6 +11,7 @@ import { type Actor, type ActorKind, alive, type HeldItem, newHand, newId, type 
 import { project, scaleAt } from '../render/camera';
 import { clamp } from './collision';
 import { explode } from './explosives';
+import { steerPass } from './coop';
 import { rayVsActor } from './hitscan';
 import type { World } from './world';
 
@@ -103,6 +104,8 @@ export function stepItems(world: World, dt: number): void {
     // throw-catch-return: F with a free hand snatches a weapon flying past the hands (your own too)
     if (snatch(world, it)) continue;
     const before = project(it.pos.x, it.pos.y, it.pos.z);
+    // M18: a pass homes in a little on the partner
+    if (it.passTo !== undefined) steerPass(world, it, dt);
     it.pos.x += it.vel.x * dt;
     it.pos.z += it.vel.z * dt;
     if (it.straight !== undefined && it.straight > 0) {

@@ -7,6 +7,7 @@ import { GRAVITY, TUNING } from '../data/tuning';
 import { DISARM, GRENADE, GUARD, GUN_BLOCK, isMelee, LOW_SLASH, MELEE, SHIELD, TOPPLE } from '../data/melee';
 import { GUNS, isWeapon, WEAPONS } from '../data/weapons';
 import { stepHands, stepUse } from './guns';
+import { tryPass } from './coop';
 import { blastFlight } from './explosives';
 import { tryTakedown } from './stealth';
 import { ceilingBounce, knockbackScale, wallRestitution } from './improbability';
@@ -65,6 +66,8 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
   if (a.state === 'free' && tryTakedown(world, a, cmd)) cmd = { ...cmd, pickup: false };
   // M17: E with both hands full waits for a click (that hand) or the release (the smart pick)
   cmd = stepUse(world, a, cmd);
+  // M18 weapon pass: Q with the cursor on your partner lobs the item to them
+  if (tryPass(world, a, cmd)) cmd = { ...cmd, throwGun: false };
   // a hand holding a gun fires instead of punching (M5): LMB = hand 0, RMB = hand 1
   if (a.state === 'free' || a.state === 'attack') {
     cmd = withoutGunPunches(a, cmd);

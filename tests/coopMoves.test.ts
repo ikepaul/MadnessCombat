@@ -92,3 +92,28 @@ describe('M18 double-team', () => {
     }
   });
 });
+
+describe('M18 weapon pass', () => {
+  it('Q with the cursor on the partner lobs the pistol into their free hand, ammo kept, past an enemy', () => {
+    const { world, p1, p2 } = coop(-2, 1);
+    p1.hands[0] = newHand('pistol', 5, 0);
+    const g = grunt(world, -0.5);
+    const hits = record(world, 'hit');
+    tick(world, 1, { throwGun: true, aim: project(p2.pos.x, 0.5, Z) });
+    expect(p1.hands[0]).toBeNull();
+    tick(world, 60);
+    expect(p2.hands[0]).toMatchObject({ item: 'pistol', ammo: 5 });
+    expect(hits.some((e) => e.actorId === g.id)).toBe(false);
+  });
+
+  it('a partner with both hands full gets it at their feet', () => {
+    const { world, p1, p2 } = coop(-2, 1);
+    p1.hands[0] = newHand('knife');
+    p2.hands = [newHand('pistol'), newHand('pistol')];
+    tick(world, 1, { throwGun: true, aim: project(p2.pos.x, 0.5, Z) });
+    tick(world, 90);
+    const k = world.items.find((i) => i.kind === 'knife')!;
+    expect(k.state).toBe('floor');
+    expect(Math.abs(k.pos.x - p2.pos.x)).toBeLessThan(1);
+  });
+});
