@@ -9,6 +9,7 @@ import { stepHands } from './guns';
 import { blastFlight } from './explosives';
 import { tryTakedown } from './stealth';
 import { stepRising, zombieDamage, zombieLosesHead } from './zombies';
+import { bossHit } from './boss';
 import { ACTION_KINDS, actionTiming, disarm, dropCooking, holdsLong, lobHeldGrenade, startAction, startMeleeAction, stealTarget, stepAction, stepGrenade } from './melee';
 import { project, unprojectFloor } from '../render/camera';
 import { type Actor, type AttackKind, alive, type Flight } from './actor';
@@ -290,6 +291,10 @@ const DAMAGE: Record<HitKind, number> = {
   stab: MELEE.knife.damage, slash: 4, smash: 4, knife: 4, blast: 99, pin: 99,
   // M7: the stealth kill always kills
   takedown: 99,
+  // M8: the boss's lightning strike knocks down (a hero loses one life like any hit)
+  lightning: 2,
+  // a cannonball (or the falling cannon) kills grunts and zombies outright
+  cannon: 99,
 };
 
 /**
@@ -304,6 +309,10 @@ export function applyHit(
   bullet?: { damage: number; pointBlank: boolean },
 ): void {
   if (o.state === 'getUp' || o.state === 'downed') return; // i-frames (invented); downed heroes are out of the fight
+  // M8: the living boss has his own damage rule (src/sim/boss.ts)
+  if (o.kind === 'boss' && o.state !== 'dead') { bossHit(world, by, o, kind, part, dirX, dirZ, at); return; }
+  // held up by the boss for the body slams: nobody else gets a hit in (not a human shield)
+  if (o.grabbedBy !== undefined && by?.id !== o.grabbedBy && world.actorById(o.grabbedBy)?.kind === 'boss' && kind !== 'blast') return;
   // combat-human-shield: a body held up as a shield takes what was meant for its holder
   if (o.grabbedBy !== undefined && by?.id !== o.grabbedBy && kind !== 'blast') { shieldHit(world, by, o, kind, at, part); return; }
   const corpse = o.state === 'dead';
@@ -457,7 +466,7 @@ function dropWeapon(world: World, o: Actor, dirX: number): void {
 }
 
 /** `flight` = the knockback profile when it differs from the hit (a point-blank shotgun kill flies like a heavy hit). */
-function die(world: World, o: Actor, by: Actor | undefined, kind: HitKind, dirX: number, dirZ: number, decap: boolean, flight: HitKind = kind): void {
+export function die(world: World, o: Actor, by: Actor | undefined, kind: HitKind, dirX: number, dirZ: number, decap: boolean, flight: HitKind = kind): void {
   dropWeapon(world, o, dirX);
   const wasDown = o.state === 'down' || o.state === 'knockback';
   o.state = 'dead';
@@ -691,6 +700,7 @@ function tryGrab(world: World, a: Actor): void {
   };
   for (const o of world.actors) {
     if (o === a || o.grabbedBy !== undefined || o.state === 'getUp' || o.state === 'downed' || Math.abs(o.pos.z - a.pos.z) > M.depthBand) continue;
+    if (o.kind === 'boss' && alive(o)) continue; // he hovers out of reach of a grab
     if (o.state === 'dead' && (o.corpse?.phase === 'headless' || o.flight || o.corpse?.pinned || o.corpse?.gibbed)) continue;
     if (o.state === 'knockback') continue;
     const d = (o.pos.x - a.pos.x) * a.facing;
@@ -812,7 +822,7 @@ function releaseFrom(world: World, o: Actor): void {
 }
 
 /** Let a carried body fall where it is. */
-function dropBody(o: Actor): void {
+export function dropBody(o: Actor): void {
   const r = o.pose.root.r;
   o.flight = { vx: 0, vz: 0, vy: 0, r, r0: r, rTo: r > 0.1 ? Math.PI / 2 : -Math.PI / 2, spin: 0, phase: 'air', t: 0, airtime: 0.3, hit: [] };
   if (alive(o)) {

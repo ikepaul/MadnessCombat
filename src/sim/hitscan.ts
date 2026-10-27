@@ -10,6 +10,7 @@ import { CAMERA, project, type ScreenPoint, scaleAt } from '../render/camera';
 import type { Actor } from './actor';
 import { BODY, HEAD } from './hurtbox';
 import { heldWeaponSegment } from './melee';
+import { wardPolygon } from './boss';
 import type { PropDef, RoomDef } from './room';
 import type { World } from './world';
 
@@ -22,6 +23,8 @@ export interface RayResult {
   hit?: ActorHit;
   /** combat-disarm: the ray crossed this actor's held weapon before any body (shot out of the hand). */
   disarm?: Actor;
+  /** M8: the ray stopped on this boss's ward (from his front side). */
+  ward?: Actor;
   /** Where the tracer ends on screen. */
   end: ScreenPoint;
   /** What the tracer ends on (when no body was hit). */
@@ -92,7 +95,11 @@ function propOutline(p: PropDef): ScreenPoint[] {
 }
 
 function rayVsProp(from: ScreenPoint, dir: ScreenPoint, p: PropDef): number | undefined {
-  const pts = propOutline(p);
+  return rayVsPolygon(from, dir, propOutline(p));
+}
+
+/** First crossing of a closed screen polygon's edges. */
+function rayVsPolygon(from: ScreenPoint, dir: ScreenPoint, pts: ScreenPoint[]): number | undefined {
   let best: number | undefined;
   for (let i = 0; i < pts.length; i++) {
     const t = hitSegment(from, dir, pts[i], pts[(i + 1) % pts.length]);
@@ -145,7 +152,14 @@ export function planeImpact(room: RoomDef, from: ScreenPoint, dir: ScreenPoint, 
 export function castRay(world: World, from: ScreenPoint, dir: ScreenPoint, shooterZ: number, skip: (a: Actor) => boolean): RayResult {
   let hit: ActorHit | undefined;
   let gun: { actor: Actor; t: number } | undefined;
+  let ward: { actor: Actor; t: number } | undefined;
   for (const a of world.actors) {
+    // M8: the boss's ward stops rays coming at his front (from the side he faces)
+    const poly = skip(a) ? [] : wardPolygon(a);
+    if (poly.length && Math.sign(from[0] - project(a.pos.x, 0, a.pos.z)[0]) === a.facing) {
+      const t = rayVsPolygon(from, dir, poly);
+      if (t !== undefined && (!ward || t < ward.t)) ward = { actor: a, t };
+    }
     // a corpse held up as a human shield still stops bullets (combat-human-shield)
     if (skip(a) || (a.state === 'dead' && a.grabbedBy === undefined) || a.state === 'downed') continue;
     const h = rayVsActor(from, dir, a);
@@ -157,15 +171,19 @@ export function castRay(world: World, from: ScreenPoint, dir: ScreenPoint, shoot
       if (t !== undefined && (!gun || t < gun.t)) gun = { actor: a, t };
     }
   }
+  if (ward && (!hit || ward.t < hit.t) && (!gun || ward.t < gun.t)) {
+    return { ward: ward.actor, end: [from[0] + dir[0] * ward.t, from[1] + dir[1] * ward.t] };
+  }
   if (gun && (!hit || gun.t < hit.t - 1e-6)) {
     const end: ScreenPoint = [from[0] + dir[0] * gun.t, from[1] + dir[1] * gun.t];
-    const covered = world.room.props.some((p) => p.z0 < gun!.actor.pos.z && (rayVsProp(from, dir, p) ?? Infinity) < gun!.t);
+    const covered = world.room.props.some((p) => p.kind !== 'cannon' && p.z0 < gun!.actor.pos.z && (rayVsProp(from, dir, p) ?? Infinity) < gun!.t);
     if (!covered) return { disarm: gun.actor, end };
   }
   if (hit) {
     // cover: crossed first on screen AND in front of the target in depth
     for (const p of world.room.props) {
-      if (p.z0 >= hit.actor.pos.z) continue;
+      // the boss's cannon is no cover: shots pass under the barrel (ep1 f2469)
+      if (p.z0 >= hit.actor.pos.z || p.kind === 'cannon') continue;
       const t = rayVsProp(from, dir, p);
       if (t !== undefined && t < hit.t) {
         const end: ScreenPoint = [from[0] + dir[0] * t, from[1] + dir[1] * t];

@@ -24,6 +24,8 @@ export interface SpawnOpts {
   idle?: AiState['idle'];
   patrol?: [number, number];
   face?: 1 | -1;
+  /** M8: a job instead of the usual fight (wave B's cannoneer). */
+  role?: AiState['role'];
 }
 
 /** [delay after the previous entry (s), spawn point id, enemy type, weapon, options] */
@@ -62,7 +64,8 @@ export class WaveDirector {
   /** Doors opening for a pending spawn: door index -> seconds until the enemy steps through. */
   private pendingDoors: { door: number; t: number; kind: ActorKind; held: HeldItem; opts?: SpawnOpts }[] = [];
 
-  constructor(readonly script: RoomScript, startWave = 0) {
+  /** `announce`: emit `roomCleared` when done (a stage script's waves leave that to the script). */
+  constructor(readonly script: RoomScript, startWave = 0, private announce = true) {
     this.wave = startWave - 1;
   }
 
@@ -92,7 +95,7 @@ export class WaveDirector {
       if (!next) {
         if (aliveEnemies === 0) {
           this.state = 'done';
-          world.events.emit('roomCleared', { kills: world.kills });
+          if (this.announce) world.events.emit('roomCleared', { kills: world.kills });
         }
         return;
       }
@@ -161,6 +164,7 @@ const squadHeads = new WeakMap<World, Map<string, number>>();
 export function applySpawnOpts(world: World, a: Actor, opts: SpawnOpts): void {
   const ai = a.ai!;
   a.variant = opts.variant;
+  ai.role = opts.role;
   // enemy-elite-bodyguard: 2 hits (a head shot: 1)
   if (opts.variant === 'bodyguard') a.hp = a.maxHp = TUNING.ai.bodyguardHits;
   if (opts.aware === false) {

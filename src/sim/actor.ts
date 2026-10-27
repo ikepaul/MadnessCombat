@@ -5,7 +5,10 @@ import { TUNING } from '../data/tuning';
 import type { MeleeId } from '../data/melee';
 import { isWeapon, WEAPONS, type WeaponId } from '../data/weapons';
 
-export type ActorKind = 'hero' | 'grunt' | 'zombie';
+/** `boss` = the stage-1 necromancer (M8, src/sim/boss.ts): hovers, stepped by its own state machine. */
+export type ActorKind = 'hero' | 'grunt' | 'zombie' | 'boss';
+/** M8 stage 1 NPCs (design/art-direction.md, style frame "Stage 1 cast"): no AI, driven by scripts. */
+export type NpcVariant = 'boombox' | 'dancer';
 /** What a hand holds: a gun (src/data/weapons.ts) or a melee weapon / throwable (src/data/melee.ts). */
 export type HeldItem = WeaponId | MeleeId | null;
 
@@ -80,6 +83,15 @@ export interface Pose {
   green?: number;
   /** enemy-behaviours: the last enemy of a wave sweats (M7). */
   sweat?: boolean;
+  /** M8 boss: ward strength 0..1 (drawn in front of him), lightning telegraph progress 0..1 (hand up). */
+  ward?: number;
+  cast?: number;
+  /** M8 boss: 0..1 both hands up, holding the hero overhead (body slams). */
+  grip?: number;
+  /** M8 boss: 0..1 the telekinetic sweep gesture (front hand swept out flat). */
+  push?: number;
+  /** M8 ending: the dance emote (the dancer NPC's loop: bounce, sway, hands pumping). */
+  dancing?: boolean;
 }
 
 export type MoveState = 'ground' | 'air' | 'goingProne' | 'diving' | 'prone' | 'standingUp';
@@ -232,11 +244,17 @@ export interface Actor {
   /** Hits absorbed while held as a human shield (combat-human-shield). */
   shieldHits?: number;
   /** M7 grunt variants: squad leader (shades, gun), elite bodyguard (2 hits, headshot 1), the VIP they guard. */
-  variant?: 'leader' | 'bodyguard' | 'vip';
+  variant?: 'leader' | 'bodyguard' | 'vip' | NpcVariant;
+  /** M8: something carried that isn't a weapon (the boombox NPC's boombox), drawn at the front hand. */
+  carry?: 'boombox';
   /** Being taken down (stealth kill) by this actor: held still until the kill (M7). */
   takenBy?: number;
   /** Enemy AI memory (src/sim/ai.ts). */
   ai?: import('./ai').AiState;
+  /** M8: a corpse the boss swept away, sliding off the screen at this speed (removed once off it). */
+  swept?: { vx: number; vy: number };
+  /** M8 boss state machine (src/sim/boss.ts). */
+  boss?: import('./boss').BossState;
   /** Lab/AI controller; the player is driven by World.command instead. */
   brain?: Brain;
 }

@@ -15,7 +15,9 @@ import { project, type ScreenPoint } from '../render/camera';
 import { type Actor, alive, type Brain, type Hand } from './actor';
 import { clamp } from './collision';
 import { IDLE_COMMAND, type PlayerCommand } from './command';
+import type { Cannon } from './cannon';
 import { castRay } from './hitscan';
+import { notHoldable } from './items';
 import { canFlip } from './cover';
 import { checkHeld, lookOut } from './stealth';
 import type { World } from './world';
@@ -65,6 +67,8 @@ export interface AiState {
   /** enemy-elite-bodyguard: the VIP this guard stays next to, and on which side. */
   guard?: number;
   guardSide?: 1 | -1;
+  /** M8 wave B: this grunt goes for the boss's cannon and fires it (no cannon: he just fights). */
+  role?: 'cannon';
 }
 
 export function newAiState(world: World): AiState {
@@ -84,6 +88,8 @@ export function gunHand(a: Actor): { h: Hand; w: WeaponDef; i: 0 | 1 } | undefin
 /** Melee fighters share the attack tokens; gun grunts shoot from range instead. Unaware ones don't fight yet. */
 function usesTokens(world: World, a: Actor): boolean {
   if (gunHand(a) || a.ai?.aware === false || a.takenBy !== undefined || a.variant === 'vip') return false;
+  // the cannoneer works the cannon instead of queueing for a punch
+  if (a.ai?.role === 'cannon' && landedCannon(world)) return false;
   // a squad sticks to its living leader unless a player walks right up to it
   const l = a.ai?.leader !== undefined ? world.actorById(a.ai.leader) : undefined;
   return !l || !alive(l) || world.activePlayers.some((p) => dist(a, p) < AI.squadEngage);
@@ -194,6 +200,11 @@ export function gruntBrain(world: World): Brain {
     }
     // the VIP (a stage's target) stays put, watching
     if (a.variant === 'vip') return { ...IDLE_COMMAND, face };
+    if (ai.role === 'cannon') {
+      const c = landedCannon(world);
+      if (c) return cannonStep(a, p, c);
+      ai.role = undefined; // nothing to man: fight like the rest
+    }
     const gun = gunHand(a);
     if (gun) return rangedStep(world, a, p, gun, face, dt);
     stopAiming(world, a);
@@ -226,7 +237,7 @@ function unawareStep(world: World, a: Actor, dt: number): PlayerCommand {
 function scavenge(world: World, a: Actor): PlayerCommand | undefined {
   let best: (typeof world.items)[number] | undefined, bestD = Infinity;
   for (const it of world.items) {
-    if (it.state !== 'floor' || it.kind === 'head' || it.kind === 'grenade') continue;
+    if (it.state !== 'floor' || notHoldable(it.kind)) continue;
     // not from under a player's feet
     if (world.activePlayers.some((p) => Math.hypot(p.pos.x - it.pos.x, p.pos.z - it.pos.z) < AI.scavengeClear)) continue;
     const d = Math.hypot(it.pos.x - a.pos.x, it.pos.z - a.pos.z);
@@ -459,6 +470,43 @@ function meleeStep(world: World, a: Actor, p: Actor, face: 1 | -1, dt: number): 
   }
   tx = clamp(tx, -inside, inside);
   return { ...steer(a, tx, tz, world.tokens.has(a.id) ? 0.06 : 0.2), face };
+}
+
+// ---------- M8: manning the boss's cannon (ep1 f2799-f2849) ----------
+
+/** The boss's cannon once it's down (nobody else working it). */
+function landedCannon(world: World): Cannon | undefined {
+  return world.cannons.find((c) => c.live && (c.y ?? 0) <= 0);
+}
+
+/**
+ * Get behind the cannon, on the far side from the player (walking round the barrel if needed),
+ * then fire it: one ball per TUNING.cannon.interval while he stands there, at the player's depth
+ * (src/sim/cannon.ts stops it the moment he's hit, knocked down or killed).
+ */
+function cannonStep(a: Actor, p: Actor, c: Cannon): PlayerCommand {
+  const C = TUNING.boss.cannon;
+  const side = (p.pos.x >= c.x ? 1 : -1) as 1 | -1;
+  const spotX = c.x - side * C.behind, spotZ = c.z;
+  const manning = c.byId === a.id;
+  const wrongSide = Math.sign(a.pos.x - c.x) === side;
+  if (manning && (wrongSide || Math.hypot(a.pos.x - spotX, a.pos.z - spotZ) > 0.2)) { c.byId = undefined; c.shots = 0; }
+  if (wrongSide) {
+    // round the barrel: step off its row first, then across
+    const offZ = c.z + 0.65;
+    if (Math.abs(a.pos.z - offZ) > 0.12) return { ...steer(a, a.pos.x, offZ, 0.05), face: side };
+    return { ...steer(a, spotX, offZ, 0.05), face: side };
+  }
+  if (Math.hypot(a.pos.x - spotX, a.pos.z - spotZ) > 0.12) return { ...steer(a, spotX, spotZ, 0.05), face: side };
+  if (c.byId !== a.id) {
+    // takes it over: the first ball after a short wind-up
+    c.byId = a.id;
+    c.facing = side;
+    c.shots = Infinity;
+    c.timer = AI.cannonWindup;
+  }
+  c.aimZ = clamp(p.pos.z, c.z - C.aimBand, c.z + C.aimBand);
+  return { ...IDLE_COMMAND, face: side };
 }
 
 /** Walk toward (tx, tz) with a small dead zone, at the grunt speed share. */

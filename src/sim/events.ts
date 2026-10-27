@@ -109,6 +109,34 @@ export interface GameEvents {
   zombieHeadless: At;
   /** enemy-squad-leader: the leader died, his squad charges (one per member). */
   squadCharge: At;
+
+  // M8: scripted beats (src/sim/sequencer.ts)
+  /** A text card from a script: `title` = full screen on black, `caption` = a line at the bottom. */
+  card: { text: string; seconds: number; style: 'title' | 'caption' };
+  /** A script switched the music cue (assets/music/cues.json track id; null = ambience only). */
+  music: { cue: string | null };
+  /** A scripted screen shake (a landing boss, a falling cannon). */
+  cameraShake: { px: number; seconds: number };
+
+  // M8: the stage-1 boss (src/sim/boss.ts)
+  /** He starts floating down from above the frame, or has settled at his hover height. */
+  bossArrive: At & { phase: 'descend' | 'land' };
+  /** Lightning telegraph: his hand goes up toward a corpse (the bolt follows after TUNING.boss.castTime). */
+  bossCast: At & { targetId: number };
+  /** A lightning bolt from his hand to its target (raise: a corpse). */
+  lightning: { actorId: number; targetId: number; from: { x: number; y: number; z: number }; to: { x: number; y: number; z: number } };
+  /** The ward came up or went down. */
+  ward: At & { up: boolean };
+  /** A ray stopped on the ward: ricochet sparks at that screen point. */
+  wardHit: { actorId: number; at: [number, number] };
+  /** Hover dash: the wind-up (leans back), then the glide toward `targetId`. */
+  bossDash: At & { targetId: number; phase: 'windup' | 'go' };
+  /** He slammed the held hero into the floor (shake, dust); `n` counts up from 1. */
+  bossSlam: At & { targetId: number; n: number };
+  /** Telekinetic sweep: the gesture starts, then the corpses fly off the screen (`dir` = away from him). */
+  bossSweep: At & { phase: 'windup' | 'push'; dir: 1 | -1; count: number };
+  /** The summoned cannon: its shadow appears, it starts falling, it lands (crushing what's under it). */
+  cannonDrop: { x: number; z: number; phase: 'shadow' | 'fall' | 'land' };
 }
 
 export type HitKind =
@@ -116,7 +144,11 @@ export type HitKind =
   // M6: knife stab, blade swing, blunt swing, thrown blade, explosion, long-weapon pin
   | 'stab' | 'slash' | 'smash' | 'knife' | 'blast' | 'pin'
   // M7: silent stealth kill
-  | 'takedown';
+  | 'takedown'
+  // M8: the boss's lightning strike
+  | 'lightning'
+  // M8: a cannonball, or the cannon landing on you
+  | 'cannon';
 
 /** Melee hits (combos chain these). */
 export const MELEE_KINDS: HitKind[] = ['light', 'heavy', 'uppercut', 'finisher', 'stab', 'slash', 'smash'];

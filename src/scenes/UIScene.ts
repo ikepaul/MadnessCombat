@@ -29,6 +29,10 @@ export class UIScene extends Phaser.Scene {
   /** Kill counter pop: frames left of the 1.3 -> 1.0 scale (design/art-direction.md). */
   private counterPop = 0;
   private card!: Phaser.GameObjects.Container;
+  /** M8 script cards: title on black / caption line, shown until this world time. */
+  private titleCard!: Phaser.GameObjects.Container;
+  private caption!: Phaser.GameObjects.Text;
+  private scriptCardUntil = 0;
 
   constructor() {
     super('ui');
@@ -56,6 +60,25 @@ export class UIScene extends Phaser.Scene {
     this.lastKills = 0;
     this.counterPop = 0;
     this.card = this.buildCard().setVisible(false);
+    this.buildScriptCards();
+    game.world.events.on('card', (e) => {
+      this.scriptCardUntil = game.world.time + e.seconds;
+      this.titleCard.setVisible(e.style === 'title');
+      this.caption.setVisible(e.style === 'caption');
+      (e.style === 'title' ? (this.titleCard.getByName('text') as Phaser.GameObjects.Text) : this.caption).setText(e.text);
+    });
+  }
+
+  /** M8 script cards (sequencer `card`): a title on black, or a caption line at the bottom. */
+  private buildScriptCards(): void {
+    const bg = this.add.rectangle(0, 0, 1920, 1080, 0x000000, 1).setOrigin(0, 0);
+    const text = this.add.text(960, 540, '', { fontFamily: 'Anton', fontSize: '72px', color: '#ffffff', align: 'center', wordWrap: { width: 1500 } }).setOrigin(0.5).setName('text');
+    this.titleCard = this.add.container(0, 0, [bg, text]).setDepth(90).setVisible(false);
+    // top of the screen, over the sky / back wall, so it never covers the fight
+    this.caption = this.add.text(960, 120, '', {
+      fontFamily: 'Inter', fontSize: '30px', color: '#ffffff', backgroundColor: '#000000cc', padding: { x: 18, y: 10 }, align: 'center', wordWrap: { width: 1400 },
+    }).setOrigin(0.5, 0).setDepth(90).setVisible(false);
+    this.scriptCardUntil = 0;
   }
 
   /** End-of-room card: plain text on black, like an episode title card (own wording). */
@@ -73,6 +96,7 @@ export class UIScene extends Phaser.Scene {
     this.drawPips(game, delta / 1000);
     this.drawAmmo(game);
     this.drawCounter(game);
+    if (game.world.time >= this.scriptCardUntil) { this.titleCard.setVisible(false); this.caption.setVisible(false); }
     if (game.lab) {
       const b = p?.body;
       const speed = b ? Math.hypot(b.vel.x, b.vel.z).toFixed(2) : '-';
@@ -107,7 +131,9 @@ export class UIScene extends Phaser.Scene {
     if (game.cleared && !this.card.visible) {
       (this.card.getByName('n') as Phaser.GameObjects.Text).setText(String(kills));
       const target = game.stageInfo?.targetBodyCount;
-      const episode = target ? `the whole of stage ${game.stageInfo!.stage} counts ${target} in the episode\n` : '';
+      // the stage's count against the episode's (world-kill-counter: stage 1 = 32)
+      const vs = !target ? '' : kills > target ? `${kills - target} more than` : kills === target ? 'exactly' : `${target - kills} short of`;
+      const episode = target ? `${vs} the episode's ${target}\n` : '';
       // co-op: only the host restarts the room
       const again = game.coop === 'guest' ? 'waiting for the host to fight again' : 'press Enter to fight again';
       (this.card.getByName('sub') as Phaser.GameObjects.Text).setText(`${episode}${again}`);

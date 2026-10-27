@@ -11,7 +11,10 @@ export type Recipe =
   // M6
   | 'explosion' | 'slash' | 'thunk' | 'twang' | 'squelch' | 'ping' | 'clink' | 'slap' | 'clang' | 'hiss'
   // M7
-  | 'telegraph' | 'alert' | 'strain' | 'moan' | 'woodCrash' | 'whistle';
+  | 'telegraph' | 'alert' | 'strain' | 'moan' | 'woodCrash' | 'whistle'
+  // M8 boss
+  | 'crackle' | 'thunder' | 'rumble' | 'wardHum' | 'ricochet' | 'cannonBoom' | 'fallWhistle' | 'heavyLand' | 'telekinesis'
+  | 'radioLoop';
 
 /** Seeded RNG (mulberry32) so variants are stable between runs. */
 function rng(seed: number): () => number {
@@ -337,11 +340,102 @@ export function render(recipe: Recipe, sr: number, seed: number): Float32Array {
       noise(b, r, () => 4000, (t) => (t < 0.38 ? 0.3 : 0), 0.15, 2000);
       return normalise(b.d, 0.35);
     }
+    case 'crackle': {
+      // the lightning telegraph (0.8 s): electric crackle building under a rising buzz
+      const b = new Buf(sr, 0.85);
+      // 70 sparks, denser toward the bolt: each a 20 ms burst of bright noise written in place
+      const len = Math.round(sr * 0.02);
+      for (let k = 0; k < 70; k++) {
+        const t0 = 0.8 * Math.pow(r(), 0.6), g = 0.3 + 0.7 * (t0 / 0.8), i0 = Math.round(t0 * sr);
+        let prev = 0;
+        for (let i = 0; i < len && i0 + i < b.n; i++) {
+          const x = r() * 2 - 1, hp = x - prev; // crude high-pass: keeps it a sharp snap
+          prev = x;
+          b.d[i0 + i] += hp * g * Math.exp(-i / (sr * 0.004));
+        }
+      }
+      tone(b, (t) => 120 + 180 * (t / 0.8), (t) => Math.min(1, t / 0.8) * (t < 0.8 ? 1 : 0), 0.25, 'saw');
+      return normalise(b.d, 0.5);
+    }
+    case 'thunder': {
+      // the bolt: a sharp snap, then a low roll
+      const b = new Buf(sr, 1.6);
+      noise(b, r, () => 9000, ad(0.0005, 0.02), 1.2, 1500);
+      noise(b, r, (t) => 400 * Math.exp(-t * 1.5) + 80, (t) => (t < 0.03 ? t / 0.03 : Math.exp(-(t - 0.03) / 0.5)) * (0.7 + 0.3 * Math.sin(t * 19)), 0.9, 30);
+      tone(b, (t) => 55 * Math.exp(-t * 0.6), ad(0.02, 0.5), 0.5);
+      return normalise(b.d, 0.85);
+    }
+    case 'rumble': {
+      // the boss floating down: a low swell that settles as he lands
+      const b = new Buf(sr, 1.1);
+      noise(b, r, (t) => 200 + 300 * Math.max(0, 1 - t / 0.7), swell(0.6, 1.1), 1, 25);
+      tone(b, (t) => 45 + 25 * Math.max(0, 1 - t / 0.7), swell(0.6, 1.1), 0.5);
+      return normalise(b.d, 0.6);
+    }
+    case 'wardHum': {
+      // the ward coming up: a shimmering glassy hum for its ~1 s
+      const b = new Buf(sr, 1.05), f0 = jitter(330, 0.05);
+      const env = (t: number) => Math.min(1, t / 0.06) * (t < 0.9 ? 1 : Math.max(0, 1 - (t - 0.9) / 0.15));
+      for (const [m, g] of [[1, 0.6], [1.5, 0.3], [2.01, 0.25], [3.02, 0.12]] as const) tone(b, (t) => f0 * m * (1 + 0.004 * Math.sin(t * 40 * m)), env, g);
+      noise(b, r, () => 6000, (t) => env(t) * (0.5 + 0.5 * Math.sin(t * 31) ** 2), 0.12, 3000);
+      return normalise(b.d, 0.4);
+    }
+    case 'ricochet': {
+      // a bullet glancing off the ward: hit + falling whine
+      const b = new Buf(sr, 0.45), f0 = jitter(3200, 0.2);
+      noise(b, r, () => 8000, ad(0.0005, 0.006), 1, 2000);
+      tone(b, (t) => f0 * Math.exp(-t * 2.2), (t) => (t < 0.01 ? t / 0.01 : Math.exp(-(t - 0.01) / 0.12)), 0.6);
+      return normalise(b.d, 0.5);
+    }
+    case 'cannonBoom': {
+      // the cannon firing: a deep boom with a crack on top and a long tail
+      const b = new Buf(sr, 1.3);
+      noise(b, r, () => 6000, ad(0.0008, 0.015), 1, 800);
+      noise(b, r, (t) => 900 * Math.exp(-t * 5) + 90, ad(0.004, 0.35), 1.1, 30);
+      tone(b, (t) => 70 * Math.exp(-t * 2) + 30, ad(0.004, 0.3), 0.9);
+      return normalise(b.d, 0.9);
+    }
+    case 'fallWhistle': {
+      // something heavy falling out of the sky: a falling whistle over the shadow's 0.8 s + the drop
+      const b = new Buf(sr, 1.25);
+      tone(b, (t) => 1500 * Math.exp(-t * 1.1) + 250, (t) => Math.min(1, t / 0.3) * (t < 1.15 ? 1 : Math.max(0, 1 - (t - 1.15) / 0.1)), 0.5);
+      noise(b, r, (t) => 2500 * Math.exp(-t) + 400, (t) => Math.min(1, t / 0.5) * (t < 1.15 ? 0.5 : 0), 0.3, 300);
+      return normalise(b.d, 0.4);
+    }
+    case 'heavyLand': {
+      // the cannon slamming onto its stand: iron clang over a ground-shaking thud
+      const b = new Buf(sr, 1.0);
+      tone(b, (t) => 50 * Math.exp(-t * 3) + 28, ad(0.003, 0.35), 1);
+      noise(b, r, () => 700, ad(0.002, 0.12), 0.9, 40);
+      for (const [f, g] of [[310, 0.4], [747, 0.25], [1290, 0.15]] as const) tone(b, () => jitter(f, 0.03), ad(0.002, 0.4), g);
+      return normalise(b.d, 0.9);
+    }
+    case 'telekinesis': {
+      // the sweep: a pressure wave, a low warped whoosh rising and rushing away
+      const b = new Buf(sr, 0.9);
+      noise(b, r, (t) => 300 + 1600 * Math.sin(Math.min(1, t / 0.5) * Math.PI) ** 2, swell(0.35, 0.9), 1, 60);
+      tone(b, (t) => 90 + 60 * Math.sin(t * 9), swell(0.35, 0.9), 0.4, 'saw');
+      return normalise(b.d, 0.6);
+    }
     case 'tapeStop': {
       const b = new Buf(sr, 0.35);
       noise(b, r, (t) => 3000 * Math.exp(-t * 8) + 150, swell(0.05, 0.35), 0.8, 60);
       tone(b, (t) => 220 * Math.exp(-t * 6), swell(0.03, 0.35), 0.5);
       return normalise(b.d, 0.5);
+    }
+    case 'radioLoop': {
+      // the boombox until the user's tune arrives: a small speaker between stations. Hiss through a
+      // narrow band, a faint carrier whine, crackles. An ambience, not music (no placeholder music).
+      const b = new Buf(sr, 6.5);
+      noise(b, r, (t) => 2400 + 600 * Math.sin(t * 1.7), (t) => 0.5 + 0.25 * Math.sin(t * 0.9) ** 2, 1, 600);
+      tone(b, (t) => 1150 + 40 * Math.sin(t * 0.6), (t) => 0.06 + 0.05 * Math.sin(t * 0.45) ** 2, 1);
+      tone(b, () => 100, () => 0.08, 1);
+      const len = Math.round(sr * 0.012);
+      for (let k = 0; k < 40; k++) {
+        const i0 = Math.floor(r() * (b.n - len)), g = 0.3 + r() * 0.7;
+        for (let i = 0; i < len; i++) b.d[i0 + i] += (r() * 2 - 1) * g * Math.exp(-i / (sr * 0.002));
+      }
+      return normalise(bandpass(loopable(b.d, sr), sr, 1800, 0.7), 0.3);
     }
     case 'windLoop': {
       // outdoor ambience: gusting low wind, 8 s loop

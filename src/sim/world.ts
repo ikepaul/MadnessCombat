@@ -10,6 +10,8 @@ import { type Item, type ItemKind, spawnItem, stepItems } from './items';
 import type { RoomDef } from './room';
 import type { WaveDirector } from './waves';
 import { stepProps } from './cover';
+import { Seq } from './sequencer';
+import { isBoss, stepBoss, stepSwept } from './boss';
 import { installAlertRules } from './stealth';
 
 /** Props can change in play (a kicked-over table), so each World gets its own copies. */
@@ -53,6 +55,12 @@ export class World {
   puppet = false;
   /** PLAN.md M7: grenades the enemies may still lob this encounter (one per wave). */
   enemyGrenades = 1;
+  /** M8 scripted beats: the running scripts and their commands (src/sim/sequencer.ts). */
+  readonly seq: Seq = new Seq(this);
+  /** Commands scripts give actors, by actor id; they replace the brain or the player's input. */
+  readonly scripted = new Map<number, PlayerCommand>();
+  /** Cutscene: players' input is ignored (scripted commands still apply). */
+  inputLocked = false;
 
   constructor(public room: RoomDef) {
     this.room = ownProps(room);
@@ -170,13 +178,20 @@ export class World {
 
   step(): void {
     this.tick++;
+    // scripts first: they react to the last tick and set this tick's scripted commands
+    this.seq.step(this.dt);
     assignTokens(this);
+    const gone: Actor[] = [];
     for (const a of this.actors) {
       if (a.corpse?.phase === 'frozen') continue;
-      const cmd = a.playerIndex !== undefined ? this.commands[a.playerIndex] ?? IDLE_COMMAND : a.brain ? a.brain(a, this.dt) : IDLE_COMMAND;
-      stepActor(this, a, cmd, this.dt);
+      if (isBoss(a)) { stepBoss(this, a, this.dt); continue; }
+      if (a.swept) { if (stepSwept(this, a as Actor & { swept: NonNullable<Actor['swept']> }, this.dt)) gone.push(a); continue; }
+      stepActor(this, a, this.commandFor(a), this.dt);
     }
+    // M8: bodies the boss swept off the screen are gone for good
+    for (const a of gone) this.actors.splice(this.actors.indexOf(a), 1);
     this.commands = this.commands.map(clearEdges);
+    for (const [id, c] of this.scripted) this.scripted.set(id, clearEdges(c));
     stepRevives(this, this.dt);
     this.updateHeld();
     this.separate();
@@ -186,6 +201,14 @@ export class World {
     this.director?.step(this, this.dt);
     this.stepDoors();
     this.events.emit('tick', { tick: this.tick });
+  }
+
+  /** A script's command, else the player's input (unless locked), else the brain. */
+  private commandFor(a: Actor): PlayerCommand {
+    const s = this.scripted.get(a.id);
+    if (s) return s;
+    if (a.playerIndex !== undefined) return this.inputLocked ? IDLE_COMMAND : this.commands[a.playerIndex] ?? IDLE_COMMAND;
+    return a.brain ? a.brain(a, this.dt) : IDLE_COMMAND;
   }
 
   private stepDoors(): void {
@@ -229,7 +252,7 @@ export class World {
   /** Soft push-apart between standing actors on the same depth band. */
   private separate(): void {
     const S = TUNING.separation;
-    const list = this.actors.filter((a) => (a.state === 'free' || a.state === 'stun' || a.state === 'attack') && a.body.height > 0.9 && a.body.state !== 'diving');
+    const list = this.actors.filter((a) => (a.state === 'free' || a.state === 'stun' || a.state === 'attack') && a.body.height > 0.9 && a.body.state !== 'diving' && a.kind !== 'boss');
     for (let i = 0; i < list.length; i++) {
       for (let j = i + 1; j < list.length; j++) {
         const a = list[i], b = list[j];

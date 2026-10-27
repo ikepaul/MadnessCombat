@@ -87,6 +87,70 @@ export const TUNING = {
     /** A melee weapon within this distance is taken up on rising. invented */
     weaponReach: 0.6,
   },
+  /** M8 stage-1 boss, the hovering necromancer (boss-halo, design/art-direction.md). */
+  boss: {
+    /** Drawn and hit 1.1 H tall (style frame "Stage 1 cast"). own design */
+    scale: 1.1,
+    /** boss-halo: floats down from above the frame, ep1 f1420-f1440 (0.67 s). Starts above the screen top. */
+    descend: 0.67,
+    startHeight: 4.8,
+    /** Hover height under his feet and its bob (H, s). style frame, invented */
+    hover: 0.14,
+    hoverBob: 0.03,
+    hoverRate: 2.4,
+    /** Raise telegraph: the hand goes up with a crackle this long before the bolt (s). invented within ep1 f1450-f1480 */
+    castTime: 0.8,
+    /** boss-halo: the bolt shows 2 frames (30 fps). */
+    boltTime: 2 / 30,
+    /** Stage 1 raises 1-2 zombies (ep1: two in all). At most this many alive at once. */
+    maxZombies: 2,
+    /** First raise after landing, then one every... (s). invented */
+    firstRaise: 1.0,
+    raiseEvery: 6,
+    /** Raise targets within this distance of him (H). invented: the whole arena */
+    raiseRange: 8,
+    /** boss-halo: the shield stays up ~1 s (ep1 f1659-f1699), then a window before it can rise again (s). window invented */
+    wardUp: 1.0,
+    wardWindow: 1.5,
+    /** Fade of the ward drawing in / out (s). invented */
+    wardFade: 0.12,
+    /** It comes up when someone with a gun is on its side within this distance (H). invented */
+    wardThreat: 7,
+    /** Ward diamond, boss-local (H, before scale): centre and half sizes (style frame). */
+    ward: { x: 0.54, y: -0.62, hw: 0.25, hh: 0.68 },
+    /** Head hits (any bullet or thrown gun to the head while the ward is down) to kill him. invented */
+    hp: 3,
+    /**
+     * Lightning strike (boss-halo clip 2, ep1 f1729-f1739: knockdown + the gun flies off). Same hand-up
+     * telegraph as the raise; the bolt lands where the target stood when he raised his hand, so
+     * moving dodges it. Timings invented; ep1 strikes right after his shield drops.
+     */
+    strike: { first: 3, every: 5, afterWard: 0.4, range: 8, radius: 0.55, depthBand: 0.35 },
+    /**
+     * Hover dash -> grab (boss-halo clip 3): ~2-2.5 H in 0.27 s (ep1 f1929-f1939). Wind-up, stopping
+     * short, grab reach and cooldowns invented.
+     */
+    dash: { range: 2.6, depthBand: 1.0, first: 2, windup: 0.25, time: 0.27, stopShort: 0.45, reach: 0.65, grabBand: 0.35, coolHit: 6, coolMiss: 3, recover: 0.6 },
+    /**
+     * Body slams (ep1 f1949-f2099): 5-6 slams, one per 0.5-0.67 s, alternating sides, then a throw
+     * onto the pile (f2109-f2139). Mashing (any button) takes a slam off per `mashPer` presses down
+     * to `minSlams`. The whole grab costs the hero one life, on the throw. invented
+     */
+    slam: { count: 6, every: 0.58, lift: 0.4, mashPer: 3, minSlams: 2, throwBoost: 2, recover: 0.8 },
+    /**
+     * Phase 2 (research/stages.md beat 4): starts at his first head wound, or after `after` s of
+     * fighting. He sweeps the corpses off the screen (ep1 f2229-f2259; boss-halo: the push covers
+     * ~3.6 H in ~0.33 s), then summons the cannon. Wind-up and hop invented.
+     */
+    sweep: { after: 30, windup: 0.5, speed: 11, hop: 1.2 },
+    /**
+     * The summoned cannon (ep1 f2279-f2399, world-falling-hazard): its shadow first (0.5-1.0 s), then
+     * it drops onto its stand beside him and crushes whatever is under it. He hovers behind it and
+     * fires ~4 balls one per 1.3 s (TUNING.cannon), the barrel swinging to the target's depth within
+     * `aimBand`. Then a new volley every `every` s. Placement, fall speed, aim swing invented.
+     */
+    cannon: { offset: 1.0, shadow: 0.8, dropHeight: 6, fallSpeed: 14, crushRadius: 0.6, crushBand: 0.4, shots: 4, firstShot: 0.6, every: 9, behind: 0.75, aimBand: 0.8, landShake: 12 },
+  },
   health: {
     /** decided with the user (2026-10-26): 4 light or 2 heavy hits (light 1, heavy 2). */
     grunt: 4,
@@ -241,6 +305,8 @@ export const TUNING = {
     scavenge: 2,
     /** ...but not one lying within this distance of a player. invented */
     scavengeClear: 1.5,
+    /** M8 wave B: a grunt taking over the cannon fires his first ball this long after he's in place (s). invented */
+    cannonWindup: 0.8,
     /** combat-cover: share of gun grunts that kick a table over for cover. invented (the note's one in four) */
     flipChance: 0.25,
     /** PLAN.md M7: one enemy grenade per encounter (wave); chance per aim opportunity to lob it instead. invented */

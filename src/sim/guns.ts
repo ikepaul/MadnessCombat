@@ -9,6 +9,7 @@ import { project, type ScreenPoint, scaleAt } from '../render/camera';
 import { type Actor, alive, type Hand, newHand } from './actor';
 import type { PlayerCommand } from './command';
 import { castRay, type Surface } from './hitscan';
+import { wardBlocked } from './boss';
 import { dropHeld } from './items';
 import { disarm, pullable, startAction } from './melee';
 import type { World } from './world';
@@ -16,7 +17,7 @@ import type { World } from './world';
 /** One bullet's path for the effects: tracer end, what it hit, blood behind a body hit. */
 export interface ShotRay {
   end: ScreenPoint;
-  surface?: Surface | 'flesh' | 'metal';
+  surface?: Surface | 'flesh' | 'metal' | 'ward';
   /** World point of a wall/floor/prop impact (bullet hole) or of the splatter behind a body hit. `metal` = a weapon shot out of a hand. */
   impact?: { x: number; y: number; z: number; surface: Surface };
 }
@@ -135,6 +136,13 @@ function fire(world: World, a: Actor, i: 0 | 1, h: Hand, w: WeaponDef, dual: boo
     const ang = base + (world.rng() * 2 - 1) * spread;
     const dir: ScreenPoint = [Math.cos(ang), Math.sin(ang)];
     const r = castRay(world, rig.muzzle, dir, a.pos.z, skip);
+    if (r.ward) {
+      // M8: stopped on the boss's ward, sparks fly off it
+      world.events.emit('wardHit', { actorId: r.ward.id, at: r.end });
+      wardBlocked(r.ward);
+      rays.push({ end: r.end, surface: 'ward' });
+      continue;
+    }
     if (r.disarm) {
       // combat-disarm: the shot hit the weapon in the hand before the body
       disarm(world, a, r.disarm, 'shot', Math.sign(dir[0]) || a.facing);
@@ -191,7 +199,8 @@ export function throwGun(world: World, a: Actor, i: 0 | 1, cmd: PlayerCommand): 
  * on the floor go into the pocket.
  */
 function pickUp(world: World, a: Actor, pressed: boolean, cmd: PlayerCommand): void {
-  if (a.holding || a.state !== 'free' || a.cook !== undefined) return;
+  // M8: the boombox takes the front hand; nothing else is picked up while carrying it
+  if (a.holding || a.state !== 'free' || a.cook !== undefined || a.carry) return;
   // throw-knives: pull a stuck blade out (walking over it with empty hands, standing still)
   const still = Math.hypot(cmd.moveX, cmd.moveZ) < 0.1;
   if (pressed || still) {
@@ -201,7 +210,8 @@ function pickUp(world: World, a: Actor, pressed: boolean, cmd: PlayerCommand): v
   const reach = pressed ? GUNS.pickupRange : GUNS.pickupRange * 0.6;
   let best: (typeof world.items)[number] | undefined, bestD = Infinity;
   for (const it of world.items) {
-    if (it.state !== 'floor' || it.kind === 'head' || (it.kind === 'grenade' && it.live)) continue;
+    // the boombox is the players' (M8 ending), nobody else's
+    if (it.state !== 'floor' || it.locked || it.kind === 'head' || (it.kind === 'boombox' && (a.playerIndex === undefined || a.carry)) || (it.kind === 'grenade' && it.live)) continue;
     const d = Math.hypot(it.pos.x - a.pos.x, (it.pos.z - a.pos.z) * 1.5);
     if (d <= reach && d < bestD) { best = it; bestD = d; }
   }
@@ -213,6 +223,14 @@ function pickUp(world: World, a: Actor, pressed: boolean, cmd: PlayerCommand): v
     world.events.emit('pickup', { actorId: a.id, itemId: it.id, hand: 0, item: it.kind, ...a.pos });
     return;
   }
+  if (it.kind === 'boombox') {
+    // carried by the handle in the front hand: whatever was there goes on the floor
+    const old = a.hands[0];
+    if (old) { dropHeld(world, old.item, a.pos, a.facing * 0.3, { ammo: old.ammo, spare: old.spare }); a.hands[0] = null; }
+    a.carry = 'boombox';
+    world.events.emit('pickup', { actorId: a.id, itemId: it.id, hand: 0, item: it.kind, ...a.pos });
+    return;
+  }
   const long = isMelee(it.kind) && MELEE[it.kind].twoHanded;
   // a two-handed weapon takes both hands; anything picked up while holding one replaces it
   const slot: 0 | 1 = long || isLong(a) ? 0 : !a.hands[0] ? 0 : !a.hands[1] ? 1 : 0;
@@ -221,7 +239,7 @@ function pickUp(world: World, a: Actor, pressed: boolean, cmd: PlayerCommand): v
     if (old) dropHeld(world, old.item, a.pos, a.facing * 0.3, { ammo: old.ammo, spare: old.spare });
     a.hands[i] = null;
   }
-  a.hands[slot] = newHand(it.kind as Exclude<typeof it.kind, 'head' | 'grenade'>, it.ammo, it.spare);
+  a.hands[slot] = newHand(it.kind as Exclude<typeof it.kind, 'head'>, it.ammo, it.spare);
   world.events.emit('pickup', { actorId: a.id, itemId: it.id, hand: slot, item: it.kind, ...a.pos });
 }
 

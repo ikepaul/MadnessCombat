@@ -84,7 +84,12 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
     if (e.phase === 'start') play('magOut', p);
     else { play('magOut', { ...p, rate: 1.25 }); play('slideRack', { ...p, delay: 0.08 }); }
   });
-  world.events.on('pickup', (e) => { play('grab', at(e.x, e.y + 0.4, e.z)); play('magOut', at(e.x, e.y + 0.4, e.z, { rate: 1.4, gain: 0.5 })); });
+  world.events.on('pickup', (e) => {
+    play('grab', at(e.x, e.y + 0.4, e.z));
+    // M8: the boombox's play button clicks; guns latch
+    if (e.item === 'boombox') play('tick', at(e.x, e.y + 0.4, e.z, { rate: 0.7, gain: 0.8, delay: 0.15 }));
+    else play('magOut', at(e.x, e.y + 0.4, e.z, { rate: 1.4, gain: 0.5 }));
+  });
   // M6
   world.events.on('explosion', (e) => {
     play('explosion', at(e.x, Math.max(0.3, e.y), e.z));
@@ -129,6 +134,24 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
       if (a.kind !== 'zombie' || a.state === 'dead' || a.state === 'rising' || Math.random() > world.dt / 4) continue;
       play('moan', at(a.pos.x, a.pos.y + 0.8, a.pos.z));
     }
+  });
+  // M8: the stage-1 boss
+  world.events.on('bossArrive', (e) => { if (e.phase === 'descend') play('rumble', at(e.x, 1, e.z)); });
+  world.events.on('bossCast', (e) => play('crackle', at(e.x, e.y + 1.2, e.z)));
+  world.events.on('lightning', (e) => { play('thunder', at(e.to.x, e.to.y, e.to.z)); engine.duck(0.3); });
+  world.events.on('ward', (e) => { if (e.up) play('wardHum', at(e.x, e.y + 0.7, e.z)); });
+  world.events.on('bossDash', (e) => play(e.phase === 'go' ? 'whooshThrow' : 'cloth', at(e.x, e.y + 0.6, e.z, e.phase === 'go' ? { rate: 0.8 } : { gain: 0.6 })));
+  world.events.on('bossSlam', (e) => { const p = at(e.x, e.y, e.z); play('impactHeavy', p); play('crack', { ...p, gain: 0.7 }); });
+  world.events.on('bossSweep', (e) => { if (e.phase === 'push') { play('telekinesis', at(e.x, e.y + 0.7, e.z)); if (e.count > 0) play('bodyFall', at(e.x + e.dir * 2, 0, e.z, { gain: 0.6, rate: 0.8 })); } });
+  world.events.on('cannonDrop', (e) => {
+    if (e.phase === 'shadow') play('fallWhistle', at(e.x, 2, e.z));
+    else if (e.phase === 'land') { play('heavyLand', at(e.x, 0.3, e.z)); engine.duck(0.4); }
+  });
+  // the boss's cannon (the debug labs' cannon stays quiet, as before)
+  world.events.on('cannonFire', (e) => { if (world.cannons.find((c) => c.x === e.x && c.z === e.z)?.live) { play('cannonBoom', at(e.x, 0.6, e.z)); engine.duck(0.25); } });
+  world.events.on('wardHit', (e) => {
+    const a = world.actorById(e.actorId);
+    if (a) play('ricochet', at(a.pos.x + a.facing * 0.6, a.pos.y + 0.7, a.pos.z));
   });
   world.events.on('doorOpen', (e) => {
     const d = world.room.doors[e.door];

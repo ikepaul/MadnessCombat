@@ -5,6 +5,8 @@ import { TEST_ROOM } from '../data/rooms/testRoom';
 import { bindDebugKeys } from '../input/debugKeys';
 import { PlayerInput } from '../input/playerInput';
 import '../labs/aiLabs';
+import '../labs/bossLabs';
+import '../labs/hazardLabs';
 import '../labs/enemyLabs';
 import '../labs/gunLabs';
 import '../labs/meleeLabs';
@@ -14,6 +16,7 @@ import { getLab, type Lab } from '../labs/registry';
 import { CanvasLayer } from '../render/canvasLayer';
 import { paintBall, paintCannon } from '../render/canvas/cannonPainter';
 import { paintCharacter } from '../render/canvas/characterPainter';
+import { paintBoss } from '../render/canvas/bossPainter';
 import { paintItem } from '../render/canvas/itemPainter';
 import { paintDoor, paintProp, paintRoom } from '../render/canvas/roomPainter';
 import { Decals } from '../render/decals';
@@ -28,18 +31,22 @@ import { hasEdges, mergeEdges } from '../sim/command';
 import { WaveDirector } from '../sim/waves';
 import { World } from '../sim/world';
 import { STAGE1, type StageRoomId } from '../data/stages/stage1';
+import { STAGE1_BEATS, type Stage1Beat, stage1From } from '../data/stages/stage1Script';
 import { coopLink, type CoopLink } from '../net/link';
 import { applySnapshot, type Snapshot, SnapshotWriter } from '../net/snapshot';
 import { paintReviveBar, paintReviveCircle } from '../render/canvas/revivePainter';
 import { hookWorldAudio } from '../audio/hooks';
 import { audio } from '../audio/mixer';
 import { MusicSystem } from '../audio/music';
+import { BoomboxSource } from '../audio/boombox';
 import { FeelDirector } from '../feel/feel';
 import { FeelFx } from '../render/feelFx';
 import { cycleEffects, saveSettings, SETTINGS } from '../settings';
 
 /** One music system for the game (survives room restarts). */
 let music: MusicSystem | undefined;
+/** The current scene's boombox source (M8). */
+let boombox: BoomboxSource | undefined;
 /** Guest: the host's first snapshot of a new session, applied after the scene restarts. */
 let pendingFull: Snapshot | undefined;
 
@@ -48,10 +55,12 @@ export interface GameSceneData {
   palette?: PaletteId;
   /** `?room=test`: the style-frame room with the M0 cast (look check). */
   testRoom?: boolean;
-  /** Stage route `?stage=1&room=arena&wave=A` (the default). */
+  /** Stage route `?stage=1&room=arena` (the default: the whole stage from its intro); `&wave=A` starts at that wave. */
   stage?: 1;
   room?: StageRoomId;
   wave?: string;
+  /** `&beat=riot|grenade|boss|waveB`: start the stage script at that beat (playtesting). */
+  beat?: string;
   /** Co-op (PLAN.md M4b): this laptop hosts the game, or joins as player 2. */
   coop?: 'host' | 'guest';
 }
@@ -148,6 +157,10 @@ export class GameScene extends Phaser.Scene {
       hookWorldAudio(this.world, engine);
       music ??= new MusicSystem(engine);
       void music.setRoom(this.world.room.id);
+      this.world.events.on('music', (e) => void music?.setCue(e.cue));
+      // M8: the boombox plays from wherever it is (one at a time; the old scene's stops)
+      boombox?.dispose();
+      boombox = new BoomboxSource(this.world, engine);
     }
     this.vfx = new Vfx(this.world, () => this.blood);
     this.decals = new Decals(this.world, this.decalLayer, () => this.blood);
@@ -228,8 +241,11 @@ export class GameScene extends Phaser.Scene {
     const coop = data.coop === 'host';
     this.world.addPlayer(createActor('hero', coop ? -0.6 : 0, 9.2, 1));
     if (coop) this.world.addPlayer(createActor('hero', 0.6, 9.2, -1));
-    const start = Math.max(0, def.script.waves.findIndex((w) => w.id === (data.wave ?? 'A')));
-    this.world.director = new WaveDirector(def.script, start);
+    // `?wave=A` jumps straight to that wave of the room; otherwise the whole stage runs from its intro (M8)
+    if (data.wave) {
+      const start = Math.max(0, def.script.waves.findIndex((w) => w.id === data.wave));
+      this.world.director = new WaveDirector(def.script, start);
+    } else this.world.seq.run(stage1From(data.beat && (STAGE1_BEATS as readonly string[]).includes(data.beat) ? data.beat as Stage1Beat : 'intro'));
     this.stageInfo = { stage: STAGE1.stage, room: roomId, targetBodyCount: STAGE1.targetBodyCount };
   }
 
@@ -288,6 +304,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private paintCorpse(a: Actor): void {
+    if (a.kind === 'boss') { paintBoss(this.corpseLayer.ctx, a, { time: 0 }); return; }
     paintCharacter(this.corpseLayer.ctx, a, PALETTES[this.paletteId], 0, { blood: this.blood });
   }
 
@@ -308,6 +325,7 @@ export class GameScene extends Phaser.Scene {
       this.post.update();
       this.feelFx.update(delta / 1000);
       music?.setIntensity(this.world.actors.filter((a) => a.ai && a.state !== 'dead' && !a.entering).length);
+      boombox?.update();
       return;
     }
     // keep an edge latched until a tick actually consumes it
@@ -327,6 +345,7 @@ export class GameScene extends Phaser.Scene {
     this.feelFx.update(delta / 1000);
     // music intensity follows the enemies actually in the fight
     music?.setIntensity(this.world.actors.filter((a) => a.ai && a.state !== 'dead' && !a.entering).length);
+    boombox?.update();
   }
 
   /** PLAN.md M3: player death -> restart the room. Co-op: once nobody is left standing. */
@@ -354,7 +373,7 @@ export class GameScene extends Phaser.Scene {
       if (a.corpse?.phase === 'frozen' || a.corpse?.gibbed) continue;
       // at equal depth the attacker draws in front, so the punching fist is visible
       const bias = a.state === 'attack' ? 0.002 : a.state === 'grabbed' ? -0.001 : 0;
-      list.push({ z: a.pos.z - bias, draw: () => paintCharacter(ctx, a, pal, this.world.time, { blood, flashes }) });
+      list.push({ z: a.pos.z - bias, draw: () => (a.kind === 'boss' ? paintBoss(ctx, a, { time: this.world.time, flashes }) : paintCharacter(ctx, a, pal, this.world.time, { blood, flashes })) });
     }
     for (const it of this.world.items) list.push({ z: it.pos.z, draw: () => paintItem(ctx, it, pal, blood, this.world.time) });
     for (const p of this.world.room.props) list.push({ z: p.z0, draw: () => paintProp(ctx, p, pal) });

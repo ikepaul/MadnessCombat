@@ -280,20 +280,26 @@ Labs: `enemy-grunt-armed`, `enemy-behaviours`, `enemy-squad-leader`, `enemy-elit
 **Read first:** `research/stages.md` (Stage 1), `boss-halo` (clips 1–4), `research/episodes/ep1-log.md`, `design/audio-direction.md` (music brief, stage 1).
 
 Build:
-- [ ] **Boss design pass first**: our own design for the necromancer boss (character sheet in the style frame, user sign-off), plus the boombox NPC and the dancer NPC.
-- [ ] **Sequencer** for scripted beats: coroutine scripts in the sim (`wait`, `moveTo`, `card`, `spawn`, `giveItem`, `lockInput`, `cameraShake`, `music`) for intros, cutscenes and set-piece events. Reused by every later stage.
-- [ ] Intro: the boombox NPC punches you (scripted knockdown), then you kill him (melee tutorial). The dancer NPC is in the background.
-- [ ] Wave A (from M3) → scripted grenade pickup → blow up the pile.
-- [ ] **Boss, stage-1 fight**: descend with a shadow. Lightning raise of 1–2 zombies from intact corpses (telegraph: raised hand + crackle). Cross-shaped shield → **our own shield shape** (blocks frontal rays ~1 s, then a window). Lightning strike = knockdown + disarm. Scripted SMG pickup. Hover dash (≈ 2–2.5 H in 0.27 s) → grab → 5–6 body slams every 0.5–0.67 s (mashing shortens, invented) → throw. Telekinetic corpse sweep. Summon cannon (falls with a shadow) → volleys every 1.3 s, ball 26 H/s (dodge by jump/prone), ≈ 4 shots. Dies to headshots while unshielded (boss HP invented).
-- [ ] Wave B (≈ 9 grunts) with pickups (sawed-off, knives, 2 pistols). A grunt can man the cannon (an enemy uses a prop weapon). Jump onto the cannon, split-aim.
-- [ ] Ending: pick up the boombox, dance emote, body-count card vs. 32.
+- [x] **Boss design pass first**: our own design for the necromancer boss (character sheet in the style frame, user sign-off), plus the boombox NPC and the dancer NPC.
+- [x] **Sequencer** for scripted beats: coroutine scripts in the sim (`wait`, `moveTo`, `card`, `spawn`, `giveItem`, `lockInput`, `cameraShake`, `music`) for intros, cutscenes and set-piece events. Reused by every later stage.
+- [x] Intro: the boombox NPC punches you (scripted knockdown), then you kill him (melee tutorial). The dancer NPC is in the background.
+- [x] Wave A (from M3) → scripted grenade pickup → blow up the pile.
+- [x] **Boss, stage-1 fight**: descend with a shadow. Lightning raise of 1–2 zombies from intact corpses (telegraph: raised hand + crackle). Cross-shaped shield → **our own shield shape** (blocks frontal rays ~1 s, then a window). Lightning strike = knockdown + disarm. Scripted SMG pickup. Hover dash (≈ 2–2.5 H in 0.27 s) → grab → 5–6 body slams every 0.5–0.67 s (mashing shortens, invented) → throw. Telekinetic corpse sweep. Summon cannon (falls with a shadow) → volleys every 1.3 s, ball 26 H/s (dodge by jump/prone), ≈ 4 shots. Dies to headshots while unshielded (boss HP invented).
+  - [x] Part 1: descent with a shadow, lightning raise (telegraph, max 2 zombies), the ward (diamond, ~1 s + 1.5 s window, front side only), scripted SMG pickup, 3 head hits kill.
+  - [x] Part 2: lightning strike (lands where you stood when his hand went up: knockdown + disarm; answers a blocked burst), hover dash (wind-up 0.25 s, ~2 H in 0.27 s) → grab → 6 body slams every 0.58 s (mashing cuts it to 2) → throw (one life). A teammate's head shot makes him let go.
+  - [x] Part 3, phase 2 (from his first head wound, or after 30 s; untouchable until the cannon lands so a burst can't skip it): telekinetic sweep sends every intact corpse off the screen, the cannon drops beside him (shadow 0.8 s, crushes what's under it, stays as solid terrain you can stand on but not cover), 4-ball volleys from behind it every 9 s (barrel swings to your depth; jump or go prone), no ward while he works it. Cannonballs knock heroes down and kill grunts/zombies.
+- [x] Wave B (≈ 9 grunts) with pickups (sawed-off, knives, 2 pistols). A grunt can man the cannon (an enemy uses a prop weapon). Jump onto the cannon, split-aim.
+- [x] Ending: pick up the boombox, dance emote, body-count card vs. 32.
 
 Look & sound:
-- [ ] Lightning bolt VFX (jagged, cyan-white, 2 frames + afterglow), raise-dead green spread, shield shimmer + ricochet sparks, telekinesis distortion ripple, cannon drop shadow + dust, cannonball + muzzle blast, falling-object whistle.
-- [ ] Boss sounds (crackle, rumble, shield hum, whoosh, cannon), boombox as a positioned diegetic music source (user's track or ambience until delivered), stage 1 music cues wired (riot combat, boss, outro).
+- [x] Lightning bolt VFX (jagged, cyan-white, 2 frames + afterglow), raise-dead green spread, shield shimmer + ricochet sparks, telekinesis distortion ripple, cannon drop shadow + dust, cannonball + muzzle blast, falling-object whistle.
+- [x] Boss sounds (crackle, thunder, rumble, ward hum, ricochet, dash whoosh, slams, telekinesis, cannon boom, heavy landing).
+- [x] Boombox as a positioned diegetic music source (`src/audio/boombox.ts`: follows the boombox in a hand or on the floor, pan + depth + room reverb; the user's `s1_boombox_mix.wav` once delivered, radio static until then; swells for the outro). Stage 1 music cues in `assets/music/cues.json` (`riot` → `s1_riot`, `boss` → `s1_boss`, `diegetic` → `s1_boombox`); undelivered tracks are skipped.
 
 Acceptance: the stage completes headless with a scripted bot (sequencer + waves don't deadlock) · boss phases trigger in order · all Stage 1 labs still pass.
 Labs: `boss-halo` (clips 1–4), `world-falling-hazard` (cannon drop).
+
+Done notes: the whole stage is one sequencer script (`src/data/stages/stage1Script.ts`; `?beat=` starts it at any beat). Decisions taken here (invented, tunable in `TUNING.boss` and the script's constants): boss 3 head hits, phase 2 at his first wound or after 30 s and he can't be hurt until his cannon lands; ward 1 s up then a 1.5 s window, never during a move; strike lands where you stood when his hand went up; 6 slams, mashing cuts them to 2, the grab costs one life; volleys of 4 every 9 s; wave B's cannoneer; pickups by kill count; the boombox is locked until the ending; the ending's 60 s fallback. The cannon is a new prop design (no sign-off needed for props). No placeholder music: until the user's tracks arrive the cues are silent and the boombox plays radio static.
 
 ## M9: Room chaining & Stage 2, first half (L)
 **Goal:** multi-room stages, stealth opening, breach, door waves, the clown, the boss interruption.

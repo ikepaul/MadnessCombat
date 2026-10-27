@@ -62,5 +62,6 @@ export default defineConfig({
   plugins: [poseSaver(), coopRelay()],
   server: { port: 5173, strictPort: true },
   build: { target: 'es2022', chunkSizeWarningLimit: 2000 },
-  test: { environment: 'node', include: ['tests/**/*.test.ts'] },
+  // whole-wave and whole-stage simulations: the 5 s default trips when every file runs in parallel on a busy machine
+  test: { environment: 'node', include: ['tests/**/*.test.ts'], testTimeout: 30_000 },
 });

@@ -32,7 +32,18 @@ export interface PoleDef {
   lean: number;
 }
 
-export type PropDef = TableDef | PoleDef;
+/**
+ * M8: the boss's cannon once it has landed (world-falling-hazard: becomes terrain). Solid, low
+ * enough to jump onto (move-jump-onto-object), but not cover: shots pass under the barrel (ep1 f2469).
+ * Drawn by the cannon painter, not the room painter.
+ */
+export interface CannonPropDef {
+  kind: 'cannon';
+  x0: number; x1: number; z0: number; z1: number;
+  top: number;
+}
+
+export type PropDef = TableDef | PoleDef | CannonPropDef;
 
 export interface LampDef {
   x: number;

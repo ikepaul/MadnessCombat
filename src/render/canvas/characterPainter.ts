@@ -8,7 +8,8 @@ import { flatness, ROOT_PIVOT, type Root, type Skeleton } from '../../anim/skele
 import { FEEL } from '../../data/feel';
 import { BLOOD, BLOOD_DARK, INK, type Palette, ZOMBIE, ZOMBIE_HI } from '../../data/palettes';
 import { isWeapon, WEAPONS, type WeaponDef } from '../../data/weapons';
-import type { Actor, ActorKind, HeldItem } from '../../sim/actor';
+import type { Actor, ActorKind, HeldItem, NpcVariant } from '../../sim/actor';
+import { NPC_SUIT, paintBoombox, paintNpcBody, paintNpcHead } from './npcPainter';
 import { project, type ScreenPoint, scaleAt } from '../camera';
 import { burst, type Ctx } from './draw';
 import { paintGrenade, paintGun, paintMelee } from './weaponPainter';
@@ -38,9 +39,11 @@ export function actorColors(kind: ActorKind, pal: Palette, variant?: Actor['vari
   const z = (c: string, zc: string) => (zombie ? (green >= 1 ? zc : mix(c, zc, green)) : c);
   // style frame M7 sheet: the bodyguard's suit sits between a grunt's and the hero's
   const guard = variant === 'bodyguard';
+  // M8 NPCs: white tee (boombox NPC), dark tracksuit (dancer)
+  const npc = isNpc(variant) ? NPC_SUIT[variant] : undefined;
   return {
-    suit: hero ? pal.hero : guard ? BODYGUARD_SUIT : pal.suit,
-    suitShade: hero ? pal.heroShade : guard ? BODYGUARD_SHADE : pal.suitShade,
+    suit: hero ? pal.hero : guard ? BODYGUARD_SUIT : npc ? npc[0] : pal.suit,
+    suitShade: hero ? pal.heroShade : guard ? BODYGUARD_SHADE : npc ? npc[1] : pal.suitShade,
     skin: z(pal.skin, ZOMBIE),
     skinHi: z(pal.skinHi, ZOMBIE_HI),
     hand: z(pal.hand, ZOMBIE),
@@ -49,6 +52,8 @@ export function actorColors(kind: ActorKind, pal: Palette, variant?: Actor['vari
 }
 
 const BODYGUARD_SUIT = '#5c5e66', BODYGUARD_SHADE = '#4a4c53';
+
+const isNpc = (v: Actor['variant']): v is NpcVariant => v === 'boombox' || v === 'dancer';
 
 /** Linear mix of two #rrggbb colours. */
 function mix(a: string, b: string, t: number): string {
@@ -152,6 +157,7 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
     ctx.beginPath(); ctx.moveTo(0.055, -0.565); ctx.lineTo(0.085, -0.565); ctx.lineTo(0.075, -0.45); ctx.lineTo(0.065, -0.45); ctx.closePath();
     ctx.fillStyle = '#2a2b2f'; ctx.fill();
   }
+  if (isNpc(a.variant)) paintNpcBody(ctx, a.variant, bodyPath);
   if (a.playerIndex === 1) {
     // co-op player 2 (style-frame sheet): a light strap across the body, shoulder to hip
     ctx.save(); bodyPath(ctx); ctx.clip();
@@ -170,6 +176,7 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
     ctx.rotate(sk.head[2] + (aim !== undefined ? Math.max(-0.25, Math.min(0.25, aim * 0.18)) : 0));
     paintHead(ctx, col.skin, col.skinHi, pose.dead);
     if (a.variant === 'leader' || a.variant === 'bodyguard') paintHeadGear(ctx, a.variant);
+    else if (isNpc(a.variant)) paintNpcHead(ctx, a.variant);
     if (opts.blood) for (const [wx, wy] of pose.wounds) if (wy <= -0.6) burst(ctx, wx - 0.01, wy + 0.79, 0.035, BLOOD, 7);
     // enemy-behaviours: the last one left sweats
     if (pose.sweat && !pose.dead) sweat(ctx, time);
@@ -195,6 +202,8 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
     }
     // an unaware guard smoking (melee-stealth-kill): the cigarette, brighter on a drag
     if (smoking(a)) cigarette(ctx, sk.handF, time);
+    // carried by the handle, hanging below the hand
+    if (a.carry === 'boombox' && !pose.dead) paintBoombox(ctx, sk.handF[0], sk.handF[1] - 0.01, time);
     if (pose.held) {
       ctx.save();
       ctx.translate(sk.handF[0] + sk.item[0], sk.handF[1] + sk.item[1]);

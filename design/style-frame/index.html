@@ -19,7 +19,7 @@
 </head>
 <body>
 <header>
-  <div class="group"><span>View</span><button data-k="view" data-v="scene" class="on">Scene</button><button data-k="view" data-v="sheet">Character sheet</button></div>
+  <div class="group"><span>View</span><button data-k="view" data-v="scene" class="on">Scene</button><button data-k="view" data-v="sheet">Character sheet</button><button data-k="view" data-v="cast1">Stage 1 cast</button></div>
   <div class="group"><span>Face</span><button data-k="face" data-v="slit" class="on">A · slit</button><button data-k="face" data-v="dots">B · dots</button><button data-k="face" data-v="blank">C · blank</button></div>
   <div class="group"><span>Palette</span><button data-k="palette" data-v="neutral" class="on">Stage 1 · neutral</button><button data-k="palette" data-v="cool">Stage 2 · cool</button><button data-k="palette" data-v="warm">Stage 3 · warm</button></div>
   <div class="group"><span>FX</span><button data-k="fx" data-v="heavy" class="on">Heavy</button><button data-k="fx" data-v="subtle">Subtle</button><button data-k="fx" data-v="off">Off</button></div>
@@ -214,9 +214,11 @@ function gunShape(kind) {
 function drawCharacter(c, pal, face) {
   let fx, fy, s;
   if (c.screen) ({ x: fx, y: fy, s } = c.screen); else { [fx, fy] = P(c.x, 0, c.z); s = scaleAt(c.z); }
-  // M7 variants (own design): the bodyguard's suit is a shade darker than a grunt's, lighter than the hero's
-  const suit = c.kind === 'hero' ? pal.hero : c.variant === 'bodyguard' ? '#5c5e66' : pal.suit;
-  const suitShade = c.kind === 'hero' ? pal.heroShade : c.variant === 'bodyguard' ? '#4a4c53' : pal.suitShade;
+  // M7 variants (own design): the bodyguard's suit is a shade darker than a grunt's, lighter than the hero's.
+  // M8 NPCs: the boombox NPC wears a white tee, the dancer a dark tracksuit.
+  const vs = VARIANT_SUIT[c.variant];
+  const suit = c.kind === 'hero' ? pal.hero : vs ? vs[0] : pal.suit;
+  const suitShade = c.kind === 'hero' ? pal.heroShade : vs ? vs[1] : pal.suitShade;
   const skin = c.kind === 'zombie' ? ZOMBIE : pal.skin, skinHi = c.kind === 'zombie' ? ZOMBIE_HI : pal.skinHi;
   const handCol = c.kind === 'zombie' ? ZOMBIE : pal.hand;
 
@@ -229,8 +231,10 @@ function drawCharacter(c, pal, face) {
   ctx.lineJoin = 'round'; ctx.lineCap = 'round';
 
   const ph = c.walk || 0, stepping = c.walk !== undefined;
-  const bob = stepping ? Math.abs(Math.sin(ph)) * 0.014 : Math.sin(c.t * 0.12) * 0.004;
-  const lift1 = stepping ? Math.max(0, Math.sin(ph)) * 0.035 : 0, lift2 = stepping ? Math.max(0, -Math.sin(ph)) * 0.035 : 0;
+  const dn = c.dance ? c.t * 0.26 : null; // dancer NPC: bounce, sway, hands pumping overhead in turn
+  const bob = dn !== null ? Math.abs(Math.sin(dn)) * 0.035 : stepping ? Math.abs(Math.sin(ph)) * 0.014 : Math.sin(c.t * 0.12) * 0.004;
+  const lift1 = dn !== null ? Math.max(0, Math.sin(dn)) * 0.04 : stepping ? Math.max(0, Math.sin(ph)) * 0.035 : 0;
+  const lift2 = dn !== null ? Math.max(0, -Math.sin(dn)) * 0.04 : stepping ? Math.max(0, -Math.sin(ph)) * 0.035 : 0;
   const swing = stepping ? Math.sin(ph) * 0.07 : 0;
 
   // aim: shoulder -> target, in local units
@@ -242,12 +246,13 @@ function drawCharacter(c, pal, face) {
   }
 
   // back hand (behind the body)
-  hand(-0.17 - swing * 0.6, -0.3 - bob + (stepping ? Math.cos(ph) * 0.02 : Math.sin(c.t * 0.12 + 1) * 0.008), handCol);
+  if (dn !== null) hand(-0.2, -0.35 - bob - Math.max(0, Math.sin(dn * 0.5)) * 0.38, handCol);
+  else hand(-0.17 - swing * 0.6, -0.3 - bob + (stepping ? Math.cos(ph) * 0.02 : Math.sin(c.t * 0.12 + 1) * 0.008), handCol);
   // feet
   foot(-0.06 - swing, lift2, pal.shoe);
   foot(0.08 + swing, lift1, pal.shoe);
 
-  ctx.save(); ctx.translate(0, -bob); ctx.rotate(c.lean || 0);
+  ctx.save(); ctx.translate(0, -bob); ctx.rotate(dn !== null ? Math.sin(dn * 0.5) * 0.12 : c.lean || 0);
   // body + side shading
   bodyPath(); ctx.fillStyle = suit; ctx.fill();
   ctx.save(); bodyPath(); ctx.clip(); ctx.fillStyle = suitShade; ctx.fillRect(-0.25, -0.7, 0.13, 0.7); ctx.restore();
@@ -258,6 +263,10 @@ function drawCharacter(c, pal, face) {
   if (c.variant === 'bodyguard') { // white shirt V and a thin dark tie
     ctx.beginPath(); ctx.moveTo(0.0, -0.575); ctx.lineTo(0.13, -0.575); ctx.lineTo(0.07, -0.43); ctx.closePath(); ctx.fillStyle = '#ececee'; ctx.fill(); ctx.lineWidth = 0.008; ctx.strokeStyle = INK; ctx.stroke();
     ctx.beginPath(); ctx.moveTo(0.055, -0.565); ctx.lineTo(0.085, -0.565); ctx.lineTo(0.075, -0.45); ctx.lineTo(0.065, -0.45); ctx.closePath(); ctx.fillStyle = '#2a2b2f'; ctx.fill();
+  }
+  if (c.variant === 'dancer') { // tracksuit: one light stripe down the side
+    ctx.save(); bodyPath(); ctx.clip(); ctx.fillStyle = '#dcdcdf'; ctx.fillRect(-0.005, -0.62, 0.035, 0.62); ctx.restore();
+    bodyPath(); ctx.lineWidth = 0.016; ctx.strokeStyle = INK; ctx.stroke();
   }
   if (c.player2) { // co-op player 2: a light strap across the body, shoulder to hip (own design)
     ctx.save(); bodyPath(); ctx.clip();
@@ -299,6 +308,11 @@ function drawCharacter(c, pal, face) {
     const hx = 0.2, hy = -0.38 - bob;
     ctx.save(); ctx.translate(hx, hy); ctx.rotate(-1.2 + Math.sin(c.t * 0.2) * 0.1); gunShape('baton'); ctx.restore();
     hand(hx, hy, handCol);
+  } else if (c.gun === 'boombox') { // carried by the handle at the side
+    const hx = 0.21, hy = -0.34 - bob + Math.sin(c.t * 0.12) * 0.006;
+    boombox(hx, hy - 0.01, c.t); hand(hx, hy, handCol);
+  } else if (dn !== null) {
+    hand(0.22, -0.35 - bob - Math.max(0, -Math.sin(dn * 0.5)) * 0.38, handCol);
   } else if (!c.lying) {
     hand(0.19 + swing * 0.6, -0.32 - bob + Math.sin(c.t * 0.12) * 0.008, handCol);
   } else {
@@ -479,7 +493,157 @@ function headGear(kind) {
     ctx.beginPath(); ctx.roundRect(-0.02, -0.175, 0.24, 0.35, 0.06); ctx.fillStyle = '#6b6d73'; ctx.fill(); ctx.lineWidth = 0.016; ctx.strokeStyle = INK; ctx.stroke();
     ctx.beginPath(); ctx.roundRect(0.05, -0.08, 0.15, 0.065, 0.015); ctx.fillStyle = '#1d2a22'; ctx.fill(); ctx.lineWidth = 0.01; ctx.stroke();
     ctx.strokeStyle = 'rgba(160,255,190,0.45)'; ctx.lineWidth = 0.008; ctx.beginPath(); ctx.moveTo(0.07, -0.068); ctx.lineTo(0.11, -0.068); ctx.stroke();
+  } else if (kind === 'boombox') { // M8 boombox NPC: over-ear headphones, band over the top of the head
+    ctx.strokeStyle = '#2a2b2f'; ctx.lineWidth = 0.026;
+    ctx.beginPath(); ctx.moveTo(-0.025, -0.03); ctx.quadraticCurveTo(-0.06, -0.16, -0.035, -0.245); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(-0.025, 0.0, 0.055, 0.072, 0, 0, 7); ctx.fillStyle = '#2a2b2f'; ctx.fill(); ctx.lineWidth = 0.01; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(-0.02, 0.0, 0.025, 0.035, 0, 0, 7); ctx.fillStyle = '#6b6d73'; ctx.fill();
+  } else if (kind === 'dancer') { // M8 dancer NPC: knit beanie with a pom
+    ctx.beginPath(); ctx.ellipse(0.0, -0.1, 0.212, 0.165, 0, Math.PI, 0); ctx.closePath(); ctx.fillStyle = '#cfd0d3'; ctx.fill(); ctx.lineWidth = 0.014; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.beginPath(); ctx.roundRect(-0.215, -0.135, 0.43, 0.06, 0.02); ctx.fillStyle = '#b6b7bb'; ctx.fill(); ctx.stroke();
+    ctx.lineWidth = 0.006; ctx.strokeStyle = 'rgba(20,20,22,0.35)';
+    for (let k = -3; k <= 3; k++) { ctx.beginPath(); ctx.moveTo(k * 0.055, -0.13); ctx.lineTo(k * 0.055, -0.08); ctx.stroke(); }
+    ctx.beginPath(); ctx.arc(-0.03, -0.275, 0.045, 0, 7); ctx.fillStyle = '#f0f0f2'; ctx.fill(); ctx.lineWidth = 0.012; ctx.strokeStyle = INK; ctx.stroke();
   }
+}
+
+// ---------- stage 1 cast (M8, own designs) ----------
+const VARIANT_SUIT = { bodyguard: ['#5c5e66', '#4a4c53'], boombox: ['#e3e3e5', '#bfc0c4'], dancer: ['#4a4b51', '#3a3b40'] };
+const BOLT = '#eafcff', BOLT_GLOW = 'rgba(110,215,255,';
+const BOSS = { coat: '#2c2c32', coatShade: '#1d1d22', collar: '#3c3c44', skin: '#c6c6cb', glove: '#3c3c44', scale: 1.1 };
+
+function glow(x, y, r, a) {
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, BOLT_GLOW + a + ')'); g.addColorStop(1, BOLT_GLOW + '0)');
+  ctx.fillStyle = g; ctx.fillRect(x - r, y - r, 2 * r, 2 * r);
+}
+// jagged bolt path from (x0,y0) to (x1,y1)
+function jag(x0, y0, x1, y1, n, amp, rnd) {
+  const nx = y0 - y1, ny = x1 - x0, d = Math.hypot(nx, ny);
+  ctx.beginPath(); ctx.moveTo(x0, y0);
+  for (let i = 1; i < n; i++) { const k = i / n, o = (rnd() - 0.5) * 2 * amp; ctx.lineTo(x0 + (x1 - x0) * k + nx / d * o, y0 + (y1 - y0) * k + ny / d * o); }
+  ctx.lineTo(x1, y1);
+}
+function boltStroke(w) {
+  ctx.strokeStyle = BOLT_GLOW + '0.35)'; ctx.lineWidth = w * 3.5; ctx.stroke();
+  ctx.strokeStyle = BOLT; ctx.lineWidth = w; ctx.stroke();
+}
+
+// boombox, (x, y) = top of the handle; the speakers pump on the beat
+function boombox(x, y, t) {
+  const pulse = Math.pow(Math.max(0, Math.sin(t * 0.52)), 4);
+  ctx.lineJoin = 'round'; ctx.lineWidth = 0.016; ctx.strokeStyle = INK;
+  ctx.beginPath(); ctx.roundRect(x - 0.1, y, 0.2, 0.07, 0.025); ctx.stroke();
+  ctx.beginPath(); ctx.roundRect(x - 0.19, y + 0.045, 0.38, 0.19, 0.03); ctx.fillStyle = '#3a3b40'; ctx.fill(); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.fillRect(x - 0.17, y + 0.06, 0.34, 0.02);
+  for (const sx of [-0.105, 0.105]) {
+    const r = 0.056 * (1 + pulse * 0.12);
+    ctx.beginPath(); ctx.arc(x + sx, y + 0.145, r, 0, 7); ctx.fillStyle = '#606167'; ctx.fill(); ctx.lineWidth = 0.01; ctx.stroke();
+    ctx.beginPath(); ctx.arc(x + sx, y + 0.145, r * 0.36, 0, 7); ctx.fillStyle = INK; ctx.fill();
+  }
+  ctx.fillStyle = '#c9cacd'; ctx.fillRect(x - 0.025, y + 0.1, 0.05, 0.035); ctx.lineWidth = 0.006; ctx.strokeRect(x - 0.025, y + 0.1, 0.05, 0.035);
+  ctx.beginPath(); ctx.arc(x, y + 0.19, 0.009, 0, 7); ctx.fillStyle = pulse > 0.2 ? '#ff3a44' : '#7a1a20'; ctx.fill();
+  if (pulse > 0.25) { // beat marks
+    ctx.strokeStyle = `rgba(20,20,22,${pulse * 0.6})`; ctx.lineWidth = 0.01;
+    for (const sd of [-1, 1]) for (const k of [0.25, 0.3]) { ctx.beginPath(); ctx.arc(x, y + 0.145, k, sd > 0 ? -0.45 : Math.PI - 0.45, sd > 0 ? 0.45 : Math.PI + 0.45); ctx.stroke(); }
+  }
+}
+
+// the boss's own shield: a screen-facing diamond ward with rings rippling inward (never a cross)
+function ward(cx, cy, hw, hh, t) {
+  const at = k => [[cx, cy - hh * k], [cx + hw * k, cy], [cx, cy + hh * k], [cx - hw * k, cy]];
+  const flick = 0.8 + 0.2 * Math.sin(t * 0.9);
+  glow(cx, cy, hh * 1.05, (0.16 * flick).toFixed(3));
+  poly(at(1)); ctx.fillStyle = BOLT_GLOW + (0.14 * flick).toFixed(3) + ')'; ctx.fill();
+  for (let i = 0; i < 4; i++) { const k = 1 - ((i / 4 + t * 0.012) % 1); poly(at(k)); ctx.strokeStyle = BOLT_GLOW + (0.5 * k).toFixed(3) + ')'; ctx.lineWidth = 0.01; ctx.stroke(); }
+  poly(at(1)); ctx.strokeStyle = BOLT_GLOW + '0.35)'; ctx.lineWidth = 0.05; ctx.stroke();
+  ctx.strokeStyle = BOLT; ctx.lineWidth = 0.014; ctx.stroke();
+  if (t % 12 < 3) { // a blocked bullet: ricochet sparks off the front face
+    const rnd = mulberry32(Math.floor(t / 12)), px = cx + hw * 0.45, py = cy - hh * 0.3 + rnd() * 0.2;
+    glow(px, py, 0.12, 0.6); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 0.01;
+    for (let i = 0; i < 5; i++) { const a = -0.9 + rnd() * 1.8; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + Math.cos(a) * (0.06 + rnd() * 0.1), py + Math.sin(a) * (0.06 + rnd() * 0.1)); ctx.stroke(); }
+  }
+}
+
+function coatPath() {
+  ctx.beginPath(); ctx.moveTo(-0.15, -0.6);
+  ctx.quadraticCurveTo(-0.22, -0.3, -0.25, 0.02);
+  for (const [x, y] of [[-0.18, -0.04], [-0.12, 0.03], [-0.04, -0.03], [0.04, 0.04], [0.11, -0.02], [0.18, 0.03], [0.24, 0.0]]) ctx.lineTo(x, y);
+  ctx.quadraticCurveTo(0.21, -0.3, 0.15, -0.6); ctx.closePath();
+}
+
+// Boss: a hovering necromancer, 1.1 H. Silhouette = tall flared collar + long coat with a torn hem,
+// no feet (always floats). Bald, no beard, no halo; the lightning cyan glows in his eye slit, coat seam
+// and casting hand. pose: 'idle' | 'cast' (raised hand + crackle = lightning telegraph) | 'ward'
+function drawBoss(c) {
+  const { x: fx, y: fy } = c.screen, s = c.screen.s * BOSS.scale, t = c.t;
+  const hov = 0.14 + Math.sin(t * 0.08) * 0.03, sway = Math.sin(t * 0.08 + 1) * 0.012;
+  ctx.save(); ctx.translate(fx, fy); ctx.scale(s, s);
+  ctx.beginPath(); ctx.ellipse(0, 0, 0.32 - hov * 0.6, 0.05, 0, 0, 7); ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.fill();
+  ctx.scale(c.facing, 1); ctx.translate(0, -hov);
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+
+  hand(-0.21, -0.3 + sway, BOSS.glove, 0.068);
+  poly([[-0.13, -0.58], [-0.35, -0.97], [-0.17, -1.07], [0.0, -0.68]]);
+  ctx.fillStyle = BOSS.collar; ctx.fill(); ctx.lineWidth = 0.016; ctx.strokeStyle = INK; ctx.stroke();
+
+  coatPath(); ctx.fillStyle = BOSS.coat; ctx.fill();
+  ctx.save(); coatPath(); ctx.clip(); ctx.fillStyle = BOSS.coatShade; ctx.fillRect(-0.3, -0.7, 0.15, 0.8); ctx.restore();
+  coatPath(); ctx.lineWidth = 0.016; ctx.strokeStyle = INK; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0.1, -0.56); ctx.lineTo(0.16, -0.02); boltStroke(0.008);
+
+  ctx.beginPath(); ctx.ellipse(0.01, -0.8, 0.185, 0.235, 0, 0, 7); ctx.fillStyle = BOSS.skin; ctx.fill();
+  const hg = ctx.createLinearGradient(-0.18, 0, 0.2, 0);
+  hg.addColorStop(0, 'rgba(0,0,0,0.22)'); hg.addColorStop(0.35, 'rgba(0,0,0,0.08)'); hg.addColorStop(0.6, 'rgba(0,0,0,0)'); hg.addColorStop(1, 'rgba(255,255,255,0.18)');
+  ctx.fillStyle = hg; ctx.fill();
+  ctx.beginPath(); ctx.ellipse(0.08, -0.93, 0.05, 0.028, -0.55, 0, 7); ctx.fillStyle = '#ececef'; ctx.globalAlpha = 0.7; ctx.fill(); ctx.globalAlpha = 1;
+  ctx.beginPath(); ctx.ellipse(0.01, -0.8, 0.185, 0.235, 0, 0, 7); ctx.lineWidth = 0.016; ctx.strokeStyle = INK; ctx.stroke();
+  glow(0.1, -0.84, 0.13, c.pose === 'idle' ? 0.35 : 0.6);
+  ctx.beginPath(); ctx.moveTo(0.04, -0.84); ctx.lineTo(0.165, -0.84); ctx.strokeStyle = BOLT; ctx.lineWidth = 0.024; ctx.stroke();
+
+  poly([[0.13, -0.58], [0.215, -0.67], [0.15, -0.7], [0.05, -0.61]]);
+  ctx.fillStyle = BOSS.collar; ctx.fill(); ctx.lineWidth = 0.016; ctx.strokeStyle = INK; ctx.stroke();
+
+  if (c.pose === 'cast') {
+    const hx = 0.15, hy = -1.2 + sway, rnd = mulberry32(Math.floor(t / 2));
+    glow(hx, hy, 0.3, 0.55);
+    for (let i = 0; i < 4; i++) { const a = rnd() * Math.PI * 2, l = 0.1 + rnd() * 0.12; jag(hx, hy, hx + Math.cos(a) * l, hy + Math.sin(a) * l, 4, 0.025, rnd); boltStroke(0.009); }
+    hand(hx, hy, BOSS.glove, 0.07);
+  } else if (c.pose === 'ward') {
+    const hx = 0.3, hy = -0.6 + sway;
+    hand(hx, hy, BOSS.glove, 0.07); glow(hx, hy, 0.14, 0.4);
+    ward(0.54, -0.62, 0.25, 0.68, t);
+  } else {
+    hand(0.21, -0.3 - sway, BOSS.glove, 0.068); glow(0.21, -0.3 - sway, 0.1, 0.25);
+  }
+  ctx.restore();
+}
+
+function drawCast(pal, face) {
+  ctx.fillStyle = pal.back; ctx.fillRect(0, 0, W, SH);
+  ctx.fillStyle = pal.floor; ctx.fillRect(0, 860, W, SH - 860);
+  ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.beginPath(); ctx.moveTo(0, 860); ctx.lineTo(W, 860); ctx.stroke();
+  const s = 360, base = 900, t = sim.frame;
+  const label = (txt, x) => { ctx.font = '600 18px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = INK; ctx.fillText(txt, x, base + 70); };
+  [['idle', 300, 'Boss · hovering'], ['cast', 590, 'Boss · lightning telegraph'], ['ward', 880, 'Boss · ward up']].forEach(([pose, x, l]) => {
+    drawBoss({ screen: { x, y: base, s }, facing: 1, t, pose }); label(l, pose === 'ward' ? x + 90 : x);
+  });
+  drawCharacter({ kind: 'grunt', variant: 'boombox', gun: 'boombox', facing: -1, t, screen: { x: 1430, y: base, s } }, pal, face); label('Boombox NPC', 1430);
+  ctx.save(); ctx.translate(1620, base); ctx.scale(s, s);
+  ctx.beginPath(); ctx.ellipse(0, 0, 0.22, 0.035, 0, 0, 7); ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fill();
+  boombox(0, -0.245, t); ctx.restore(); label('Boombox (dropped)', 1620);
+  drawCharacter({ kind: 'grunt', variant: 'dancer', dance: true, facing: -1, t, screen: { x: 1800, y: base, s } }, pal, face); label('Dancer NPC', 1800);
+  // ruler: 1 H
+  ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(110, base); ctx.lineTo(110, base - s); ctx.stroke();
+  ctx.lineWidth = 2; for (let k = 0; k <= 4; k++) { const y = base - s * k / 4; ctx.beginPath(); ctx.moveTo(98, y); ctx.lineTo(122, y); ctx.stroke(); }
+  ctx.font = '600 22px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = INK; ctx.fillText('1 H', 110, base - s - 16);
+  ctx.textAlign = 'left'; ctx.font = '500 20px system-ui, sans-serif'; ctx.fillStyle = 'rgba(20,20,22,0.85)';
+  const notes = ['Boss (M8 design pass, own design): a hovering necromancer, 1.1 H. Bald, no beard, no halo.',
+    'Silhouette: tall flared collar behind the head, long dark coat with a torn hem, no feet: always floats with a shadow below.',
+    'Lightning is cyan-white. The same cyan glows in his eye slit, coat seam and hands, so every telegraph reads as him.',
+    'Ward = our shield shape: a screen-facing diamond with rings rippling inward (never a cross). Blocks frontal fire ≈ 1 s.',
+    'Boombox NPC: white tee + headphones, carries the boombox (drops it when killed, picked up in the ending).',
+    'Dancer NPC: dark tracksuit with a side stripe + beanie, dances in the background the whole stage.'];
+  notes.forEach((n, i) => ctx.fillText(n, 70, 60 + i * 30));
 }
 
 // ---------- character sheet ----------
@@ -557,6 +721,7 @@ function frame(now) {
   while (sim.acc >= 1 / FPS) { sim.acc -= 1 / FPS; if (sim.hitstop > 0) sim.hitstop--; else step(); }
   const pal = PALETTES[state.palette];
   if (state.view === 'scene') { drawScene(pal, state.face); if (state.grid === 'on') gridOverlay(); }
+  else if (state.view === 'cast1') drawCast(pal, state.face);
   else drawSheet(pal, state.face);
   if (state.fx !== 'off') post();
   if (state.view === 'scene') killCounter(sim.kills);
@@ -578,6 +743,7 @@ if (params.has('frame')) {
   const n = Number(params.get('frame')), pal = PALETTES[state.palette];
   for (let i = 0; i <= n; i++) { if (sim.hitstop > 0) sim.hitstop--; else step(); if (state.view === 'scene') drawScene(pal, state.face); }
   if (state.view === 'sheet') drawSheet(pal, state.face);
+  if (state.view === 'cast1') drawCast(pal, state.face);
   if (state.grid === 'on' && state.view === 'scene') gridOverlay();
   if (state.fx !== 'off') post();
   if (state.view === 'scene') killCounter(sim.kills);
