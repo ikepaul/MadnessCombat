@@ -6,6 +6,8 @@ import type { MeleeId } from '../data/melee';
 import { isWeapon, WEAPONS, type WeaponId } from '../data/weapons';
 
 export type ActorKind = 'hero' | 'grunt' | 'zombie';
+/** M8 stage 1 NPCs (design/art-direction.md, style frame "Stage 1 cast"): no AI, driven by scripts. */
+export type NpcVariant = 'boombox' | 'dancer';
 /** What a hand holds: a gun (src/data/weapons.ts) or a melee weapon / throwable (src/data/melee.ts). */
 export type HeldItem = WeaponId | MeleeId | null;
 
@@ -232,7 +234,9 @@ export interface Actor {
   /** Hits absorbed while held as a human shield (combat-human-shield). */
   shieldHits?: number;
   /** M7 grunt variants: squad leader (shades, gun), elite bodyguard (2 hits, headshot 1), the VIP they guard. */
-  variant?: 'leader' | 'bodyguard' | 'vip';
+  variant?: 'leader' | 'bodyguard' | 'vip' | NpcVariant;
+  /** M8: something carried that isn't a weapon (the boombox NPC's boombox), drawn at the front hand. */
+  carry?: 'boombox';
   /** Being taken down (stealth kill) by this actor: held still until the kill (M7). */
   takenBy?: number;
   /** Enemy AI memory (src/sim/ai.ts). */

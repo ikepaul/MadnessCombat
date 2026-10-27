@@ -74,9 +74,10 @@ export class UIScene extends Phaser.Scene {
     const bg = this.add.rectangle(0, 0, 1920, 1080, 0x000000, 1).setOrigin(0, 0);
     const text = this.add.text(960, 540, '', { fontFamily: 'Anton', fontSize: '72px', color: '#ffffff', align: 'center', wordWrap: { width: 1500 } }).setOrigin(0.5).setName('text');
     this.titleCard = this.add.container(0, 0, [bg, text]).setDepth(90).setVisible(false);
-    this.caption = this.add.text(960, 1080 - 150, '', {
+    // top of the screen, over the sky / back wall, so it never covers the fight
+    this.caption = this.add.text(960, 120, '', {
       fontFamily: 'Inter', fontSize: '30px', color: '#ffffff', backgroundColor: '#000000cc', padding: { x: 18, y: 10 }, align: 'center', wordWrap: { width: 1400 },
-    }).setOrigin(0.5, 1).setDepth(90).setVisible(false);
+    }).setOrigin(0.5, 0).setDepth(90).setVisible(false);
     this.scriptCardUntil = 0;
   }
 

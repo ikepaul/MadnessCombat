@@ -13,7 +13,10 @@ import { explode } from './explosives';
 import { rayVsActor } from './hitscan';
 import type { World } from './world';
 
-export type ItemKind = 'head' | 'grenade' | Exclude<HeldItem, null>;
+export type ItemKind = 'head' | 'grenade' | 'boombox' | Exclude<HeldItem, null>;
+
+/** Floor items that can't go into a hand: heads, grenades (the pocket), the boombox (M8 ending). */
+export const notHoldable = (k: ItemKind): k is 'head' | 'grenade' | 'boombox' => k === 'head' || k === 'grenade' || k === 'boombox';
 
 export interface Item {
   id: number;
@@ -205,7 +208,7 @@ export function canCatch(world: World, o: Actor): boolean {
 
 /** A weapon in the air within reach of someone's hands who just pressed F. */
 function snatch(world: World, it: Item): boolean {
-  if (it.kind === 'head' || it.kind === 'grenade') return false;
+  if (notHoldable(it.kind)) return false;
   for (const o of world.actors) {
     if (!canCatch(world, o)) continue;
     if (o.id === it.thrownBy && world.time - (it.thrownAt ?? -Infinity) < THROWN.ownCatchDelay) continue;

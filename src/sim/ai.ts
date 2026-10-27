@@ -16,6 +16,7 @@ import { type Actor, alive, type Brain, type Hand } from './actor';
 import { clamp } from './collision';
 import { IDLE_COMMAND, type PlayerCommand } from './command';
 import { castRay } from './hitscan';
+import { notHoldable } from './items';
 import { canFlip } from './cover';
 import { checkHeld, lookOut } from './stealth';
 import type { World } from './world';
@@ -226,7 +227,7 @@ function unawareStep(world: World, a: Actor, dt: number): PlayerCommand {
 function scavenge(world: World, a: Actor): PlayerCommand | undefined {
   let best: (typeof world.items)[number] | undefined, bestD = Infinity;
   for (const it of world.items) {
-    if (it.state !== 'floor' || it.kind === 'head' || it.kind === 'grenade') continue;
+    if (it.state !== 'floor' || notHoldable(it.kind)) continue;
     // not from under a player's feet
     if (world.activePlayers.some((p) => Math.hypot(p.pos.x - it.pos.x, p.pos.z - it.pos.z) < AI.scavengeClear)) continue;
     const d = Math.hypot(it.pos.x - a.pos.x, it.pos.z - a.pos.z);

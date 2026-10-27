@@ -34,6 +34,8 @@ export interface ActorSnap {
   grenades: number;
   /** M7: grunt variant, and what an unaware enemy is doing (the painter draws the cigarette). */
   variant?: Actor['variant'];
+  /** M8: the boombox NPC's boombox. */
+  carry?: Actor['carry'];
   unaware?: 'stand' | 'smoke' | 'patrol';
 }
 
@@ -62,7 +64,7 @@ function snapActor(a: World['actors'][number]): ActorSnap {
     hp: a.hp, maxHp: a.maxHp, revive: a.revive, entering: a.entering,
     bodyState: a.body.state, bodyHeight: a.body.height, corpse: a.corpse?.phase, gibbed: a.corpse?.gibbed, pinned: a.corpse?.pinned,
     pose: a.pose, hands: a.hands, grenades: a.grenades,
-    variant: a.variant, unaware: a.ai?.aware === false ? a.ai.idle ?? 'stand' : undefined,
+    variant: a.variant, carry: a.carry, unaware: a.ai?.aware === false ? a.ai.idle ?? 'stand' : undefined,
   };
 }
 
@@ -132,6 +134,7 @@ export function applySnapshot(world: World, s: Snapshot): void {
     if (as.enemy && !a.ai) a.ai = newAiState(world);
     a.kind = as.kind;
     a.variant = as.variant;
+    a.carry = as.carry;
     if (a.ai) { a.ai.aware = as.unaware ? false : true; a.ai.idle = as.unaware; }
     if (as.playerIndex !== undefined) {
       a.playerIndex = as.playerIndex;

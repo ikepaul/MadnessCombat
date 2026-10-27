@@ -6,6 +6,7 @@ import { isWeapon, WEAPONS } from '../../data/weapons';
 import type { Item } from '../../sim/items';
 import { project, scaleAt } from '../camera';
 import { actorColors, paintHead, paintHeld } from './characterPainter';
+import { paintBoombox } from './npcPainter';
 import { paintGrenade } from './weaponPainter';
 import type { Ctx } from './draw';
 
@@ -37,6 +38,9 @@ export function paintItem(ctx: Ctx, it: Item, pal: Palette, blood: boolean, time
     ctx.beginPath(); ctx.ellipse(0, 0.2, 0.11, 0.03, 0, 0, Math.PI * 2);
     ctx.fillStyle = blood ? BLOOD_DARK : '#5d5e63'; ctx.fill();
     ctx.lineWidth = 0.01; ctx.strokeStyle = INK; ctx.stroke();
+  } else if (it.kind === 'boombox') {
+    // on its back on the floor, still playing (M8)
+    paintBoombox(ctx, 0, -0.26, time);
   } else if (it.kind === 'grenade') {
     // live grenades blink faster as the fuse runs down (telegraph)
     const rate = it.fuse !== undefined && it.fuse < 0.5 ? 16 : 8;
@@ -51,7 +55,7 @@ export function paintItem(ctx: Ctx, it: Item, pal: Palette, blood: boolean, time
 
 /** A blade stuck in a body or a wall (tip in, handle out), or the street sign planted upright. */
 function paintFixed(ctx: Ctx, it: Item, s: number, blood: boolean): void {
-  if (it.kind === 'head' || it.kind === 'grenade') return;
+  if (it.kind === 'head' || it.kind === 'grenade' || it.kind === 'boombox') return;
   const [x, y] = project(it.pos.x, it.pos.y, it.pos.z);
   const len = isMelee(it.kind) ? MELEE[it.kind].length : isWeapon(it.kind) ? WEAPONS[it.kind].length : 0.3;
   ctx.save();

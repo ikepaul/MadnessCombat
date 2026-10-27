@@ -28,6 +28,7 @@ import { hasEdges, mergeEdges } from '../sim/command';
 import { WaveDirector } from '../sim/waves';
 import { World } from '../sim/world';
 import { STAGE1, type StageRoomId } from '../data/stages/stage1';
+import { stage1 } from '../data/stages/stage1Script';
 import { coopLink, type CoopLink } from '../net/link';
 import { applySnapshot, type Snapshot, SnapshotWriter } from '../net/snapshot';
 import { paintReviveBar, paintReviveCircle } from '../render/canvas/revivePainter';
@@ -48,7 +49,7 @@ export interface GameSceneData {
   palette?: PaletteId;
   /** `?room=test`: the style-frame room with the M0 cast (look check). */
   testRoom?: boolean;
-  /** Stage route `?stage=1&room=arena&wave=A` (the default). */
+  /** Stage route `?stage=1&room=arena` (the default: the whole stage from its intro); `&wave=A` starts at that wave. */
   stage?: 1;
   room?: StageRoomId;
   wave?: string;
@@ -229,8 +230,11 @@ export class GameScene extends Phaser.Scene {
     const coop = data.coop === 'host';
     this.world.addPlayer(createActor('hero', coop ? -0.6 : 0, 9.2, 1));
     if (coop) this.world.addPlayer(createActor('hero', 0.6, 9.2, -1));
-    const start = Math.max(0, def.script.waves.findIndex((w) => w.id === (data.wave ?? 'A')));
-    this.world.director = new WaveDirector(def.script, start);
+    // `?wave=A` jumps straight to that wave of the room; otherwise the whole stage runs from its intro (M8)
+    if (data.wave) {
+      const start = Math.max(0, def.script.waves.findIndex((w) => w.id === data.wave));
+      this.world.director = new WaveDirector(def.script, start);
+    } else this.world.seq.run(stage1);
     this.stageInfo = { stage: STAGE1.stage, room: roomId, targetBodyCount: STAGE1.targetBodyCount };
   }
 

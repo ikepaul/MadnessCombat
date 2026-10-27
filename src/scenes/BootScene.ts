@@ -28,17 +28,17 @@ export class BootScene extends Phaser.Scene {
           role: params.get('coop') === 'host' ? 'host' : 'guest',
           stage: 1,
           room: (params.get('room') ?? 'arena') as StageRoomId,
-          wave: params.get('wave') ?? 'A',
+          wave: params.get('wave') ?? undefined,
           palette,
         });
       }
       else if (params.get('room') === 'test') this.scene.start('game', { testRoom: true, palette });
       else {
-        // the stage route is the default: /?stage=1&room=arena&wave=A
+        // the stage route is the default: /?stage=1&room=arena runs the whole stage, &wave=A starts at wave A
         this.scene.start('game', {
           stage: 1,
           room: (params.get('room') ?? 'arena') as StageRoomId,
-          wave: params.get('wave') ?? 'A',
+          wave: params.get('wave') ?? undefined,
           palette,
         });
       }

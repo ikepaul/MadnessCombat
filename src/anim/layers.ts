@@ -7,6 +7,8 @@ import type { Skeleton } from './skeleton';
 
 /** Idle breathing/hand bob rates: the style frame used 0.12 rad per 30 fps frame. */
 export const BREATH_RATE = 0.12 * 30;
+/** Dancer loop rate (rad/s): the style frame's 0.26 per 30 fps frame. invented */
+const DANCE_RATE = 0.26 * 30;
 
 export interface Layered {
   skeleton: Skeleton;
@@ -40,13 +42,24 @@ export function buildSkeleton(a: Actor, time: number): Layered {
     s.handF[0] += handSwing * 0.6 + tuck * 0.04;
     s.handF[1] += -tuck * 0.14 + (quiet ? 0 : Math.sin(breath) * 0.008);
   }
-  s.body[1] -= bob;
-  s.head[1] -= bob;
-  s.handF[1] -= bob;
-  s.handB[1] -= bob;
+  // M8 dancer NPC (style frame "Stage 1 cast"): bounce, sway, hands pumping overhead in turn
+  const dn = a.variant === 'dancer' && a.state === 'free' && !p.dead && !stepping ? time * DANCE_RATE + a.id : undefined;
+  let danceBob = 0, danceLean = 0;
+  if (dn !== undefined) {
+    danceBob = Math.abs(Math.sin(dn)) * 0.035;
+    danceLean = Math.sin(dn * 0.5) * 0.12;
+    s.footF[1] -= Math.max(0, Math.sin(dn)) * 0.04;
+    s.footB[1] -= Math.max(0, -Math.sin(dn)) * 0.04;
+    s.handB[0] = -0.2; s.handB[1] = -0.35 - Math.max(0, Math.sin(dn * 0.5)) * 0.38;
+    s.handF[0] = 0.22; s.handF[1] = -0.35 - Math.max(0, -Math.sin(dn * 0.5)) * 0.38;
+  }
+  s.body[1] -= bob + danceBob;
+  s.head[1] -= bob + danceBob;
+  s.handF[1] -= bob + danceBob;
+  s.handB[1] -= bob + danceBob;
 
   // hit lean + stun wobble: body and head rotate about the feet
-  let lean = p.lean + tuck * 0.12;
+  let lean = p.lean + tuck * 0.12 + danceLean;
   if (a.state === 'stun') lean += Math.sin(a.stateT * 18) * 0.05 * Math.max(0, 1 - a.stateT / 0.7);
   if (lean !== 0) {
     const c = Math.cos(lean), sn = Math.sin(lean);

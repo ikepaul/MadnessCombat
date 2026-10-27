@@ -201,7 +201,7 @@ function pickUp(world: World, a: Actor, pressed: boolean, cmd: PlayerCommand): v
   const reach = pressed ? GUNS.pickupRange : GUNS.pickupRange * 0.6;
   let best: (typeof world.items)[number] | undefined, bestD = Infinity;
   for (const it of world.items) {
-    if (it.state !== 'floor' || it.kind === 'head' || (it.kind === 'grenade' && it.live)) continue;
+    if (it.state !== 'floor' || it.kind === 'head' || it.kind === 'boombox' || (it.kind === 'grenade' && it.live)) continue;
     const d = Math.hypot(it.pos.x - a.pos.x, (it.pos.z - a.pos.z) * 1.5);
     if (d <= reach && d < bestD) { best = it; bestD = d; }
   }
@@ -221,7 +221,7 @@ function pickUp(world: World, a: Actor, pressed: boolean, cmd: PlayerCommand): v
     if (old) dropHeld(world, old.item, a.pos, a.facing * 0.3, { ammo: old.ammo, spare: old.spare });
     a.hands[i] = null;
   }
-  a.hands[slot] = newHand(it.kind as Exclude<typeof it.kind, 'head' | 'grenade'>, it.ammo, it.spare);
+  a.hands[slot] = newHand(it.kind as Exclude<typeof it.kind, 'head' | 'grenade' | 'boombox'>, it.ammo, it.spare);
   world.events.emit('pickup', { actorId: a.id, itemId: it.id, hand: slot, item: it.kind, ...a.pos });
 }
 
