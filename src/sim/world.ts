@@ -10,7 +10,7 @@ import { type Item, type ItemKind, spawnItem, stepItems } from './items';
 import type { RoomDef } from './room';
 import type { WaveDirector } from './waves';
 import { stepProps } from './cover';
-import { type ElevatorState, stepElevator } from './elevator';
+import { checkHatch, type ElevatorState, stepElevator } from './elevator';
 import { type Collapse, type FallingBlock, stepBlocks, stepCollapse } from './improbability';
 import { blastExit, checkExits, type ExitDef, type ExitState, skyLanding, stepTraversal, type Tracker } from './stage';
 import { Seq } from './sequencer';
@@ -206,6 +206,7 @@ export class World {
     this.seq.step(this.dt);
     assignTokens(this);
     checkExits(this);
+    checkHatch(this);
     const gone: Actor[] = [];
     for (const a of this.actors) {
       if (a.corpse?.phase === 'frozen') continue;

@@ -49,6 +49,9 @@ export interface Snapshot {
   actors: ActorSnap[];
   items: Item[];
   doors: number[];
+  /** M10: the elevator (shaft scroll, the welder's cut, the cables) and the cab roof's holes. */
+  elevator?: World['elevator'];
+  decks?: World['room']['decks'];
   /** M7: props change in play (kicked-over tables). */
   props: World['room']['props'];
   kills: number;
@@ -77,6 +80,12 @@ export class SnapshotWriter {
   /** Corpses that froze since the last snapshot: sent once more so the guest bakes the final pose. */
   private justFrozen = new Set<number>();
   needFull = true;
+  /**
+   * The next full snapshot is for a guest who just (re)joined: it skips the buffered events (they
+   * belong to a world the guest never saw). A full snapshot for a room change keeps them, or the
+   * guest would miss that tick's events (the ink wipe uncovering the new room, M9).
+   */
+  joining = true;
 
   constructor(private world: World, private session: number) {
     world.events.onAny((type, payload) => {
@@ -98,11 +107,13 @@ export class SnapshotWriter {
     const snap: Snapshot = {
       session: this.session, roomId: w.room.id, tick: w.tick, full, actors,
       items: w.items, doors: w.doors.map((d) => d.open), props: w.room.props, cannons: w.cannons, balls: w.balls, kills: w.kills, lastKillKind: w.lastKillKind,
-      events: full ? [] : this.events,
+      elevator: w.elevator, decks: w.room.decks,
+      events: full && this.joining ? [] : this.events,
     };
     this.events = [];
     this.justFrozen.clear();
     this.needFull = false;
+    this.joining = false;
     return snap;
   }
 }
@@ -146,6 +157,8 @@ export function applySnapshot(world: World, s: Snapshot): void {
   }
   world.items = s.items;
   if (s.props) world.room.props = s.props;
+  world.elevator = s.elevator;
+  if (s.decks) world.room.decks = s.decks;
   if (s.cannons) world.cannons = s.cannons;
   if (s.balls) world.balls = s.balls;
   s.doors.forEach((open, i) => { if (world.doors[i]) world.doors[i].open = open; });

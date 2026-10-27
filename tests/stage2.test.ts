@@ -312,3 +312,25 @@ describe('stage 2, second half (M10)', () => {
     expect(cleared).toBe(true);
   });
 });
+
+describe('the elevator hatch', () => {
+  it('E under the hatch climbs you onto the roof (a real key press, roughly under it)', () => {
+    const { world, hero } = setup('elevator');
+    hero.invulnerable = true;
+    tick(world, {}, 2);
+    const h = world.room.elevator!.hatch;
+    // near the hole, not exactly in it
+    hero.pos.x = h.x0 - 0.2;
+    hero.pos.z = (h.z0 + h.z1) / 2 + 0.2;
+    tick(world, { pickup: true });
+    expect(hero.traversing?.kind).toBe('hatch');
+    tick(world, {}, 90);
+    expect(hero.traversing).toBeUndefined();
+    expect(hero.pos.y).toBeCloseTo(roof(world)!.y, 5);
+    expect(hero.body.state).toBe('ground');
+    // and walking over the hole drops you back in
+    hero.pos.x = (h.x0 + h.x1) / 2;
+    tick(world, {}, 60);
+    expect(hero.pos.y).toBeLessThan(0.1);
+  });
+});

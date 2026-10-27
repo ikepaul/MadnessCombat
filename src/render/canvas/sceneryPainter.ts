@@ -223,7 +223,7 @@ export function paintCrate(ctx: Ctx, c: CrateDef, pal: Palette): void {
  * (back panel, side walls, floor), its ceiling with the hatch and any cut slot, the slab's front
  * edge, and the cables rising from the roof. `cut` 0..1 = the welder's glowing cut line.
  */
-export function paintElevator(ctx: Ctx, room: RoomDef, pal: Palette, st?: { offset: number; cut?: number; phase: string }): void {
+export function paintElevator(ctx: Ctx, room: RoomDef, pal: Palette, st?: { offset: number; cut?: number; phase: string; cableLocked?: boolean }): void {
   const hw = room.halfWidth, h = room.height, zf = room.zFront, zb = room.zBack, el = room.elevator!;
   const off = st?.offset ?? 0, zs = zb + 0.9;
   ctx.lineJoin = 'round';
@@ -311,6 +311,25 @@ export function paintElevator(ctx: Ctx, room: RoomDef, pal: Palette, st?: { offs
     }
     ctx.lineWidth = 10; ctx.strokeStyle = 'rgba(255,140,40,0.35)'; ctx.stroke();
     ctx.lineWidth = 3; ctx.strokeStyle = '#fff2c8'; ctx.stroke();
+    ctx.restore();
+  }
+  // the doors are open: a marker on the floor right under the hatch (stand here, E)
+  if (st && st.phase === 'stopped' && !st.cableLocked) {
+    const hc = { x: (el.hatch.x0 + el.hatch.x1) / 2, z: (el.hatch.z0 + el.hatch.z1) / 2 };
+    const [mx, my] = P(hc.x, 0, hc.z), ms = scaleAt(hc.z);
+    ctx.save();
+    ctx.setLineDash([10, 7]);
+    ctx.beginPath(); ctx.ellipse(mx, my, 0.42 * ms, 0.1 * ms, 0, 0, Math.PI * 2);
+    ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(255,240,200,0.9)'; ctx.stroke();
+    ctx.setLineDash([]);
+    // an arrow up to the hatch
+    const [ax, ay] = P(hc.x, 0.25, hc.z), [, ty] = P(hc.x, h - 0.15, hc.z);
+    ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(255,240,200,0.85)';
+    line(ctx, [ax, ay], [ax, ty + 14]);
+    ctx.beginPath(); ctx.moveTo(ax - 14, ty + 22); ctx.lineTo(ax, ty); ctx.lineTo(ax + 14, ty + 22); ctx.stroke();
+    ctx.font = `bold ${Math.round(0.16 * ms)}px Inter, sans-serif`;
+    ctx.textAlign = 'center'; ctx.fillStyle = '#fff3d6'; ctx.strokeStyle = INK; ctx.lineWidth = 6;
+    ctx.strokeText('E', ax + 0.22 * ms, (ay + ty) / 2); ctx.fillText('E', ax + 0.22 * ms, (ay + ty) / 2);
     ctx.restore();
   }
   // the roof slab's front edge, and the cab's outline
