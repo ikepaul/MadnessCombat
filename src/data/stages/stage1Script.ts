@@ -1,7 +1,7 @@
 // Stage 1 as one script (PLAN.md M8, research/stages.md Stage 1, research/episodes/ep1-log.md).
 // Beat 1, the intro: the boombox NPC by the pole, the dancer in the background. Walk up to the
 // music, get punched flat (teaches the get-up), then take him out (melee tutorial, low sweep).
-// Then wave A. Later M8 steps add the grenade, the boss, wave B and the ending here.
+// Then wave A, then a grenade for the body pile. Later M8 steps add the boss, wave B and the ending.
 import { TUNING } from '../tuning';
 import type { Actor } from '../../sim/actor';
 import type { Seq } from '../../sim/sequencer';
@@ -86,6 +86,40 @@ export function dropBoombox(world: World, npc: Actor): void {
   world.spawnItem('boombox', 'grunt', { x: npc.pos.x + npc.facing * 0.25, y: 0.35, z: npc.pos.z - 0.05 }, { x: dir * 0.6, y: 1.5, z: 0 }, 0);
 }
 
+/** Beat 3 timings and placement. */
+export const GRENADE_BEAT = {
+  /** Breather after the last riot grunt drops, before the grenade comes in (s). invented */
+  pause: 1.0,
+  /** It falls in from this high (H), so the drop itself is the telegraph. invented */
+  dropHeight: 2.6,
+  /** In front of the hero, this far (H). invented */
+  ahead: 0.7,
+  /** Move on anyway if nobody throws it (s), so the stage can't stall here. invented */
+  timeout: 25,
+  /** Explosion -> the boss appears (s). ep1 f1400 -> f1420 */
+  after: 0.6,
+};
+
+/**
+ * Beat 3 (research/stages.md, ep1 0:44-0:48): a grenade drops in front of each hero. Pick it up,
+ * cook it and lob it onto the bodies: every corpse it gibs is one the boss can't raise next.
+ */
+export function* grenadeBeat(s: Seq) {
+  const world = s.world, G = GRENADE_BEAT;
+  yield G.pause;
+  const lim = world.room.halfWidth - 0.3;
+  for (const p of world.activePlayers) {
+    const x = Math.max(-lim, Math.min(lim, p.pos.x + p.facing * G.ahead));
+    s.drop('grenade', x, p.pos.z, G.dropHeight);
+  }
+  s.run(function* caption(q: Seq) { yield* q.card('A grenade. Pick it up (E), hold G to cook it, let go over the bodies.', 5, 'caption'); });
+  let boom = false;
+  const off = world.events.on('explosion', () => (boom = true));
+  yield* s.until(() => boom, G.timeout);
+  off();
+  if (boom) yield G.after;
+}
+
 /** The whole stage, beat by beat. */
 export function* stage1(s: Seq) {
   const cast = placeIntroCast(s);
@@ -97,5 +131,8 @@ export function* stage1(s: Seq) {
   // beat 2: the riot (wave A)
   s.music('riot');
   yield* s.waves(STAGE1.rooms.arena.script);
+
+  // beat 3: blow up the pile
+  yield* grenadeBeat(s);
   s.clear();
 }

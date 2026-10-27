@@ -153,9 +153,9 @@ export class Seq {
     a.hands[hand] = newHand(item);
   }
 
-  /** Drop an item on the floor at (x, z) for a scripted pickup; guns come loaded. */
-  drop(kind: Exclude<ItemKind, 'head'>, x: number, z: number): Item {
-    const it = this.world.spawnItem(kind, 'grunt', { x, y: 0.6, z }, { x: 0, y: 1, z: 0 }, 6);
+  /** Drop an item at (x, z) for a scripted pickup, falling from height `y`; guns come loaded. */
+  drop(kind: Exclude<ItemKind, 'head'>, x: number, z: number, y = 0.6): Item {
+    const it = this.world.spawnItem(kind, 'grunt', { x, y, z }, { x: 0, y: 1, z: 0 }, 6);
     if (isWeapon(kind)) { it.ammo = WEAPONS[kind].mag; it.spare = 1; }
     return it;
   }
