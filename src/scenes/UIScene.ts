@@ -10,6 +10,7 @@ import { isWeapon, WEAPONS } from '../data/weapons';
 import { SETTINGS } from '../settings';
 import type { GameScene } from './GameScene';
 import { StageHud } from '../render/stageHud';
+import { usableExitAt } from '../sim/stage';
 import { Menu, type MenuItem } from '../ui/menu';
 import { controlsItems, settingsItems } from '../ui/settingsMenu';
 
@@ -90,6 +91,22 @@ export class UIScene extends Phaser.Scene {
       fontFamily: 'Inter', fontSize: '30px', color: '#ffffff', backgroundColor: '#000000cc', padding: { x: 18, y: 10 }, align: 'center', wordWrap: { width: 1400 },
     }).setOrigin(0.5, 0).setDepth(90).setVisible(false);
     this.scriptCardUntil = 0;
+    // playtest: standing where E takes an exit (ladder, vent, lift) shows the key over the hero
+    this.usePrompt = this.add.text(0, 0, '', {
+      fontFamily: 'Anton', fontSize: '26px', color: '#ffffff', backgroundColor: '#000000cc', padding: { x: 10, y: 4 },
+    }).setOrigin(0.5, 1).setDepth(80).setVisible(false);
+  }
+
+  private usePrompt!: Phaser.GameObjects.Text;
+
+  private drawUsePrompt(game: GameScene): void {
+    const me = game.world.players[game.localPlayer];
+    const e = me ? usableExitAt(game.world, me) : undefined;
+    this.usePrompt.setVisible(!!e);
+    if (!e || !me) return;
+    const verb = e.kind === 'vent' ? 'go in' : e.kind === 'lift' ? 'ride' : 'climb';
+    const [x, y] = project(me.pos.x, me.pos.y + 1.3, me.pos.z);
+    this.usePrompt.setText(`${SETTINGS.keys.use}  ${verb}`).setPosition(x, y);
   }
 
   /** End-of-room card: plain text on black, like an episode title card (own wording). */
@@ -153,6 +170,7 @@ export class UIScene extends Phaser.Scene {
     this.drawPips(game, delta / 1000);
     this.drawAmmo(game);
     this.drawCounter(game);
+    this.drawUsePrompt(game);
     this.stageHud.update();
     if (game.world.time >= this.scriptCardUntil) { this.titleCard.setVisible(false); this.caption.setVisible(false); }
     if (game.lab) {

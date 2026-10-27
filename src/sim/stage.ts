@@ -5,7 +5,7 @@
 // room's exits armed, its script started), waits until an exit is taken, plays the traversal and
 // the ink wipe (decided 2026-10-27), and loads the next room. Every room entry is a checkpoint.
 import type { GoreLevel } from './gore';
-import { lyingAt, STANDING } from '../anim/skeleton';
+import { aboutFeet, lyingAt, STANDING } from '../anim/skeleton';
 import { TUNING } from '../data/tuning';
 import type { PaletteId } from '../data/palettes';
 import { type Actor, alive } from './actor';
@@ -103,6 +103,12 @@ export function checkExits(world: World): void {
       return;
     }
   }
+}
+
+/** The open exit `p` could take with E right now (the HUD shows the key over him). */
+export function usableExitAt(world: World, p: Actor): ExitDef | undefined {
+  if (p.state !== 'free' || p.holding || p.traversing || world.exitTaken || world.transition) return undefined;
+  return world.exits.find((x) => x.open && HOW[x.def.kind] === 'use' && inZone(x.def, p.pos.x, p.pos.z))?.def;
 }
 
 /** world-breach: an explosion on an open breach tile blows the hole and takes the exit. */
@@ -226,6 +232,27 @@ export function stepTraversal(world: World, a: Actor, dt: number): void {
     case 'crawl':
       a.pos.y += T.climbSpeed * 1.5 * dt;
       break;
+    case 'crawlIn': {
+      // a vent low in the back wall (playtest): down on the belly, then into the duct, the body
+      // foreshortening as it goes in (the wipe covers the rest)
+      const down = Math.min(1, tr.t / 0.15), inn = Math.max(0, Math.min(1, (tr.t - 0.15) / 0.3));
+      a.pos.z += (world.room.zBack - 0.02 - a.pos.z) * Math.min(1, dt * 10);
+      const root = aboutFeet((Math.PI / 2) * down, 1 - 0.08 * down);
+      root.sx *= 1 - 0.85 * inn;
+      a.pose.root = root;
+      a.pose.groundY = 0;
+      break;
+    }
+    case 'leap': {
+      // a vent in the ceiling (playtest: no more climbing a bare wall): a jump up to grab the
+      // edge with both hands, then pulled up through it
+      const top = world.room.height - 1.05;
+      const u = Math.min(1, tr.t / 0.28);
+      a.pos.y = u < 1 ? top * (1 - (1 - u) * (1 - u)) : top + (tr.t - 0.28) * 1.6;
+      a.pose.tuck = u < 1 ? 0.5 * (1 - u) : 0;
+      a.pose.groundY = 0;
+      break;
+    }
     case 'out':
       a.pos.x += a.facing * TUNING.move.walkSpeed * dt;
       a.pose.walkPhase = (a.pose.walkPhase ?? 0) + dt * 9;
@@ -252,15 +279,19 @@ function* traverse(s: Seq, e: ExitDef): Beat {
   const world = s.world;
   s.lockInput(true);
   const zx = (e.x0 + e.x1) / 2, zz = (e.z0 + e.z1) / 2;
-  const kind: NonNullable<Actor['traversing']>['kind'] = e.kind === 'ladder' || e.kind === 'climb' ? 'climb' : e.kind === 'vent' ? 'crawl' : e.kind === 'breach' || e.kind === 'fall' || e.kind === 'blasted' ? 'drop' : 'out';
+  // a vent with a grille in the back wall is crawled into; any other vent is in the ceiling
+  const wallVent = world.room.wallVents?.some((v) => zx >= v.x0 && zx <= v.x1);
+  const kind: NonNullable<Actor['traversing']>['kind'] = e.kind === 'ladder' || e.kind === 'climb' ? 'climb' : e.kind === 'vent' ? (wallVent ? 'crawlIn' : 'leap') : e.kind === 'breach' || e.kind === 'fall' || e.kind === 'blasted' ? 'drop' : 'out';
   for (const p of world.activePlayers) {
     if (p.state !== 'free') continue;
     if (kind !== 'out') { p.pos.x = zx; p.pos.z = zz; }
+    // lying down, the body reaches ~1 H ahead of the feet: centre it on the vent's opening
+    if (kind === 'crawlIn') p.pos.x = zx - p.facing * 0.45;
     else p.facing = (zx >= p.pos.x || e.x1 >= world.room.halfWidth ? 1 : -1) as 1 | -1;
     if (e.x1 >= world.room.halfWidth + 0.5) p.facing = 1;
     if (e.x0 <= -world.room.halfWidth - 0.5) p.facing = -1;
     p.traversing = { kind, t: 0 };
-    setClip(p, kind === 'climb' || kind === 'crawl' ? 'climb' : 'idle');
+    setClip(p, kind === 'climb' ? 'climb' : kind === 'leap' ? 'handsUp' : 'idle');
   }
   if (kind !== 'drop') yield T.traverse;
   world.events.emit('roomTransition', { phase: 'out', kind: e.kind });
