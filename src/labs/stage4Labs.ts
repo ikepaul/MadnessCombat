@@ -4,6 +4,7 @@
 import { type Actor, createActor, type HeldItem, newHand } from '../sim/actor';
 import { spawnEnemy, type SpawnOpts } from '../sim/waves';
 import type { World } from '../sim/world';
+import { smashDoor } from '../sim/doorSmash';
 import { registerLab } from './registry';
 
 const CONTROLS = 'LMB/RMB fire or punch · E pick up · F grab · Q throw · B fire mode';
@@ -99,4 +100,25 @@ registerLab({
     enemy(world, 3.6, 10.1, null, { aware: false, idle: 'cower', face: -1 });
   },
   info: (world) => `swinging (tokens) ${world.tokens.size}  ·  alive ${world.actors.filter((a) => a.ai && a.state !== 'dead').length}`,
+});
+
+registerLab({
+  slug: 'world-destructible-ep4',
+  title: `Ep4 props (1:25, 2:29): grab a grunt (F) and throw him hard into the vending machine: it goes over and lies there as low cover. Every 6 s the right door is smashed in: the slab flies in, crushes whoever stands behind it, and lies flat. ${CONTROLS}`,
+  palette: 'night',
+  setup(world) {
+    const hw = world.room.halfWidth;
+    world.room = {
+      ...world.room,
+      props: [{ kind: 'vending', x0: 0.9, x1: 1.6, z0: 9.6, z1: 10.2, top: 1.6, toppleable: true }],
+      doors: [{ wall: 'right', z0: 8.7, z1: 9.5, height: 1.6, open: false }],
+    };
+    hero(world, -2.4, 9.2);
+    enemy(world, -1.2, 9.6, null);
+    enemy(world, hw - 0.8, 9.1, null, { aware: false, idle: 'cower', face: -1 });
+    world.seq.run(function* smash() {
+      yield 6;
+      smashDoor(world, 0);
+    });
+  },
 });

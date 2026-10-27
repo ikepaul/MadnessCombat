@@ -4,7 +4,7 @@
 import { afterKill, gibCorpse, goreKill } from './gore';
 import { aboutFeet, lyingAt, rootToWorld, STANDING } from '../anim/skeleton';
 import { GRAVITY, TUNING } from '../data/tuning';
-import { DISARM, GRENADE, GUARD, isMelee, MELEE, SHIELD } from '../data/melee';
+import { DISARM, GRENADE, GUARD, GUN_BLOCK, isMelee, LOW_SLASH, MELEE, SHIELD, TOPPLE } from '../data/melee';
 import { GUNS, isWeapon, WEAPONS } from '../data/weapons';
 import { stepHands } from './guns';
 import { blastFlight } from './explosives';
@@ -21,6 +21,7 @@ import { type HitKind, MELEE_KINDS } from './events';
 import { circleHits } from './hurtbox';
 import { dropHeld } from './items';
 import { DIVE_TIME, stepAirborneAction, stepAttackMove, stepLocomotion, sweepTarget } from './movement';
+import type { VendingDef } from './room';
 import type { World } from './world';
 
 const M = TUNING.melee, H = TUNING.hit, G = TUNING.grab, C = TUNING.corpse, C_ = TUNING.combo, J = TUNING.juggle;
@@ -81,6 +82,8 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
       a.queued = undefined;
       if (!cmd.grab && !cmd.attack && a.grabQueued !== undefined && world.time - a.grabQueued <= G.buffer + 1e-6 && b.state === 'ground') cmd = { ...cmd, grab: true };
       a.grabQueued = undefined;
+      // M14: on the belly with a blade, LMB slashes low
+      if (b.state === 'prone' && cmd.attack === 'light' && lowSlash(world, a)) cmd = { ...cmd, attack: null };
       // M7: a grunt kicks a table over for cover
       if (cmd.flip !== undefined && b.state === 'ground' && !a.holding) { startAction(world, a, 'flip', cmd, { prop: cmd.flip }); break; }
       // M6: a melee weapon in the hand swings / stabs / is thrown instead of punching
@@ -146,6 +149,8 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
     case 'down':
       // M10: knocked out for good (interrogation) or dazed with stars for a while
       if (a.koed) break;
+      // M14: a player knocked flat still slashes low with a blade
+      if (a.kind === 'hero' && cmd.attack === 'light') lowSlash(world, a);
       if (a.dazedUntil !== undefined) {
         a.pose.dazed = world.time < a.dazedUntil;
         if (a.pose.dazed) break;
@@ -190,6 +195,29 @@ function stepGuard(world: World, a: Actor, cmd: PlayerCommand): PlayerCommand {
   a.pose.guard = on || undefined;
   if (on) a.walkFactor = Math.min(a.walkFactor ?? 1, GUARD.walk);
   return blade && (cmd.attack === 'heavy' || cmd.attack === 'uppercut') ? { ...cmd, attack: null } : cmd;
+}
+
+/**
+ * M14 acting from the ground: with a blade in the front hand, cut the nearest standing enemy
+ * within the blade's reach at foot height (same depth band). Returns true if the slash was made
+ * (it may miss; the cooldown runs either way).
+ */
+function lowSlash(world: World, a: Actor): boolean {
+  const h = a.hands[0];
+  const def = h && isMelee(h.item) ? MELEE[h.item] : undefined;
+  if (!def || def.edge !== 'blade' || world.time - (a.lowSlashAt ?? -Infinity) < LOW_SLASH.every) return false;
+  a.lowSlashAt = world.time;
+  let best: Actor | undefined, bestD = Infinity;
+  for (const o of world.actors) {
+    if (o === a || !alive(o) || o.kind === 'hero' || o.state === 'down' || o.state === 'knockback' || o.body.height < 0.9) continue;
+    const d = Math.abs(o.pos.x - a.pos.x);
+    if (d <= def.reach && Math.abs(o.pos.z - a.pos.z) <= def.depthBand && d < bestD) { best = o; bestD = d; }
+  }
+  const dir = best ? (Math.sign(best.pos.x - a.pos.x) || a.facing) as 1 | -1 : a.facing;
+  a.facing = dir;
+  world.events.emit('punch', { actorId: a.id, x: a.pos.x + dir * def.reach * 0.7, y: a.pos.y + 0.15, z: a.pos.z, kind: 'slash', facing: dir });
+  if (best) applyHit(world, a, best, 'slash', dir, 0, { x: best.pos.x, y: best.pos.y + 0.15, z: best.pos.z });
+  return true;
 }
 
 /** Blows a sword guard turns: bullets, blades, clubs, thrown blades. */
@@ -411,6 +439,14 @@ export function applyHit(
   if (o.grabbedBy !== undefined && by?.id !== o.grabbedBy && kind !== 'blast') { shieldHit(world, by, o, kind, at, part); return; }
   // M14 melee-blade-deflect: a raised sword turns bullets and blades coming from the front
   if (o.guard && by && GUARDED.includes(kind) && Math.sign(by.pos.x - o.pos.x) === o.facing && guardHit(world, o, by, kind, at, bullet)) return;
+  // M14 gun block: F just before a blade or club lands, with a gun in hand, turns it and stuns the attacker
+  if (by && alive(by) && (kind === 'slash' || kind === 'stab' || kind === 'smash') && o.hands.some((h) => !!h && isWeapon(h.item)) &&
+    world.time - (o.catchAt ?? -Infinity) <= GUN_BLOCK.window + 1e-6) {
+    o.catchAt = undefined;
+    world.events.emit('block', { actorId: o.id, byId: by.id, how: 'parry', ...at });
+    by.attack = undefined; by.state = 'stun'; by.stateT = 0; by.stunFor = H.stun; by.pose.lean = -0.3; setClip(by, 'stun');
+    return;
+  }
   const corpse = o.state === 'dead';
   const base = bullet ? bullet.damage : kind === 'gun' && part === 'head' ? GUNS.throwHead : kind === 'finisher' && heavy ? M.finisher.heavyDamage : DAMAGE[kind];
   // M10b: a launched grunt in the air (being juggled), and the uppercut that launches a stunned one
@@ -856,8 +892,25 @@ function vendingSmash(world: World, a: Actor, want: { x: number; z: number }): v
   const v = world.room.props.find((p) => p.kind === 'vending' && !p.smashed && want.x > p.x0 - R && want.x < p.x1 + R && want.z > p.z0 - R && want.z < p.z1 + R);
   if (!v || v.kind !== 'vending') return;
   v.smashed = true;
+  // M14: thrown hard enough, a toppleable machine goes over (away from the throw) and lies there as low cover
+  const speed = Math.hypot(a.flight!.vx, a.flight!.vz);
+  if (v.toppleable && !v.fallen && speed >= G.wallKillSpeed) topple(world, v, (Math.sign(a.flight!.vx) || 1) as 1 | -1, a);
   world.events.emit('vendingSmash', { actorId: a.id, ...a.pos });
   applyHit(world, world.actorById(a.flight!.thrownBy!), a, 'wall', -Math.sign(a.flight!.vx) || 1, 0, { ...a.pos });
+}
+
+/** M14: the machine falls flat toward `dir`; anyone where it lands is knocked down. */
+function topple(world: World, v: VendingDef, dir: 1 | -1, thrown: Actor): void {
+  const standX = (v.x0 + v.x1) / 2;
+  v.fallen = { dir, standX };
+  if (dir > 0) { v.x0 = standX - 0.2; v.x1 = standX - 0.2 + TOPPLE.length; } else { v.x1 = standX + 0.2; v.x0 = standX + 0.2 - TOPPLE.length; }
+  v.top = TOPPLE.top;
+  const by = thrown.flight?.thrownBy !== undefined ? world.actorById(thrown.flight.thrownBy) : undefined;
+  for (const o of world.actors) {
+    if (o === thrown || !alive(o) || o.kind === 'hero') continue;
+    if (o.pos.x > v.x0 && o.pos.x < v.x1 && o.pos.z > v.z0 - 0.2 && o.pos.z < v.z1 + 0.2) applyHit(world, by, o, 'heavy', dir, 0, { x: o.pos.x, y: o.pos.y + 0.5, z: o.pos.z });
+  }
+  world.events.emit('propToppled', { actorId: thrown.id, x: (v.x0 + v.x1) / 2, y: 0, z: (v.z0 + v.z1) / 2 });
 }
 
 /** A thrown body knocks down whoever it hits (melee-grab-throw). */
@@ -1169,6 +1222,7 @@ function stepCorpse(world: World, a: Actor, dt: number): void {
       const st = stairsAt(world.room, a.pos.x, a.pos.z);
       const low = st ? (st.y0 < st.y1 ? st.x0 : st.x1) : 0;
       if (st && Math.abs(a.pos.x - low) > 0.02) {
+        if (!c.sliding) { c.sliding = true; world.events.emit('stairSlide', { actorId: a.id, ...a.pos }); }
         a.pos.x += Math.sign(low - a.pos.x) * Math.min(Math.abs(low - a.pos.x), STAIR_SLIDE * dt);
         a.pos.y = stairHeight(world.room, a.pos.x, a.pos.z) ?? a.pos.y;
         a.pose.groundY = a.pos.y;

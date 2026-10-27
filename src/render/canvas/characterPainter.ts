@@ -198,7 +198,7 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
     ctx.fillStyle = '#2a2b2f'; ctx.fill();
   }
   if (a.variant === 'agent') {
-    // style frame M14 sheet, agent A (proposal): buttoned high-collar jacket, a red pin, a front seam
+    // style frame M14 sheet, agent A (signed off): buttoned high-collar jacket, a red pin, a front seam
     ctx.beginPath(); ctx.roundRect(-0.02, -0.6, 0.2, 0.06, 0.015); ctx.fillStyle = '#2c2e34'; ctx.fill(); ctx.lineWidth = 0.008; ctx.strokeStyle = INK; ctx.stroke();
     ctx.beginPath(); ctx.arc(0.13, -0.57, 0.014, 0, Math.PI * 2); ctx.fillStyle = BLOOD; ctx.fill();
     ctx.save(); bodyPath(ctx); ctx.clip();
@@ -452,7 +452,7 @@ export function paintHeadGear(ctx: Ctx, kind: 'leader' | 'bodyguard' | 'welder' 
   ctx.save();
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   if (kind === 'agent') {
-    // style frame M14 sheet, agent A (proposal): a short dark crop and a coiled earpiece wire
+    // style frame M14 sheet, agent A (signed off): a short dark crop and a coiled earpiece wire
     ctx.beginPath(); ctx.ellipse(-0.02, -0.13, 0.2, 0.11, 0, Math.PI * 0.98, Math.PI * 1.98); ctx.closePath();
     ctx.fillStyle = '#26272c'; ctx.fill(); ctx.lineWidth = 0.012; ctx.strokeStyle = INK; ctx.stroke();
     ctx.beginPath(); ctx.arc(-0.06, 0.0, 0.022, 0, Math.PI * 2); ctx.fillStyle = '#d9d9dc'; ctx.fill(); ctx.lineWidth = 0.008; ctx.stroke();

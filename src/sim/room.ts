@@ -7,6 +7,8 @@ export interface DoorDef {
   z1: number;
   height: number;
   open: boolean;
+  /** M14: smashed in (the doorway stays open; the slab lies in the room). */
+  smashed?: boolean;
 }
 
 export interface TableDef {
@@ -64,9 +66,25 @@ export interface VendingDef {
   x0: number; x1: number; z0: number; z1: number;
   top: number;
   smashed?: boolean;
+  /**
+   * M14 world-destructible (ep4 1:25): a fast thrown body knocks this one flat instead of only
+   * smashing the glass; `fallen` = which way it fell and where it stood (x) for the painter.
+   */
+  toppleable?: boolean;
+  fallen?: { dir: 1 | -1; standX: number };
 }
 
-export type PropDef = TableDef | PoleDef | CannonPropDef | CrateDef | TankDef | VendingDef;
+/** M14 world-destructible: a door slab knocked off its frame: flying in upright (`fly`), then flat on the floor. */
+export interface SlabDef {
+  kind: 'slab';
+  x0: number; x1: number; z0: number; z1: number;
+  top: number;
+  fly?: { dir: 1 | -1; t: number; length: number };
+  /** Who smashed it (credited with the crushes). */
+  byId?: number;
+}
+
+export type PropDef = TableDef | PoleDef | CannonPropDef | CrateDef | TankDef | VendingDef | SlabDef;
 
 /** A floor area (H). */
 export interface Zone { x0: number; x1: number; z0: number; z1: number }

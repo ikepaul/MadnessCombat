@@ -227,6 +227,8 @@ export interface CorpseState {
   raisable: boolean;
   gibbed: boolean;
   slumped: boolean;
+  /** M14: sliding down a staircase. */
+  sliding?: boolean;
   /** Pinned upright against a wall or prop by a long weapon (melee-environment-weapon). */
   pinned?: boolean;
 }
@@ -286,6 +288,8 @@ export interface Actor {
   cook?: number;
   /** World time F was last pressed (catching a thrown weapon, throw-catch-return). */
   catchAt?: number;
+  /** M14: when the last low slash from the ground was made (world time). */
+  lowSlashAt?: number;
   /** Hits absorbed while held as a human shield (combat-human-shield). */
   shieldHits?: number;
   /** M12: share of the damage this one actually takes (the zombie mini-boss holding the sign: 0.1). */

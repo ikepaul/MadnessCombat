@@ -228,3 +228,76 @@ describe('armed zombies', () => {
     }
   });
 });
+
+describe('acting from the ground', () => {
+  const tick = (world: World, cmd: Partial<import('../src/sim/command').PlayerCommand> = {}, n = 1) => {
+    for (let i = 0; i < n; i++) { world.command = { moveX: 0, moveZ: 0, jump: false, dive: false, attack: null, grab: false, ...cmd }; world.step(); }
+  };
+  it('prone with a blade, LMB cuts the enemy standing over you; without a blade it does nothing', () => {
+    for (const blade of [true, false]) {
+      const { world, hero } = setup(EMPTY, 0);
+      if (blade) hero.hands[0] = { item: 'sword', ammo: 0, spare: 0, cooldown: 0, reload: 0, clicked: false };
+      tick(world, { dive: true });
+      tick(world, {}, 40);
+      expect(hero.body.state).toBe('prone');
+      const g = spawnEnemy(world, 'grunt', null, 0.5, Z, {});
+      g.brain = undefined;
+      tick(world, { attack: 'light', press: [true, false] });
+      expect(alive(g)).toBe(!blade);
+    }
+  });
+});
+
+describe('toppled props', () => {
+  it('a body thrown hard into a toppleable vending machine knocks it flat (low cover)', () => {
+    const v = { kind: 'vending' as const, x0: 1.6, x1: 2.3, z0: 9.0, z1: 9.6, top: 1.6, toppleable: true };
+    const { world, hero } = setup({ ...EMPTY, props: [v] }, -1);
+    const g = spawnEnemy(world, 'grunt', null, 0.8, 9.3, {});
+    g.brain = undefined;
+    g.state = 'knockback';
+    g.flight = { vx: 8, vz: 0, vy: 1, r: 0, r0: 0, rTo: Math.PI / 2, spin: 6, phase: 'air', t: 0, airtime: 0.4, hit: [], thrownBy: hero.id };
+    const fell: number[] = [];
+    world.events.on('propToppled', () => fell.push(1));
+    for (let i = 0; i < 40; i++) { world.command = { moveX: 0, moveZ: 0, jump: false, dive: false, attack: null, grab: false }; world.step(); }
+    expect(fell.length).toBe(1);
+    const m = world.room.props[0] as typeof v;
+    expect(m.top).toBeLessThan(1);
+    expect(m.x1 - m.x0).toBeGreaterThan(1.2);
+  });
+});
+
+describe('door smash', () => {
+  it('the slab flies in, crushes whoever is behind the door, then lies flat on the floor', async () => {
+    const { smashDoor } = await import('../src/sim/doorSmash');
+    const door = { wall: 'right' as const, z0: 9.0, z1: 9.8, height: 1.6, open: false };
+    const { world } = setup({ ...EMPTY, doors: [door] }, -3);
+    const hw = world.room.halfWidth;
+    const behind = spawnEnemy(world, 'grunt', null, hw - 0.8, 9.4, { aware: false, idle: 'cower' });
+    const clear = spawnEnemy(world, 'grunt', null, hw - 0.8, 8.4, { aware: false, idle: 'cower' });
+    smashDoor(world, 0);
+    for (let i = 0; i < 60; i++) { world.command = { moveX: 0, moveZ: 0, jump: false, dive: false, attack: null, grab: false }; world.step(); }
+    expect(alive(behind)).toBe(false);
+    expect(alive(clear)).toBe(true);
+    const slab = world.room.props.find((p) => p.kind === 'slab')!;
+    expect(slab.top).toBeLessThan(0.1);
+    expect(world.room.doors[0].smashed).toBe(true);
+  });
+});
+
+describe('gun block', () => {
+  it('F just before a sword lands, with a gun in hand, turns it and stuns the swordsman; late F does not', () => {
+    for (const late of [false, true]) {
+      const { world, hero } = setup(EMPTY, 0);
+      hero.hands[0] = { item: 'pistol', ammo: 8, spare: 0, cooldown: 0, reload: 0, clicked: false };
+      const g = spawnEnemy(world, 'grunt', 'sword', 0.6, Z, {});
+      g.brain = undefined;
+      world.command = { moveX: 0, moveZ: 0, jump: false, dive: false, attack: null, grab: true };
+      world.step();
+      for (let i = 0; i < (late ? 30 : 3); i++) { world.command = { moveX: 0, moveZ: 0, jump: false, dive: false, attack: null, grab: false }; world.step(); }
+      const hp = hero.hp;
+      world.hitActor(g, hero, 'slash', -1, 0, at(hero));
+      expect(hero.hp === hp).toBe(!late);
+      expect(g.state === 'stun').toBe(!late);
+    }
+  });
+});

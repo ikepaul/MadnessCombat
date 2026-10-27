@@ -192,6 +192,13 @@ export interface GameEvents {
   wallBlast: { x: number; y: number; z: number };
   /** Thrown into the vending machine: glass and cans everywhere. */
   vendingSmash: At;
+  /** M14: a vending machine knocked flat by a thrown body (now low cover). */
+  propToppled: At;
+  /** M14 move-stairs: a body starts sliding down a staircase. */
+  stairSlide: At;
+  /** M14: a door smashed in (the slab flies), and the slab landing flat. */
+  doorSmash: At & { door: number };
+  slabLand: { x: number; y: number; z: number };
   stab: At & { targetId: number };
   lastStand: { phase: 'start' | 'end' };
   /** The target ran out of the room (boss-target). */

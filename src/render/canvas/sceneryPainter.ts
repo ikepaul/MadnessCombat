@@ -597,12 +597,14 @@ export function paintLockShadow(ctx: Ctx, room: RoomDef, side: 'right' | 'back' 
 }
 
 /** The vending room's machine: the brute's twin, asleep; smashed = glass gone, cans spilled. */
-export function paintVendingProp(ctx: Ctx, x: number, z: number, smashed: boolean): void {
+export function paintVendingProp(ctx: Ctx, x: number, z: number, smashed: boolean, fallen?: 1 | -1): void {
   const s = scaleAt(z), [fx, fy] = P(x, 0, z);
   ctx.save();
   ctx.translate(fx, fy);
   ctx.scale(s, s);
   ctx.lineJoin = 'round';
+  // M14: knocked flat, pivoting over its bottom edge on the side it fell to
+  if (fallen) { ctx.translate(fallen * 0.35, -0.2); ctx.rotate(fallen * Math.PI / 2); ctx.translate(-fallen * 0.35, 0); }
   paintVendingBody(ctx, 0, false);
   if (smashed) {
     ctx.fillStyle = '#121316'; ctx.fillRect(-0.32, -1.43, 0.46, 0.91);

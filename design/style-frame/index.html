@@ -1018,21 +1018,21 @@ function drawCast4(pal, face) {
   const ch = (x, s, variant, kind = 'grunt', extra = {}) => drawCharacter({ kind, variant, facing: 1, t, screen: { x, y: 880, s }, ...extra }, pal, face);
   // the club stage with the DJ on it
   at(1500, 520, 150, () => clubStage(t)); ch(1500, 150, 'djPhones', 'zombie', { screen: { x: 1500, y: 418, s: 150 } });
-  label('Club stage + DJ A · helmet + headphones (proposal)', 1500, 560, true);
+  label('Club stage + DJ A · helmet + headphones (chosen)', 1500, 560, true);
   ch(1790, 150, 'djLed', 'zombie', { screen: { x: 1790, y: 418, s: 150 } }); label('DJ B · LED visor', 1790, 560);
   // agents
-  ch(150, 230, 'agentOp', 'grunt', { gun: 'pistol', aimAt: [420, 700] }); label('Agent A · operator (proposal)', 160, 935, true);
+  ch(150, 230, 'agentOp', 'grunt', { gun: 'pistol', aimAt: [420, 700] }); label('Agent A · operator (chosen)', 160, 935, true);
   ch(430, 230, 'agentCoat'); label('Agent B · long coat, cap', 430, 962);
   ch(650, 230, 'agentVisor'); label('Agent C · visor band', 650, 935);
   // the armed zombie (the boss's lieutenant)
   ch(900, 230, 'zAgent', 'zombie', { gun: 'rifle', aimAt: [1300, 700] }); label('Armed zombie · torn agent + rifle', 900, 962, true);
   // dancers
-  ch(1150, 190, 'danceGlow', 'grunt', { dance: true }); label('Dancer A · glow ring (proposal)', 1150, 935, true);
+  ch(1150, 190, 'danceGlow', 'grunt', { dance: true }); label('Dancer A · glow ring (chosen)', 1150, 935, true);
   ch(1330, 190, 'danceBand', 'grunt', { dance: true }); label('Dancer B · headband', 1340, 962);
   // the car
-  at(820, 400, 150, carBoxy); label('Car · boxy compact (proposal)', 820, 430, true);
+  at(820, 400, 150, carBoxy); label('Car · boxy compact (chosen)', 820, 430, true);
   ctx.textAlign = 'left'; ctx.font = '500 19px system-ui, sans-serif'; ctx.fillStyle = 'rgba(240,240,244,0.9)';
-  const notes = ['M14 design pass (proposals, waiting for sign-off): agent, armed zombie, the DJ (our riot-helmet mini-boss, raised), dancers, the car, the club, palette 4 (night).',
+  const notes = ['M14 design pass, signed off by the user 2026-10-27 (agent A, DJ A, dancer A, the car, the club, palette 4): agent, armed zombie, the DJ (our riot-helmet mini-boss, raised), dancers, the car, the club, palette 4 (night).',
     'Own designs: no dark suit + dark glasses agent, no iron mask, no clown. Red stays the only accent (agent pin, DJ helmet stripe), green only on zombies.',
     'Switch the palette to "Stage 4 · night" to see them in their stage colours.'];
   notes.forEach((n, i) => ctx.fillText(n, 70, 50 + i * 28));

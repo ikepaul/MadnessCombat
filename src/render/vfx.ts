@@ -87,6 +87,13 @@ export class Vfx {
       this.booms.push({ x, y, s: s * 0.6, left: 2 });
     });
     world.events.on('wallBlast', (e) => { for (let k = 0; k < 3; k++) this.dust(e.x, e.y - 0.5 + k * 0.4, e.z, 12); });
+    // M14: a door smashed in: a big white burst at the doorway and dust; dust again where the slab lands
+    world.events.on('doorSmash', (e) => {
+      const [x, y] = project(e.x, e.y, e.z), s = scaleAt(e.z);
+      this.booms.push({ x, y, s: s * 0.8, left: 3 });
+      for (let k = 0; k < 3; k++) this.dust(e.x, k * 0.6, e.z, 10);
+    });
+    world.events.on('slabLand', (e) => this.dust(e.x, 0, e.z, 12));
     world.events.on('vendingSmash', (e) => {
       const [x, y] = project(e.x, e.y + 0.9, e.z), s = scaleAt(e.z);
       this.stars.push({ x, y, s, left: STAR_TICKS, big: true });

@@ -42,6 +42,25 @@ const F = 1 / 30;
  */
 export const GUARD = { walk: 0.4, leakEvery: 4, parryWindow: 0.15 } as const;
 
+/**
+ * M14 gun block (ep4 1:46, an SMG turning a sword aside): F pressed this soon before a blade or
+ * club lands, with a gun in hand, turns it and stuns the attacker at contact range. invented
+ */
+export const GUN_BLOCK = { window: 0.2 } as const;
+
+/**
+ * M14 acting from the ground (ep4 2:57: downed, the hero splits the head of the one standing over
+ * him): LMB with a blade while prone or knocked down slashes at foot height, this often (s), at
+ * the nearest standing enemy within the blade's reach. invented
+ */
+export const LOW_SLASH = { every: 0.5 } as const;
+
+/**
+ * M14 world-destructible: a vending machine knocked over lies this long along the floor (H, its
+ * height) and this high (its depth), low cover from then on. Measured from the style frame drawing.
+ */
+export const TOPPLE = { length: 1.5, top: 0.6 } as const;
+
 export const MELEE: Record<MeleeId, MeleeDef> = {
   // throw-knives: stab at <= 0.6 H; one-hit kill. Timing = the light jab (invented split)
   knife: { id: 'knife', name: 'Knife', reach: 0.6, startup: 3 * F, active: 3 * F, recovery: 5 * F, damage: 4, edge: 'blade', multiHit: false, twoHanded: false, sticks: true, length: 0.22, depthBand: 0.2 },

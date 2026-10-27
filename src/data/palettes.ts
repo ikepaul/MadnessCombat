@@ -32,7 +32,7 @@ export const PALETTES: Record<PaletteId, Palette> = {
     suit: '#938d84', suitShade: '#756f67', hero: '#3d3934', heroShade: '#2b2824', skin: '#d6d1ca', skinHi: '#f4f0ea',
     hand: '#e8e4dd', shoe: '#4f4a44', prop: '#c9c3b9', propShade: '#908a81', door: '#dcd7cf',
   },
-  // M14 (style frame stage 4 sheet, proposal): night / club, the darkest set, a faint violet cast
+  // M14 (style frame stage 4 sheet, signed off): night / club, the darkest set, a faint violet cast
   night: {
     ceil: '#4a4a52', back: '#64646d', sideL: '#5a5a63', sideR: '#55555e', floor: '#4f4f58', board: '#7a7a84',
     suit: '#7a7a83', suitShade: '#5f5f68', hero: '#2a2a30', heroShade: '#1b1b20', skin: '#c9c8cf', skinHi: '#ebeaf0',

@@ -4,6 +4,7 @@
 // crossed on screen first AND in front in depth).
 import type { Actor } from './actor';
 import type { TableDef } from './room';
+import { stepSlab } from './doorSmash';
 import type { World } from './world';
 
 export const COVER = {
@@ -32,6 +33,8 @@ export function flipTable(world: World, a: Actor, index: number): void {
 /** Tip animation; the collision/cover shape switches to the upright top when it lands. */
 export function stepProps(world: World, dt: number): void {
   for (const p of world.room.props) {
+    // M14: a smashed door's slab in flight
+    if (p.kind === 'slab') { stepSlab(world, p, dt); continue; }
     if (p.kind !== 'table' || !p.tip || p.tip.t >= 1) continue;
     p.tip.t = Math.min(1, p.tip.t + dt / COVER.tipTime);
     if (p.tip.t < 1) continue;
