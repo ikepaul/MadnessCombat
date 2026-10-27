@@ -77,7 +77,8 @@ describe('punch range and depth band (melee-punch-knockback)', () => {
     ['centre distance 0.35 H', 0.35, 0, true],
     ['just out of range at 0.7 H', 0.7, 0, false],
     ['inside the depth band (0.15 H)', 0.5, 0.15, true],
-    ['outside the depth band (0.25 H)', 0.5, 0.25, false],
+    // M17: the hero's band is 0.3 H and his punch snaps up to 0.3 H toward a target within 0.5 H
+    ['outside the depth band and the snap (0.65 H)', 0.5, 0.65, false],
     ['behind the puncher', -0.5, 0, false],
   ];
   for (const [name, dx, dz, hits] of cases) {

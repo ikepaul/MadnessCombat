@@ -16,6 +16,7 @@ import '../labs/meleeLabs';
 import '../labs/throwLabs';
 import '../labs/movementLabs';
 import '../labs/comboLabs';
+import '../labs/qolLabs';
 import '../labs/stage4Labs';
 import { getLab, type Lab } from '../labs/registry';
 import { CanvasLayer } from '../render/canvasLayer';
@@ -23,6 +24,10 @@ import { paintBall, paintCannon } from '../render/canvas/cannonPainter';
 import { paintCharacter } from '../render/canvas/characterPainter';
 import { paintBoss } from '../render/canvas/bossPainter';
 import { paintItem } from '../render/canvas/itemPainter';
+import { paintGrenadeMarker } from '../render/canvas/markerPainter';
+import { GRENADE } from '../data/melee';
+import { lobTarget } from '../sim/melee';
+import { pickupPlan } from '../sim/guns';
 import { paintDoor, paintProp, paintRoom } from '../render/canvas/roomPainter';
 import { paintLockShadow, paintLockWall, paintTank } from '../render/canvas/sceneryPainter';
 import { TUNING } from '../data/tuning';
@@ -30,9 +35,10 @@ import { Decals } from '../render/decals';
 import { PostFx } from '../render/post';
 import { Vfx } from '../render/vfx';
 import { GunFx } from '../render/gunFx';
-import { WEAPON_IDS, WEAPONS } from '../data/weapons';
+import { isWeapon, WEAPON_IDS, WEAPONS } from '../data/weapons';
 import { lyingAt } from '../anim/skeleton';
-import { type Actor, createActor } from '../sim/actor';
+import { type Actor, alive, createActor, meleeBand } from '../sim/actor';
+import { snapTarget } from '../sim/combat';
 import { FixedClock } from '../sim/clock';
 import { hasEdges, mergeEdges } from '../sim/command';
 import { WaveDirector } from '../sim/waves';
@@ -284,6 +290,33 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Debug (L): a random loaded gun at each player's feet. */
+  /**
+   * M17 (design/qol-pass.md 3c): living enemies on the local hero's depth line get a light ring on
+   * their shadow, and the one his punch would snap to a brighter one. Off with a gun in each hand.
+   */
+  private depthRings(): Map<number, 1 | 2> {
+    const out = new Map<number, 1 | 2>();
+    const me = this.world.players[this.localPlayer];
+    if (!me || me.state === 'dead' || me.state === 'downed' || this.world.inputLocked) return out;
+    if (me.hands.every((h) => h && isWeapon(h.item))) return out;
+    for (const o of this.world.actors) {
+      if (o.kind === 'hero' || !o.ai || !alive(o)) continue;
+      if (Math.abs(o.pos.z - me.pos.z) <= meleeBand(me) && Math.abs(o.pos.x - me.pos.x) <= 2.5) out.set(o.id, 1);
+    }
+    const p = this.input.activePointer;
+    const t = snapTarget(this.world, me, [p.x, p.y], TUNING.melee.range);
+    if (t) out.set(t.id, 2);
+    return out;
+  }
+
+  /** M17: seconds left on the grenade the hero is about to lob, if any. */
+  private grenadeFuse(a: Actor): number | undefined {
+    if (a.cook !== undefined) return GRENADE.fuse - a.cook;
+    if (a.attack?.kind === 'lob' && !a.attack.done) return (a.attack.fuse ?? GRENADE.fuse) - a.attack.t;
+    const h = a.holding?.kind === 'item' ? this.world.items.find((i) => i.id === a.holding!.id) : undefined;
+    return h?.kind === 'grenade' && h.live ? h.fuse : undefined;
+  }
+
   private dropGuns(): void {
     for (const p of this.world.players) {
       const kind = WEAPON_IDS[Math.floor(Math.random() * WEAPON_IDS.length)];
@@ -513,6 +546,7 @@ export class GameScene extends Phaser.Scene {
     // co-op: a subtle circle on the floor around a downed teammate
     for (const p of this.world.players) if (p.state === 'downed') paintReviveCircle(ctx, p);
     const list: { z: number; draw: () => void }[] = [];
+    const rings = this.depthRings();
     for (const a of this.world.actors) {
       // gibbed bodies are gone (throw-grenade): only the pieces (VFX) remain
       if (a.corpse?.phase === 'frozen' || a.corpse?.gibbed) continue;
@@ -520,9 +554,19 @@ export class GameScene extends Phaser.Scene {
       if (outOfSight(this.world, a)) continue;
       // at equal depth the attacker draws in front, so the punching fist is visible
       const bias = a.state === 'attack' ? 0.002 : a.state === 'grabbed' ? -0.001 : 0;
-      list.push({ z: a.pos.z - bias, draw: () => (a.kind === 'boss' ? paintBoss(ctx, a, { time: this.world.time, flashes }) : paintCharacter(ctx, a, pal, this.world.time, { blood, flashes })) });
+      const ring = rings.get(a.id);
+      list.push({ z: a.pos.z - bias, draw: () => (a.kind === 'boss' ? paintBoss(ctx, a, { time: this.world.time, flashes }) : paintCharacter(ctx, a, pal, this.world.time, { blood, flashes, ring })) });
     }
-    for (const it of this.world.items) list.push({ z: it.pos.z, draw: () => paintItem(ctx, it, pal, blood, this.world.time) });
+    // M17: the item the local player's E would take is outlined
+    const me = this.world.players[this.localPlayer];
+    const target = me && !this.world.inputLocked ? pickupPlan(this.world, me)?.item.id : undefined;
+    for (const it of this.world.items) list.push({ z: it.pos.z, draw: () => paintItem(ctx, it, pal, blood, this.world.time, it.id === target) });
+    // M17: where the local hero's grenade will land (cooking, winding up the lob, holding a live one)
+    const nade = me ? this.grenadeFuse(me) : undefined;
+    if (me && nade !== undefined) {
+      const p = this.input.activePointer, at = lobTarget(this.world, me, [p.x, p.y]);
+      list.push({ z: at.z + 0.5, draw: () => paintGrenadeMarker(ctx, at.x, at.z, nade, this.world.time) });
+    }
     for (const p of this.world.room.props) list.push({ z: p.z0, draw: () => paintProp(ctx, p, pal) });
     for (const c of this.world.cannons) list.push({ z: c.z, draw: () => paintCannon(ctx, c) });
     for (const b of this.world.balls) list.push({ z: b.z - 0.01, draw: () => paintBall(ctx, b) });

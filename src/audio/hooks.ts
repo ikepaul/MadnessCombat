@@ -97,8 +97,10 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
     if (e.phase === 'start') play('magOut', p);
     else { play('magOut', { ...p, rate: 1.25 }); play('slideRack', { ...p, delay: 0.08 }); }
   });
+  // M17: a hand swap (F with a gun in front) is a cloth rustle and a clack; walking over a gun is softer
+  world.events.on('handSwap', (e) => { play('cloth', at(e.x, e.y + 0.5, e.z, { gain: 0.6 })); play('magOut', at(e.x, e.y + 0.5, e.z, { rate: 1.6, gain: 0.4, delay: 0.05 })); });
   world.events.on('pickup', (e) => {
-    play('grab', at(e.x, e.y + 0.4, e.z));
+    play('grab', at(e.x, e.y + 0.4, e.z, e.auto ? { gain: 0.6 } : {}));
     // M8: the boombox's play button clicks; guns latch
     if (e.item === 'boombox') play('tick', at(e.x, e.y + 0.4, e.z, { rate: 0.7, gain: 0.8, delay: 0.15 }));
     else play('magOut', at(e.x, e.y + 0.4, e.z, { rate: 1.4, gain: 0.5 }));

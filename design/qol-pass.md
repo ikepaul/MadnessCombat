@@ -1,6 +1,6 @@
 # Quality-of-life pass (M17)
 
-Status: **planned** (2026-10-27, with the user). Milestone **M17** in `PLAN.md`. Every number here is invented unless it names a source, and goes into `src/data/` marked `// invented` so the F6 tuning panel can change it.
+Status: **built** (2026-10-28, branch `m17-qol`; see the M17 "Done" note in `PLAN.md` for the deviations below). Planned 2026-10-27 with the user. Milestone **M17** in `PLAN.md`. Every number here is invented unless it names a source, and goes into `src/data/` marked `// invented` so the F6 tuning panel can change it.
 
 Decided with the user (questionnaire, 2026-10-27):
 
@@ -101,7 +101,7 @@ Depth is hard to read in this camera (`depthFactor` 0.6, a 2.7 H deep floor seen
 When a hero starts a punch, uppercut, finisher, melee swing/thrust or a sweep:
 1. Pick the **snap target**: the living, hittable enemy that (in order) is under the cursor (cursor inside its projected hurtbox, `rayVsActor` with a zero-length test or a point-in test), else is the nearest ahead of the hero within `reach + QOL.snapAhead` (0.3 H) in x, with `|Δz| <= QOL.snapBand` = **0.5 H**. Bodies on the floor count for the finisher.
 2. Store `attack.snapZ = target.pos.z` (and `attack.snapId`).
-3. During the startup frames, move the hero's z toward `snapZ` at up to `QOL.snapSpeed` = **3.0 H/s**, total at most `QOL.snapMax` = **0.3 H** per attack, through `moveWithCollision` (props stop it). x isn't touched (facing still follows the cursor).
+3. (As built: an enemy already on your depth line wins over a nearer one off it, and the slide stops `QOL.snapNear` = 0.1 H short of his depth.) During the startup frames, move the hero's z toward `snapZ` at up to `QOL.snapSpeed` = **3.0 H/s**, total at most `QOL.snapMax` = **0.3 H** per attack, through `moveWithCollision` (props stop it). x isn't touched (facing still follows the cursor).
 4. In the air: the same, with the snap applied to `pos.z` alongside the air steer.
 
 Why: 0.3 H in a 4-frame startup (0.133 s) needs 2.25 H/s, so 3.0 always gets there; a target 0.5 H away in depth ends inside the 0.3 band after the 0.3 snap.
@@ -131,7 +131,7 @@ Tests: a popped weapon falls into a free hand without F · your *loaded* gun reb
 
 **Today** (`castRay`, `src/sim/hitscan.ts`): after the screen ray picks the first hurtbox, a prop blocks if it's in front of the **target** in depth and the ray crosses its screen outline first. That's wrong whenever the prop is also in front of the **shooter**: the bullet, flying from a muzzle behind the table to a target behind the table, never passes the table.
 
-**New rule: a 3D segment test.** "If it looks like a hit, it's a hit" still picks the target in screen space; the cover check then asks whether the bullet's path in the world crosses the prop:
+**As built (2026-10-28): three rules** (`coverBetween` in `src/sim/hitscan.ts`): (1) a prop right in front of the shooter (≤ `OWN_COVER` 0.7 H behind its back face) and under his muzzle is his own cover and never blocks his shots; (2) a prop in front of the target that hides the hit point on screen blocks (you can't hit what you can't see; a pure 3D test let bullets curl round a table that visibly hides the target); (3) otherwise the bullet's 3D path (below) decides. **Planned: a 3D segment test.** "If it looks like a hit, it's a hit" still picks the target in screen space; the cover check then asks whether the bullet's path in the world crosses the prop:
 1. `muzzleW` = the muzzle's world point: `unprojectAt(muzzle, shooterZ)`. `castRay` gets an optional `muzzle?: ScreenPoint` (`fire()` passes `rig.muzzle`: its `from` is moved back along the barrel for point-blank shots, which mustn't be the segment's start); without it (AI line-of-fire checks) `from` is used. The muzzle is drawn at the shooter's depth, so this is exact.
 2. `hitW` = the hit point on the target: `unprojectAt(hit.point, target.pos.z)`.
 3. For each prop (except the cannon, as now): slab-test the segment `muzzleW → hitW` against the prop's box (`x0..x1`, `0..top`, `z0..z1`; the pole as its shaft box; a tipped table uses its upright box after landing). The first intersection along the segment blocks; its entry point is the impact (decal, sparks, `surface: 'prop'`).
@@ -146,7 +146,7 @@ Tests (`tests/guns.test.ts`, the existing cover test keeps passing): hero behind
 
 ## 6. Bullets hit the cursor
 
-- `aimRig()` (`src/anim/aim.ts`) gets a muzzle correction: after placing the gun, compute the angle error `δ` between the barrel and the muzzle→target line, rotate the aim by `δ`, recompute (2 iterations; the muzzle offset is ≤ 0.08 H against a target ≥ 0.3 H away, so it converges to < 0.1 px). The painter and the sim keep sharing the rig, so the drawn barrel, the tracer and the hit all line up with the cursor.
+- `aimRig()` (`src/anim/aim.ts`) gets a muzzle correction: after placing the gun, compute the angle error `δ` between the barrel and the muzzle→target line, rotate the aim by `δ`, recompute (4 iterations as built: 2 left up to 3 px; the muzzle offset is ≤ 0.08 H against a target ≥ 0.3 H away, so it converges to < 0.1 px). The painter and the sim keep sharing the rig, so the drawn barrel, the tracer and the hit all line up with the cursor.
 - Guard: when the cursor is within `QOL.aimMinDist` = 0.3 H (screen-scaled) of the muzzle, or behind it, skip the correction (today's angle).
 - Spread stays (pistol ±1°, `WEAPONS[].spread`).
 - Enemies use the same rig, so their shots lose the same 16–20 px bias; their `TUNING.ai.ranged.aimError` (±0.3 H) dominates anyway. Check the balance bot and the stage bots still pass; note any change in the PR.
@@ -180,6 +180,7 @@ Tests: a knife thrown at a grunt 0.6 H deeper kills him (it misses today) · a g
 - `canGrab(a)` (`src/sim/combat.ts`) today: front hand empty, back hand empty or a one-handed gun.
 - New: if the **front** hand holds a one-handed item (a one-handed gun or a one-handed melee weapon) and the back hand is empty, F first moves it to the back hand (`a.hands = [null, a.hands[0]]`, an instant swap with event `handSwap`), then grabs as normal. Steals (`stealTarget`) use the same swap when they need the front hand.
 - The item stays in the back hand after the throw (no swap back).
+- As built: with the front hand full, F on an **armed** enemy does nothing (M14's gun block, F just before a blade lands, stays a pure parry; no steal).
 - The human-shield rule works unchanged (a one-handed gun in the back fires past the shield).
 - Look & sound: a 3-frame "toss to the other hand" pose layer (the item arcs from the front hand to the back), a cloth + clack sound.
 

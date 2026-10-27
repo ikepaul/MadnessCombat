@@ -5,7 +5,7 @@ import Phaser from 'phaser';
 import { audio } from '../audio/mixer';
 import { isMelee, MELEE } from '../data/melee';
 import { INK } from '../data/palettes';
-import { GUNS, isWeapon, WEAPONS } from '../data/weapons';
+import { isWeapon, WEAPONS } from '../data/weapons';
 import { project } from '../render/camera';
 import { paintGrenade } from '../render/canvas/weaponPainter';
 import { paintHeld } from '../render/canvas/characterPainter';
@@ -13,6 +13,8 @@ import type { GameScene } from '../scenes/GameScene';
 import { STAGE_NAMES } from '../scenes/TitleScene';
 import { SETTINGS } from '../settings';
 import type { Actor, Hand } from '../sim/actor';
+import { TUNING } from '../data/tuning';
+import { emptyGun, type PickupPlan, pickupPlan } from '../sim/guns';
 import { boostBase, exitSpot, needsBoost, partnerAhead, usableExitAt, waitingInExit } from '../sim/stage';
 import { takedownTarget } from '../sim/stealth';
 
@@ -32,6 +34,9 @@ export class InkHud {
   private glyph: Phaser.GameObjects.Graphics;
   private glyphText: Phaser.GameObjects.Text;
   private glyphVerb: Phaser.GameObjects.Text;
+  /** M17: the item's name and ammo after the verb; icons: the item, what it replaces, the chooser rows. */
+  private glyphNote: Phaser.GameObjects.Text;
+  private promptIcons: Phaser.GameObjects.Image[] = [];
   /** What the prompt points at (a new target pops the glyph) and seconds since it appeared. */
   private glyphKey = '';
   private glyphAge = 0;
@@ -59,6 +64,8 @@ export class InkHud {
     this.glyph = scene.add.graphics().setDepth(80);
     this.glyphText = scene.add.text(0, 0, '', { fontFamily: 'Anton', fontSize: '30px', color: INK }).setOrigin(0.5).setDepth(81);
     this.glyphVerb = scene.add.text(0, 0, '', { fontFamily: 'Anton', fontSize: '24px', color: '#ffffff', stroke: INK, strokeThickness: 6 }).setOrigin(0, 0.5).setDepth(81);
+    this.glyphNote = scene.add.text(0, 0, '', { fontFamily: 'Anton', fontSize: '22px', color: '#ffffff', stroke: INK, strokeThickness: 6 }).setOrigin(0, 0.5).setDepth(81).setVisible(false);
+    for (let i = 0; i < 4; i++) this.promptIcons.push(scene.add.image(0, 0, '__DEFAULT').setOrigin(0, 0.5).setDepth(81).setVisible(false));
     scene.events.once('shutdown', () => {
       if (this.heart !== undefined) audio()?.stop(this.heart, 0.3);
     });
@@ -181,7 +188,7 @@ export class InkHud {
   // ---------- E2: prompts ----------
 
   /** The thing E would act on right now: an exit, a takedown, a weapon on the floor. */
-  private promptTarget(me: Actor): { key: string; verb: string; at: [number, number, number]; id: string } | undefined {
+  private promptTarget(me: Actor): { key: string; verb: string; at: [number, number, number]; id: string; plan?: PickupPlan } | undefined {
     const w = this.game.world;
     const exit = usableExitAt(w, me);
     const head: [number, number, number] = [me.pos.x, me.pos.y + 1.35, me.pos.z];
@@ -201,16 +208,12 @@ export class InkHud {
     if (me.state !== 'free') return undefined;
     const prey = takedownTarget(w, me);
     if (prey) return { key: SETTINGS.keys.use, verb: 'TAKEDOWN', at: [prey.pos.x, prey.pos.y + 1.3, prey.pos.z], id: `td${prey.id}` };
-    const free = !me.hands[0] || !me.hands[1];
-    if (!free || me.holding || me.carry) return undefined;
-    let best: (typeof w.items)[number] | undefined, bestD: number = GUNS.pickupRange;
-    for (const it of w.items) {
-      if (it.state !== 'floor' || it.locked || it.kind === 'head' || it.kind === 'boombox' || (it.kind === 'grenade' && it.live)) continue;
-      const d = Math.hypot(it.pos.x - me.pos.x, (it.pos.z - me.pos.z) * 1.5);
-      if (d <= bestD) { best = it; bestD = d; }
-    }
-    if (best) return { key: SETTINGS.keys.use, verb: 'TAKE', at: [best.pos.x, best.pos.y + 0.45, best.pos.z], id: `it${best.id}` };
-    return undefined;
+    // M17: the same plan E would carry out (design/qol-pass.md 2a)
+    const plan = pickupPlan(w, me);
+    if (!plan || plan.item.kind === 'boombox') return undefined;
+    const it = plan.item;
+    const verb = plan.verb === 'pull' ? 'PULL' : plan.verb === 'swap' ? 'SWAP' : 'TAKE';
+    return { key: SETTINGS.keys.use, verb, at: [it.pos.x, it.pos.y + 0.45, it.pos.z], id: `it${it.id}${plan.verb}${plan.hand}`, plan };
   }
 
   private drawPrompt(me: Actor | undefined, dt: number): void {
@@ -219,6 +222,8 @@ export class InkHud {
     const t = me ? this.promptTarget(me) : undefined;
     this.glyphText.setVisible(!!t);
     this.glyphVerb.setVisible(!!t);
+    for (const im of this.promptIcons) im.setVisible(false);
+    this.glyphNote.setVisible(false);
     if (!t) { this.glyphKey = ''; return; }
     if (t.id !== this.glyphKey) { this.glyphKey = t.id; this.glyphAge = 0; }
     this.glyphAge += dt;
@@ -236,6 +241,47 @@ export class InkHud {
     g.fillStyle(0xc9cacd, 1).fillRect(x - r, y + r - 6 * pop, r * 2, 6 * pop);
     this.glyphText.setText(t.key.toUpperCase()).setPosition(x, y - 2).setScale(pop);
     this.glyphVerb.setText(t.verb).setPosition(x + r + 12, y);
+    if (t.plan && me) this.drawPlan(me, t.plan, x + r + 12, y);
+  }
+
+  /**
+   * M17 (design/qol-pass.md 2d): after the verb, the hand it goes into (a mouse icon), the item's
+   * icon, name and ammo, and for a swap what leaves the hand; E held = the hand chooser below.
+   */
+  private drawPlan(me: Actor, plan: PickupPlan, x0: number, y: number): void {
+    const g = this.glyph, it = plan.item;
+    let x = x0 + this.glyphVerb.width + 10;
+    if (plan.hand !== 'both' && plan.verb !== 'pocket') { mouseIcon(g, x, y, plan.hand); x += 42; }
+    const [icon, old, row0, row1] = this.promptIcons;
+    icon.setTexture(iconKey(this.scene, it.kind)).setPosition(x, y).setScale(0.5).setAlpha(1).setVisible(true);
+    x += ICON_W * 0.5 + 4;
+    const name = isWeapon(it.kind) ? WEAPONS[it.kind].name : isMelee(it.kind) ? MELEE[it.kind].name : it.kind === 'grenade' ? 'Grenade +1' : '';
+    const empty = emptyGun(it.kind, it.ammo, it.spare);
+    const ammo = isWeapon(it.kind) ? (empty ? '  EMPTY' : `  ${it.ammo ?? WEAPONS[it.kind].mag}${(it.spare ?? 1) > 0 ? '+1' : ''}`) : '';
+    this.glyphNote.setText(name.toUpperCase() + ammo).setPosition(x, y).setColor(empty ? '#9a9ba0' : '#ffffff').setVisible(true);
+    x += this.glyphNote.width + 12;
+    const chooser = plan.verb === 'swap' && plan.hand !== 'both' && me.useHeldAt !== undefined && this.game.world.time - me.useHeldAt >= TUNING.qol.holdShow;
+    if (plan.verb === 'swap' && plan.replaces[0] && !chooser) {
+      // what leaves the hand, dimmed and struck through
+      g.lineStyle(4, INK_HEX, 1).lineBetween(x, y, x + 22, y).lineBetween(x + 14, y - 8, x + 22, y).lineBetween(x + 14, y + 8, x + 22, y);
+      x += 30;
+      const out = plan.replaces[0].item;
+      old.setTexture(iconKey(this.scene, out)).setPosition(x, y).setScale(0.45).setAlpha(0.75).setVisible(true);
+      // the strike line spans the drawn weapon (iconKey draws it from x 15 at k px per H)
+      const len = isWeapon(out) ? WEAPONS[out].length : isMelee(out) ? MELEE[out].length : 0.2;
+      const w = (15 + len * Math.min(260, (ICON_W - 30) / len)) * 0.45;
+      g.lineStyle(4, INK_HEX, 1).lineBetween(x + 2, y + 10, x + w, y - 10);
+    }
+    if (!chooser) return;
+    // hold E: LMB / RMB rows with what each hand holds now, on an ink plate; the smart pick is brighter
+    g.fillStyle(INK_HEX, 0.82).fillRoundedRect(x0 - 10, y + 26, 160, 104, 10);
+    [row0, row1].forEach((im, i) => {
+      const h = me.hands[i];
+      if (!h) return;
+      const ry = y + 52 + i * 50;
+      mouseIcon(g, x0, ry, i as 0 | 1);
+      im.setTexture(iconKey(this.scene, h.item)).setPosition(x0 + 42, ry).setScale(0.45).setAlpha(plan.hand === i ? 1 : 0.5).setVisible(true);
+    });
   }
 
   // ---------- C4: hurt edges, last life ----------

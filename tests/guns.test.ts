@@ -210,8 +210,7 @@ describe('ammo, reload, pick-up, thrown guns', () => {
     const it2 = world.spawnItem('shotgun', 'grunt', { x: 0.2, y: 0, z: Z }, { x: 0, y: 0, z: 0 }, 0);
     it2.state = 'floor';
     tick(world);
-    expect(hero.hands[1]).toBeNull(); // not automatic once a hand is full
-    tick(world, { pickup: true });
+    // M17: a loaded gun is walked into the empty second hand too
     expect(hero.hands[1]?.item).toBe('shotgun');
   });
 

@@ -6,15 +6,15 @@ import { aboutFeet, lyingAt, rootToWorld, STANDING } from '../anim/skeleton';
 import { GRAVITY, TUNING } from '../data/tuning';
 import { DISARM, GRENADE, GUARD, GUN_BLOCK, isMelee, LOW_SLASH, MELEE, SHIELD, TOPPLE } from '../data/melee';
 import { GUNS, isWeapon, WEAPONS } from '../data/weapons';
-import { stepHands } from './guns';
+import { stepHands, stepUse } from './guns';
 import { blastFlight } from './explosives';
 import { tryTakedown } from './stealth';
 import { ceilingBounce, knockbackScale, wallRestitution } from './improbability';
 import { stepRising, zombieDamage, zombieLosesHead } from './zombies';
 import { bossHit } from './boss';
 import { ACTION_KINDS, actionTiming, disarm, dropCooking, faceCursor, holdsLong, lobHeldGrenade, startAction, startMeleeAction, stealTarget, stepAction, stepGrenade } from './melee';
-import { project, unprojectFloor } from '../render/camera';
-import { type Actor, type AttackKind, alive, type Flight } from './actor';
+import { project, type ScreenPoint, scaleAt, unprojectFloor } from '../render/camera';
+import { type Actor, type AttackKind, alive, type Flight, meleeBand } from './actor';
 import { clamp, moveWithCollision, stairHeight, stairsAt, surfaceBelow } from './collision';
 import type { PlayerCommand } from './command';
 import { type HitKind, MELEE_KINDS } from './events';
@@ -63,6 +63,8 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
   if (cmd.grab) a.catchAt = world.time;
   // M7: E behind an unaware enemy is a takedown (before E picks anything up)
   if (a.state === 'free' && tryTakedown(world, a, cmd)) cmd = { ...cmd, pickup: false };
+  // M17: E with both hands full waits for a click (that hand) or the release (the smart pick)
+  cmd = stepUse(world, a, cmd);
   // a hand holding a gun fires instead of punching (M5): LMB = hand 0, RMB = hand 1
   if (a.state === 'free' || a.state === 'attack') {
     cmd = withoutGunPunches(a, cmd);
@@ -264,7 +266,19 @@ function withoutItemPunches(a: Actor, cmd: PlayerCommand): PlayerCommand {
 /** Grab needs the front hand; the back hand may keep a one-handed gun (fire it past the shield). */
 function canGrab(a: Actor): boolean {
   const back = a.hands[1];
+  // M17: a one-handed item in the front hand moves to the empty back hand first (freeFrontHand)
+  if (a.playerIndex !== undefined && a.hands[0] && !back && oneHanded(a.hands[0].item)) return true;
   return !a.hands[0] && (!back || (isWeapon(back.item) && WEAPONS[back.item].oneHanded));
+}
+
+const oneHanded = (item: string) => (isWeapon(item) ? WEAPONS[item].oneHanded : isMelee(item) && !MELEE[item].twoHanded);
+
+/** M17 (design/qol-pass.md 9): F grabs with any free hand: the front hand's item goes to the back. */
+function freeFrontHand(world: World, a: Actor): void {
+  const h = a.hands[0];
+  if (!h || a.hands[1] || !oneHanded(h.item)) return;
+  a.hands = [null, h];
+  world.events.emit('handSwap', { actorId: a.id, item: h.item, ...a.pos });
 }
 
 export function enter(a: Actor, s: Actor['state']): void {
@@ -305,7 +319,52 @@ function startAttack(world: World, a: Actor, cmd: PlayerCommand): void {
   a.state = 'attack';
   a.stateT = 0;
   a.attack = { kind, heavy: cmd.attack === 'heavy', t: 0, done: false };
+  // M17: slide toward the target's depth during the wind-up
+  a.attack.snapZ = snapTarget(world, a, cmd.aim, kind === 'finisher' ? M.finisher.reach : M.range, kind === 'finisher')?.pos.z;
   setClip(a, PUNCH_CLIP[kind] ?? 'idle');
+}
+
+/**
+ * M17 depth snap (design/qol-pass.md 3b): the enemy a hero's blow is aimed at: the one under the
+ * cursor, else the nearest ahead, within TUNING.qol.snapBand in depth. Heroes only. `downed` = a
+ * body on the floor (the finisher).
+ */
+export function snapTarget(world: World, a: Actor, aim: ScreenPoint | undefined, reach: number, downed = false): Actor | undefined {
+  if (a.playerIndex === undefined) return undefined;
+  const Q = TUNING.qol;
+  let best: Actor | undefined, bestScore = Infinity;
+  for (const o of world.actors) {
+    if (o === a || o.kind === 'hero' || o.kind === 'boss' || o.grabbedBy !== undefined) continue;
+    if (downed ? !isDowned(o) : !alive(o) || o.state === 'getUp' || o.state === 'down' || o.state === 'downed') continue;
+    const dz = Math.abs(o.pos.z - a.pos.z), ahead = (o.pos.x - a.pos.x) * a.facing;
+    if (dz > Q.snapBand || ahead < -0.1 || ahead > reach + Q.snapAhead) continue;
+    // under the cursor: near the projected chest or head (H at his depth)
+    let under = false;
+    if (aim) {
+      const s = scaleAt(o.pos.z);
+      for (const y of downed ? [0.15] : [0.4, 0.79]) {
+        const [sx, sy] = project(o.pos.x, o.pos.y + y, o.pos.z);
+        if (Math.hypot(aim[0] - sx, aim[1] - sy) < 0.3 * s) under = true;
+      }
+    }
+    // under the cursor first, then anyone already on your depth line, then the nearest
+    const score = (under ? -10 : 0) + (dz <= meleeBand(a) ? -5 : 0) + Math.abs(ahead) + dz * 2;
+    if (score < bestScore) { best = o; bestScore = score; }
+  }
+  return best;
+}
+
+/** M17 depth snap: during the startup, move toward the target's depth (props stop it). */
+function snapStep(world: World, a: Actor, startup: number): void {
+  const atk = a.attack!, Q = TUNING.qol;
+  if (atk.snapZ === undefined || atk.t > startup + 1e-6) return;
+  // only as far as needed: to within snapNear of his depth, not onto it
+  const left = Q.snapMax - (atk.snapped ?? 0), dz = atk.snapZ - a.pos.z;
+  const step = Math.sign(dz) * Math.min(Math.max(0, Math.abs(dz) - Q.snapNear), Q.snapSpeed * world.dt, left);
+  if (Math.abs(step) < 1e-6) return;
+  const p = moveWithCollision(world.room, a.pos.x, a.pos.z, 0, step, a.pos.y);
+  atk.snapped = (atk.snapped ?? 0) + Math.abs(p.z - a.pos.z);
+  a.pos.z = p.z;
 }
 
 /** Heavy punch with the cursor steeply above the shoulder = uppercut. */
@@ -323,7 +382,7 @@ function fistPoint(a: Actor, kind: AttackKind): { x: number; y: number; r: numbe
 }
 
 function hittable(a: Actor, o: Actor): boolean {
-  return o !== a && alive(o) && o.state !== 'grabbed' && o.state !== 'getUp' && o.state !== 'downed' && Math.abs(o.pos.z - a.pos.z) <= M.depthBand;
+  return o !== a && alive(o) && o.state !== 'grabbed' && o.state !== 'getUp' && o.state !== 'downed' && Math.abs(o.pos.z - a.pos.z) <= meleeBand(a);
 }
 
 function standingInReach(world: World, a: Actor): boolean {
@@ -339,7 +398,7 @@ function downedTarget(world: World, a: Actor): Actor | undefined {
   const f = fistPoint(a, 'finisher');
   let best: Actor | undefined, bestD = Infinity;
   for (const o of world.actors) {
-    if (o === a || !isDowned(o) || Math.abs(o.pos.z - a.pos.z) > M.depthBand) continue;
+    if (o === a || !isDowned(o) || Math.abs(o.pos.z - a.pos.z) > meleeBand(a)) continue;
     if (circleHits(o, f.x, f.y, f.r) === null) continue;
     const d = Math.abs(o.pos.x - a.pos.x);
     // living bodies first, then the nearest corpse
@@ -357,6 +416,7 @@ function stepAttack(world: World, a: Actor): void {
   const atk = a.attack!;
   atk.t += world.dt;
   const tm = attackTiming(atk.kind, atk.weapon);
+  snapStep(world, a, tm.startup);
   if (ACTION_KINDS.includes(atk.kind)) stepAction(world, a);
   else if (atk.kind === 'throw') {
     if (!atk.done && reached(atk.t, tm.startup)) { atk.done = true; releaseThrow(world, a); }
@@ -1049,6 +1109,7 @@ function tryGrab(world: World, a: Actor): void {
   for (const it of world.items) {
     if (it.kind !== 'grenade' || !it.live || it.state === 'held' || Math.abs(it.pos.z - a.pos.z) > 0.35) continue;
     if (Math.hypot(it.pos.x - a.pos.x, it.pos.y - a.pos.y) > GRENADE.pickRange + 0.2) continue;
+    freeFrontHand(world, a);
     it.state = 'held';
     it.heldBy = a.id;
     it.vel = { x: 0, y: 0, z: 0 };
@@ -1086,7 +1147,10 @@ function tryGrab(world: World, a: Actor): void {
     // turn to it (it may be behind you)
     if (Math.abs(o.pos.x - a.pos.x) > 0.02) a.facing = o.pos.x > a.pos.x ? 1 : -1;
     // combat-disarm: F on an armed enemy steals the weapon instead of grabbing the body
+    // M17: with the front hand full (it would swap to the back), F on an armed enemy stays the M14 gun block
+    if (a.hands[0] && alive(o) && (o.hands[0] || o.hands[1])) return;
     if (alive(o) && stealTarget(world, a, o)) return;
+    freeFrontHand(world, a);
     if (o.corpse?.phase === 'frozen') world.events.emit('corpseThawed', { actorId: o.id });
     if (o.corpse) { o.corpse.phase = 'tumble'; o.corpse.slumped = false; }
     if (alive(o)) {
@@ -1103,6 +1167,7 @@ function tryGrab(world: World, a: Actor): void {
     world.events.emit('grab', { actorId: a.id, targetId: o.id, ...o.pos });
   } else {
     const it = world.items.find((i) => i.id === pick.itemId)!;
+    freeFrontHand(world, a);
     it.state = 'held';
     it.heldBy = a.id;
     a.holding = { kind: 'item', id: it.id };

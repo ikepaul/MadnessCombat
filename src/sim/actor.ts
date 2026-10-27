@@ -167,6 +167,9 @@ export type AttackKind = 'light' | 'heavy' | 'uppercut' | 'finisher' | 'throw' |
 
 export interface Attack {
   kind: AttackKind;
+  /** M17 depth snap: the depth the hero slides toward during the startup, and how far he has slid (H). */
+  snapZ?: number;
+  snapped?: number;
   /** Pressed as a heavy (RMB): sets finisher damage and decapitation. */
   heavy: boolean;
   t: number;
@@ -286,6 +289,8 @@ export interface Actor {
   grenades: number;
   /** Cooking a grenade: seconds since the pin was pulled. */
   cook?: number;
+  /** M17: world time E went down with both hands full (a click picks the hand, the release takes the smart pick). */
+  useHeldAt?: number;
   /** World time F was last pressed (catching a thrown weapon, throw-catch-return). */
   catchAt?: number;
   /** M14: when the last low slash from the ground was made (world time). */
@@ -376,6 +381,14 @@ export function createActor(kind: ActorKind, x: number, z: number, facing: 1 | -
     a.corpse = { phase: 'settled', t: 0, raisable: true, gibbed: false, slumped: false };
   }
   return a;
+}
+
+/**
+ * M17 (design/qol-pass.md 3a): the depth band a melee blow reaches. Heroes get a wider band than
+ * enemies (depth is hard to read from this camera); `base` = the weapon's band.
+ */
+export function meleeBand(a: Actor, base: number = TUNING.melee.depthBand): number {
+  return a.playerIndex !== undefined ? base + TUNING.melee.hero.depthBand - TUNING.melee.depthBand : base;
 }
 
 /** Can be hit / grabbed as a living body. */

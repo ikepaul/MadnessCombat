@@ -43,7 +43,9 @@ export interface GameEvents {
   /** Reload started (magazine out) or finished (magazine in). */
   reload: At & { hand: 0 | 1; phase: 'start' | 'end'; weapon: WeaponId };
   /** A weapon picked up off the floor. */
-  pickup: At & { itemId: number; hand: 0 | 1; item: string };
+  /** M17: F with a one-handed item in front moved it to the back hand to grab. */
+  handSwap: At & { item: string };
+  pickup: At & { itemId: number; hand: 0 | 1; item: string; /** M17: walked over, not E. */ auto?: boolean };
   /** Co-op: a hero ran out of lives and lies in a revive circle. */
   playerDown: At;
   /** Co-op: a teammate finished the revive; the hero gets up. */

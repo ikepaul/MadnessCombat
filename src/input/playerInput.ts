@@ -66,6 +66,7 @@ export class PlayerInput {
       reload: this.reloadLatch,
       throwGun: this.throwLatch,
       fireMode: this.modeLatch,
+      useHeld: k.use.isDown,
       split: k.split.isDown,
       grenade: k.grenade.isDown,
     };

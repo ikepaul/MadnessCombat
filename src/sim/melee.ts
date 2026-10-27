@@ -8,13 +8,13 @@ import { DISARM, GRENADE, isMelee, MELEE, type MeleeDef, THROWN } from '../data/
 import { isWeapon, WEAPONS } from '../data/weapons';
 import { GRAVITY, TUNING } from '../data/tuning';
 import { project, type ScreenPoint, scaleAt, unprojectFloor } from '../render/camera';
-import { type Actor, alive, type AttackKind, type HeldItem, newHand } from './actor';
-import { applyHit, setClip } from './combat';
+import { type Actor, alive, type AttackKind, type HeldItem, meleeBand, newHand } from './actor';
+import { applyHit, setClip, snapTarget } from './combat';
 import type { PlayerCommand } from './command';
 import { COVER, flipTable } from './cover';
 import { explode } from './explosives';
 import { stepTakedown, takedownTiming } from './stealth';
-import { dropHeld, type Item, lobVelocity, spawnItem } from './items';
+import { dropHeld, type Item, lobVelocity, spawnItem, throwToDepth } from './items';
 import type { World } from './world';
 
 const F = 1 / 30;
@@ -77,6 +77,8 @@ export function startAction(world: World, a: Actor, kind: AttackKind, cmd: Pick<
   a.attack = { kind, heavy: false, t: 0, done: false, hand: extra.hand, hits: [], aim: cmd.aim, weapon: weapon ?? undefined, itemId: extra.itemId, targetId: extra.targetId, fuse: extra.fuse, prop: extra.prop };
   if ((kind === 'toss' || kind === 'lob' || kind === 'pull' || kind === 'steal' || kind === 'flip' || kind === 'takedown') && a.body.state !== 'air') a.body.vel = { x: 0, y: 0, z: 0 };
   setClip(a, clipFor(kind, weapon ?? undefined));
+  // M17: a hero's swing or thrust slides toward its target's depth during the wind-up
+  if ((kind === 'swing' || kind === 'thrust') && weapon && isMelee(weapon)) a.attack.snapZ = snapTarget(world, a, cmd.aim, MELEE[weapon].reach)?.pos.z;
   if (kind === 'pull') {
     const it = world.items.find((i) => i.id === extra.itemId);
     if (it) world.events.emit('pull', { actorId: a.id, itemId: it.id, phase: 'start', item: it.kind, ...a.pos });
@@ -116,7 +118,7 @@ function swingTargets(world: World, a: Actor, def: MeleeDef, reach: number, alre
       if (o.state === 'grabbed' || o.state === 'getUp' || o.state === 'downed' || o.state === 'down') return false;
       if (a.playerIndex !== undefined && o.playerIndex !== undefined) return false; // no friendly fire in co-op
       const ahead = (o.pos.x - a.pos.x) * a.facing;
-      if (ahead < -0.1 || ahead > reach || Math.abs(o.pos.z - a.pos.z) > def.depthBand) return false;
+      if (ahead < -0.1 || ahead > reach || Math.abs(o.pos.z - a.pos.z) > meleeBand(a, def.depthBand)) return false;
       // a swing from a jump comes down on whoever is below
       return o.pos.y <= a.pos.y + 1 && o.pos.y + o.body.height >= a.pos.y - 0.2;
     })
@@ -202,21 +204,23 @@ export function tossHeld(world: World, a: Actor, i: 0 | 1, aim?: ScreenPoint): I
   const speed = knife ? THROWN.knifeSpeed : THROWN.speed;
   const blade = isMelee(h.item) && MELEE[h.item].edge === 'blade';
   // knives spin end over end; long things tumble slower
-  const it = world.spawnItem(h.item, 'grunt', from, { x: dx * speed, y: dy * speed, z: 0 }, Math.sign(dx) * (knife ? 24 : 14));
+  // M17: thrown at an enemy at another depth, it flies to his depth
+  const vel = throwToDepth(world, a, from, aim, speed, blade ? THROWN.gravityShare : 0) ?? { x: dx * speed, y: dy * speed, z: 0 };
+  const it = world.spawnItem(h.item, 'grunt', from, vel, Math.sign(vel.x || dx) * (knife ? 24 : 14));
   it.thrownBy = a.id;
   it.thrownAt = world.time;
   it.straight = THROWN.maxFlight;
   it.drop = blade ? THROWN.gravityShare : 0;
   it.ammo = h.ammo;
   it.spare = h.spare;
-  world.events.emit('throw', { actorId: a.id, itemId: it.id, ...from, vx: dx * speed, vz: 0 });
+  world.events.emit('throw', { actorId: a.id, itemId: it.id, ...from, vx: vel.x, vz: vel.z });
   return it;
 }
 
 /** throw-grenade: release toward the floor point under the cursor (max GRENADE.maxRange, the hero's GRENADE.playerRange). */
-function lobGrenade(world: World, a: Actor, fuse: number, aim?: ScreenPoint): void {
-  a.pose.grenade = false;
-  const from = { x: a.pos.x + a.facing * 0.3, y: a.pos.y + 0.7, z: a.pos.z };
+/** Where a lob released now lands: the floor point under the cursor, within range and the room (M17: the marker uses it too). */
+export function lobTarget(world: World, a: Actor, aim?: ScreenPoint): { x: number; z: number } {
+  const from = { x: a.pos.x + a.facing * 0.3, z: a.pos.z };
   let tx = a.pos.x + a.facing * 2, tz = a.pos.z;
   const p = aim ? unprojectFloor(aim[0], aim[1]) : undefined;
   if (p) { tx = p.x; tz = p.z; }
@@ -225,6 +229,13 @@ function lobGrenade(world: World, a: Actor, fuse: number, aim?: ScreenPoint): vo
   if (d > range) { tx = from.x + (dx / d) * range; tz = from.z + (dz / d) * range; }
   tx = Math.max(-world.room.halfWidth + 0.2, Math.min(world.room.halfWidth - 0.2, tx));
   tz = Math.max(world.room.zFront, Math.min(world.room.zBack - 0.15, tz));
+  return { x: tx, z: tz };
+}
+
+function lobGrenade(world: World, a: Actor, fuse: number, aim?: ScreenPoint): void {
+  a.pose.grenade = false;
+  const from = { x: a.pos.x + a.facing * 0.3, y: a.pos.y + 0.7, z: a.pos.z };
+  const { x: tx, z: tz } = lobTarget(world, a, aim);
   const it = world.spawnItem('grenade', 'grunt', from, lobVelocity(from, tx, tz), Math.sign(tx - from.x || a.facing) * 9);
   it.live = true;
   it.fuse = Math.max(0.05, fuse);

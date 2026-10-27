@@ -7,7 +7,7 @@
 // same ray) until it meets a wall, the floor, the ceiling or a prop: that's where the hole goes.
 import { rootToWorld } from '../anim/skeleton';
 import { CAMERA, project, type ScreenPoint, scaleAt } from '../render/camera';
-import type { Actor } from './actor';
+import type { Actor, Vec3 } from './actor';
 import { BODY, HEAD } from './hurtbox';
 import { heldWeaponSegment } from './melee';
 import { wardPolygon } from './boss';
@@ -149,7 +149,72 @@ export function planeImpact(room: RoomDef, from: ScreenPoint, dir: ScreenPoint, 
  * Cast one bullet. `shooterZ` = the shooter's depth (misses travel there); `skip` = actors the
  * bullet passes (the shooter, teammates).
  */
-export function castRay(world: World, from: ScreenPoint, dir: ScreenPoint, shooterZ: number, skip: (a: Actor) => boolean): RayResult {
+/** M17: a prop just in front of the shooter, under his muzzle: his own cover, which he fires over (H behind its back face). invented */
+export const OWN_COVER = 0.7;
+
+/** Segment p0 -> p1 against a prop's box (slab test): the entry parameter in [0, 1], if it crosses. */
+function segVsProp(p0: Vec3, p1: Vec3, p: PropDef): number | undefined {
+  let t0 = 0, t1 = 1;
+  const lo = [p.x0, 0, p.z0], hi = [p.x1, p.top - 1e-3, p.z1];
+  const a = [p0.x, p0.y, p0.z], d = [p1.x - p0.x, p1.y - p0.y, p1.z - p0.z];
+  for (let k = 0; k < 3; k++) {
+    if (Math.abs(d[k]) < 1e-9) { if (a[k] < lo[k] || a[k] > hi[k]) return undefined; continue; }
+    let u = (lo[k] - a[k]) / d[k], v = (hi[k] - a[k]) / d[k];
+    if (u > v) [u, v] = [v, u];
+    t0 = Math.max(t0, u); t1 = Math.min(t1, v);
+    if (t0 > t1) return undefined;
+  }
+  return t0;
+}
+
+/** Point-in-polygon (screen). */
+function insidePolygon(pt: ScreenPoint, pts: ScreenPoint[]): boolean {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i], [xj, yj] = pts[j];
+    if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < ((xj - xi) * (pt[1] - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * M17 cover (design/qol-pass.md 5): what stops a bullet from `muzzleW` (world) to a point on screen
+ * `at` on something at depth `z`. A prop blocks if (1) it isn't the shooter's own cover (right in
+ * front of him and under his muzzle: he fires over it), and either (2) it hides that point on screen
+ * (in front of it in depth, the point inside its outline: you can't hit what you can't see) or (3)
+ * the bullet's path in the world goes through it. Returns the impact on screen and in the world.
+ */
+function coverBetween(world: World, muzzleW: Vec3, at: ScreenPoint, z: number, from: ScreenPoint, dir: ScreenPoint): { end: ScreenPoint; world: Vec3 } | undefined {
+  const target = { ...unprojectAt(at[0], at[1], z), z };
+  let best: { d: number; end: ScreenPoint; world: Vec3 } | undefined;
+  for (const p of world.room.props) {
+    // the boss's cannon is no cover: shots pass under the barrel (ep1 f2469)
+    if (p.kind === 'cannon') continue;
+    if (muzzleW.z > p.z1 && muzzleW.z - p.z1 <= OWN_COVER && muzzleW.y > p.top) continue;
+    let hitW: Vec3 | undefined, end: ScreenPoint | undefined;
+    if (p.z0 < z && insidePolygon(at, propOutline(p))) {
+      const t = rayVsProp(from, dir, p);
+      end = t !== undefined ? [from[0] + dir[0] * t, from[1] + dir[1] * t] : at;
+      hitW = { ...unprojectAt(end[0], end[1], p.z0), z: p.z0 };
+    } else {
+      const t = segVsProp(muzzleW, target, p);
+      if (t === undefined) continue;
+      hitW = { x: muzzleW.x + (target.x - muzzleW.x) * t, y: muzzleW.y + (target.y - muzzleW.y) * t, z: muzzleW.z + (target.z - muzzleW.z) * t };
+      end = project(hitW.x, hitW.y, hitW.z);
+    }
+    const d = Math.hypot(end[0] - from[0], end[1] - from[1]);
+    if (!best || d < best.d) best = { d, end, world: hitW };
+  }
+  return best;
+}
+
+/**
+ * Cast one bullet. `shooterZ` = the shooter's depth (misses travel there); `skip` = actors the
+ * bullet passes (the shooter, teammates); `muzzle` = the drawn muzzle on screen (M17: the cover
+ * test starts there; `from` may be set back along the barrel for point-blank shots).
+ */
+export function castRay(world: World, from: ScreenPoint, dir: ScreenPoint, shooterZ: number, skip: (a: Actor) => boolean, muzzle: ScreenPoint = from): RayResult {
+  const muzzleW: Vec3 = { ...unprojectAt(muzzle[0], muzzle[1], shooterZ), z: shooterZ };
   let hit: ActorHit | undefined;
   let gun: { actor: Actor; t: number } | undefined;
   let ward: { actor: Actor; t: number } | undefined;
@@ -176,20 +241,12 @@ export function castRay(world: World, from: ScreenPoint, dir: ScreenPoint, shoot
   }
   if (gun && (!hit || gun.t < hit.t - 1e-6)) {
     const end: ScreenPoint = [from[0] + dir[0] * gun.t, from[1] + dir[1] * gun.t];
-    const covered = world.room.props.some((p) => p.kind !== 'cannon' && p.z0 < gun!.actor.pos.z && (rayVsProp(from, dir, p) ?? Infinity) < gun!.t);
-    if (!covered) return { disarm: gun.actor, end };
+    if (!coverBetween(world, muzzleW, end, gun.actor.pos.z, from, dir)) return { disarm: gun.actor, end };
   }
   if (hit) {
-    // cover: crossed first on screen AND in front of the target in depth
-    for (const p of world.room.props) {
-      // the boss's cannon is no cover: shots pass under the barrel (ep1 f2469)
-      if (p.z0 >= hit.actor.pos.z || p.kind === 'cannon') continue;
-      const t = rayVsProp(from, dir, p);
-      if (t !== undefined && t < hit.t) {
-        const end: ScreenPoint = [from[0] + dir[0] * t, from[1] + dir[1] * t];
-        return { end, surface: 'prop', world: { ...unprojectAt(end[0], end[1], p.z0), z: p.z0 } };
-      }
-    }
+    // cover (M17): own cover is fired over; a hidden target or a path through a prop is blocked
+    const c = coverBetween(world, muzzleW, hit.point, hit.actor.pos.z, from, dir);
+    if (c) return { end: c.end, surface: 'prop', world: c.world };
     return { hit, end: hit.point };
   }
   const miss = planeImpact(world.room, from, dir, shooterZ);
