@@ -39,6 +39,8 @@ export interface ActorSnap {
   pose: Pose;
   hands: Actor['hands'];
   grenades: number;
+  /** M17: E held with both hands full (the guest's prompt shows the hand chooser). */
+  useHeldAt?: number;
   /** M7: grunt variant, and what an unaware enemy is doing (the painter draws the cigarette). */
   variant?: Actor['variant'];
   /** M8: the boombox NPC's boombox. */
@@ -92,7 +94,7 @@ function snapActor(a: World['actors'][number]): ActorSnap {
     pos: [a.pos.x, a.pos.y, a.pos.z], facing: a.facing, state: a.state, stateT: a.stateT,
     hp: a.hp, maxHp: a.maxHp, revive: a.revive, entering: a.entering,
     bodyState: a.body.state, bodyHeight: a.body.height, bodyKick: a.body.kick || undefined, traversing: a.traversing, parked: a.parked,corpse: a.corpse?.phase, gibbed: a.corpse?.gibbed, pinned: a.corpse?.pinned,
-    pose: a.pose, hands: a.hands, grenades: a.grenades,
+    pose: a.pose, hands: a.hands, grenades: a.grenades, useHeldAt: a.useHeldAt,
     variant: a.variant, carry: a.carry, unaware: a.ai?.aware === false ? a.ai.idle ?? 'stand' : undefined,
     hover: a.hover, fallingAway: a.fallingAway, ceilingStuck: a.ceilingStuck,
   };
@@ -172,6 +174,7 @@ export function applySnapshot(world: World, s: Snapshot): void {
     a.pose = as.pose;
     a.hands = as.hands;
     a.grenades = as.grenades ?? 0;
+    a.useHeldAt = as.useHeldAt;
     if (as.corpse) a.corpse = { phase: as.corpse, t: 0, raisable: !as.gibbed, gibbed: !!as.gibbed, slumped: false, pinned: as.pinned };
     else a.corpse = undefined;
     if (as.enemy && !a.ai) a.ai = newAiState(world);

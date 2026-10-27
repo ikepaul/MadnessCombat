@@ -13,7 +13,8 @@ import type { Ctx } from './draw';
 /** Head radius-ish offset so a resting head sits on the floor. */
 const HEAD_REST = 0.2;
 
-export function paintItem(ctx: Ctx, it: Item, pal: Palette, blood: boolean, time = 0): void {
+/** `highlight` (M17): what the local player's E would take: a white outline and a slow glint. */
+export function paintItem(ctx: Ctx, it: Item, pal: Palette, blood: boolean, time = 0, highlight = false): void {
   const s = scaleAt(it.pos.z);
   if (it.state === 'stuck' || it.state === 'planted') { paintFixed(ctx, it, s, blood); return; }
   const [gx, gy] = project(it.pos.x, 0, it.pos.z);
@@ -25,6 +26,16 @@ export function paintItem(ctx: Ctx, it: Item, pal: Palette, blood: boolean, time
   ctx.fillStyle = `rgba(0,0,0,${0.2 * (1 - air * 0.6)})`;
   ctx.fill();
 
+  // M17: a 1-frame white glint every 1.2 s on the item E would take
+  if (highlight && (time % 1.2) < 1 / 30) {
+    ctx.save();
+    ctx.translate(x + 0.06 * s, y - 0.05 * s);
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    for (let k = 0; k < 8; k++) { const r = (k % 2 ? 0.012 : 0.05) * s, a = (k * Math.PI) / 4; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+    ctx.fill();
+    ctx.restore();
+  }
   // revamp B1: a thrown weapon spinning through the air leaves a faint disc of motion blur
   const spin = Math.abs(it.spin ?? 0);
   if (it.kind !== 'head' && it.kind !== 'boombox' && it.pos.y > 0.15 && spin > 6) {
@@ -39,6 +50,11 @@ export function paintItem(ctx: Ctx, it: Item, pal: Palette, blood: boolean, time
   ctx.translate(x, y);
   ctx.scale(s, s);
   ctx.rotate(it.angle);
+  if (highlight) {
+    // a glow outline that reads as a white ink edge (design/qol-pass.md 2e)
+    ctx.shadowColor = 'rgba(255,255,255,0.95)';
+    ctx.shadowBlur = Math.max(4, 0.05 * s);
+  }
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
   if (it.kind === 'head') {

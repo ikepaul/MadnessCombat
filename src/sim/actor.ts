@@ -286,6 +286,8 @@ export interface Actor {
   grenades: number;
   /** Cooking a grenade: seconds since the pin was pulled. */
   cook?: number;
+  /** M17: world time E went down with both hands full (a click picks the hand, the release takes the smart pick). */
+  useHeldAt?: number;
   /** World time F was last pressed (catching a thrown weapon, throw-catch-return). */
   catchAt?: number;
   /** M14: when the last low slash from the ground was made (world time). */

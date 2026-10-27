@@ -23,6 +23,7 @@ import { paintBall, paintCannon } from '../render/canvas/cannonPainter';
 import { paintCharacter } from '../render/canvas/characterPainter';
 import { paintBoss } from '../render/canvas/bossPainter';
 import { paintItem } from '../render/canvas/itemPainter';
+import { pickupPlan } from '../sim/guns';
 import { paintDoor, paintProp, paintRoom } from '../render/canvas/roomPainter';
 import { paintLockShadow, paintLockWall, paintTank } from '../render/canvas/sceneryPainter';
 import { TUNING } from '../data/tuning';
@@ -522,7 +523,10 @@ export class GameScene extends Phaser.Scene {
       const bias = a.state === 'attack' ? 0.002 : a.state === 'grabbed' ? -0.001 : 0;
       list.push({ z: a.pos.z - bias, draw: () => (a.kind === 'boss' ? paintBoss(ctx, a, { time: this.world.time, flashes }) : paintCharacter(ctx, a, pal, this.world.time, { blood, flashes })) });
     }
-    for (const it of this.world.items) list.push({ z: it.pos.z, draw: () => paintItem(ctx, it, pal, blood, this.world.time) });
+    // M17: the item the local player's E would take is outlined
+    const me = this.world.players[this.localPlayer];
+    const target = me && !this.world.inputLocked ? pickupPlan(this.world, me)?.item.id : undefined;
+    for (const it of this.world.items) list.push({ z: it.pos.z, draw: () => paintItem(ctx, it, pal, blood, this.world.time, it.id === target) });
     for (const p of this.world.room.props) list.push({ z: p.z0, draw: () => paintProp(ctx, p, pal) });
     for (const c of this.world.cannons) list.push({ z: c.z, draw: () => paintCannon(ctx, c) });
     for (const b of this.world.balls) list.push({ z: b.z - 0.01, draw: () => paintBall(ctx, b) });

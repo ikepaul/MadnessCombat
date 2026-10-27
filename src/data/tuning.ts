@@ -328,6 +328,28 @@ export const TUNING = {
     buffer: 0.2,
     /** Aim this steeply above horizontal (radians) to turn a heavy punch into an uppercut. invented */
     uppercutAimAngle: Math.PI / 4,
+    /** M17 (design/qol-pass.md): the hero's melee depth band is wider than the enemies' 0.2 H. invented */
+    hero: { depthBand: 0.3 },
+  },
+
+  /** M17 quality-of-life pass (design/qol-pass.md). All invented. */
+  qol: {
+    /** Your own thrown gun isn't auto-picked up again for this long (s). */
+    ownThrowIgnore: 1.0,
+    /** Smart swap: a one-handed melee weapon scores this (an empty gun 0, a full gun with a spare 1). */
+    meleeSwapScore: 0.6,
+    /** E held this long (s) with both hands full shows the hand chooser. */
+    holdShow: 0.18,
+    /** Depth snap: targets within this depth (H) and this far past the reach (H) are snapped to, at this speed (H/s), at most this far (H) per attack. */
+    snapBand: 0.5,
+    snapAhead: 0.3,
+    snapSpeed: 3.0,
+    snapMax: 0.3,
+    /** No muzzle-to-cursor correction when the cursor is closer to the muzzle than this (H, screen-scaled). */
+    aimMinDist: 0.3,
+    /** Throws find depth: an enemy within this of the cursor (H at his depth) and this depth (H) is the target. */
+    throwMagnet: 0.35,
+    throwDepth: 1.2,
   },
 
   /**

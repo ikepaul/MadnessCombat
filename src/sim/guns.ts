@@ -11,7 +11,7 @@ import { type Actor, alive, type Hand, newHand } from './actor';
 import type { PlayerCommand } from './command';
 import { castRay, type Surface } from './hitscan';
 import { wardBlocked } from './boss';
-import { dropHeld } from './items';
+import { dropHeld, type Item } from './items';
 import { shootCables } from './elevator';
 import { disarm, pullable, startAction } from './melee';
 import type { World } from './world';
@@ -141,8 +141,8 @@ export function stepHands(world: World, a: Actor, cmd: PlayerCommand, dt: number
     const i = gunIn(front) ? 0 : !front && gunIn(a.hands[1]) ? 1 : -1;
     if (i >= 0) throwGun(world, a, i as 0 | 1, cmd);
   }
-  // players also walk over weapons with empty hands; grunts pick up when their brain says so (M7)
-  if (a.playerIndex !== undefined ? cmd.pickup || (!a.hands[0] && !a.hands[1]) : cmd.pickup) pickUp(world, a, !!cmd.pickup, cmd);
+  // players also walk over weapons with a free hand (M17); grunts pick up when their brain says so (M7)
+  if (a.playerIndex !== undefined ? cmd.pickup || !a.hands[0] || !a.hands[1] : cmd.pickup) pickUp(world, a, !!cmd.pickup, cmd);
   return backShot;
 }
 
@@ -243,35 +243,85 @@ export function throwGun(world: World, a: Actor, i: 0 | 1, cmd: PlayerCommand): 
   world.events.emit('throw', { actorId: a.id, itemId: it.id, ...from, vx: dx * GUNS.throwSpeed, vz: 0 });
 }
 
+/** M17 (design/qol-pass.md): what E (or walking over something) would do right now. */
+export interface PickupPlan {
+  /** `pocket` = a grenade into the pocket. */
+  verb: 'take' | 'swap' | 'pull' | 'pocket';
+  item: Item;
+  /** Hand it goes into (`swap`: the smart pick); 'both' = a two-handed weapon (or one held). */
+  hand: 0 | 1 | 'both';
+  /** What leaves the hands. */
+  replaces: Hand[];
+}
+
+/** A gun with nothing left in it (auto pickup and auto catch skip these). */
+export function emptyGun(kind: string, ammo?: number, spare?: number): boolean {
+  return isWeapon(kind) && (ammo ?? WEAPONS[kind].mag) <= 0 && (spare ?? 1) <= 0;
+}
+
+/** Smart swap (M17): the hand to give up for a new item: an empty gun first, then the emptier gun, then a melee weapon; ties go to the front. */
+export function swapHand(a: Actor): 0 | 1 {
+  const score = (h: Hand | null): number => {
+    if (!h) return -1;
+    if (isWeapon(h.item)) { const m = WEAPONS[h.item].mag; return (h.ammo + h.spare * m) / (2 * m); }
+    return TUNING.qol.meleeSwapScore;
+  };
+  return score(a.hands[1]) < score(a.hands[0]) ? 1 : 0;
+}
+
 /**
- * gun-pickup-drop: E takes the nearest weapon on the floor into a free hand (or swaps the front
- * hand's); with both hands empty, walking over one picks it up (proposal). M6: E pulls a stuck
- * blade or the planted sign out (0.5 s; with empty hands also by standing on it), and grenades
- * on the floor go into the pocket.
+ * gun-pickup-drop + M17: what E would take (or `walkOver`: what walking over picks up). One plan for
+ * the sim and the E prompt. Order: a stuck blade / the planted sign to pull, then the nearest floor
+ * item. Walking over takes only with a free hand: anything with both hands empty, a loaded gun into
+ * the one empty hand; never an empty gun or your own gun you just threw.
  */
-function pickUp(world: World, a: Actor, pressed: boolean, cmd: PlayerCommand): void {
+export function pickupPlan(world: World, a: Actor, walkOver = false): PickupPlan | undefined {
   // M8: the boombox takes the front hand; nothing else is picked up while carrying it
-  if (a.holding || a.state !== 'free' || a.cook !== undefined || a.carry) return;
-  // throw-knives: pull a stuck blade out (walking over it with empty hands, standing still)
-  const still = Math.hypot(cmd.moveX, cmd.moveZ) < 0.1;
-  if (pressed || still) {
+  if (a.holding || a.state !== 'free' || a.cook !== undefined || a.carry) return undefined;
+  const free = (!a.hands[0] ? 1 : 0) + (!a.hands[1] ? 1 : 0);
+  if (walkOver && (free === 0 || isLong(a))) return undefined;
+  if (!walkOver) {
     const stuck = pullable(world, a);
-    if (stuck && (pressed || stuck.state === 'stuck')) { startAction(world, a, 'pull', cmd, { itemId: stuck.id }); return; }
+    if (stuck) return { verb: 'pull', item: stuck, hand: !a.hands[0] ? 0 : 1, replaces: [] };
   }
-  const reach = pressed ? GUNS.pickupRange : GUNS.pickupRange * 0.6;
-  let best: (typeof world.items)[number] | undefined, bestD = Infinity;
+  const reach = walkOver ? GUNS.pickupRange * 0.6 : GUNS.pickupRange;
+  let best: Item | undefined, bestD = Infinity;
   for (const it of world.items) {
     // the boombox is the players' (M8 ending), nobody else's
-    if (it.state !== 'floor' || it.locked || it.kind === 'head' || (it.kind === 'boombox' && (a.playerIndex === undefined || a.carry)) || (it.kind === 'grenade' && it.live)) continue;
+    if (it.state !== 'floor' || it.locked || it.kind === 'head' || (it.kind === 'boombox' && a.playerIndex === undefined) || (it.kind === 'grenade' && it.live)) continue;
+    if (walkOver) {
+      if (emptyGun(it.kind, it.ammo, it.spare)) continue;
+      if (it.ownedBy === a.id && world.time - (it.ownedAt ?? -Infinity) < TUNING.qol.ownThrowIgnore) continue;
+      // one hand full: only a loaded gun fills the other (decided with the user)
+      if (free === 1 && !isWeapon(it.kind)) continue;
+    }
     const d = Math.hypot(it.pos.x - a.pos.x, (it.pos.z - a.pos.z) * 1.5);
     if (d <= reach && d < bestD) { best = it; bestD = d; }
   }
-  if (!best) return;
+  if (!best) return undefined;
   const it = best;
+  if (it.kind === 'grenade') return { verb: 'pocket', item: it, hand: 0, replaces: [] };
+  // the boombox always takes the front hand (no choice to make)
+  if (it.kind === 'boombox') return { verb: 'take', item: it, hand: 0, replaces: a.hands[0] ? [a.hands[0]] : [] };
+  const long = isMelee(it.kind) && MELEE[it.kind].twoHanded;
+  // a two-handed weapon takes both hands; anything picked up while holding one replaces it
+  if (long || isLong(a)) {
+    const held = a.hands.filter((h): h is Hand => !!h);
+    return { verb: held.length ? 'swap' : 'take', item: it, hand: 'both', replaces: held };
+  }
+  if (free > 0) return { verb: 'take', item: it, hand: !a.hands[0] ? 0 : 1, replaces: [] };
+  const hand = swapHand(a);
+  return { verb: 'swap', item: it, hand, replaces: [a.hands[hand]!] };
+}
+
+/** Carry out a plan; `hand` overrides the smart pick of a swap (hold E + LMB / RMB). */
+export function takePlan(world: World, a: Actor, plan: PickupPlan, cmd: PlayerCommand, hand?: 0 | 1, auto = false): void {
+  const it = plan.item;
+  if (plan.verb === 'pull') { startAction(world, a, 'pull', cmd, { itemId: it.id }); return; }
   world.items = world.items.filter((x) => x !== it);
   if (it.kind === 'grenade') {
     a.grenades++;
-    world.events.emit('pickup', { actorId: a.id, itemId: it.id, hand: 0, item: it.kind, ...a.pos });
+    world.events.emit('pickup', { actorId: a.id, itemId: it.id, hand: 0, item: it.kind, auto, ...a.pos });
     return;
   }
   if (it.kind === 'boombox') {
@@ -279,13 +329,11 @@ function pickUp(world: World, a: Actor, pressed: boolean, cmd: PlayerCommand): v
     const old = a.hands[0];
     if (old) { dropHeld(world, old.item, a.pos, a.facing * 0.3, { ammo: old.ammo, spare: old.spare }); a.hands[0] = null; }
     a.carry = 'boombox';
-    world.events.emit('pickup', { actorId: a.id, itemId: it.id, hand: 0, item: it.kind, ...a.pos });
+    world.events.emit('pickup', { actorId: a.id, itemId: it.id, hand: 0, item: it.kind, auto, ...a.pos });
     return;
   }
-  const long = isMelee(it.kind) && MELEE[it.kind].twoHanded;
-  // a two-handed weapon takes both hands; anything picked up while holding one replaces it
-  const slot: 0 | 1 = long || isLong(a) ? 0 : !a.hands[0] ? 0 : !a.hands[1] ? 1 : 0;
-  for (const i of long || isLong(a) ? [0, 1] as const : [slot]) {
+  const slot: 0 | 1 = plan.hand === 'both' ? 0 : hand ?? plan.hand;
+  for (const i of plan.hand === 'both' ? [0, 1] as const : [slot]) {
     const old = a.hands[i];
     if (old) dropHeld(world, old.item, a.pos, a.facing * 0.3, { ammo: old.ammo, spare: old.spare });
     a.hands[i] = null;
@@ -293,7 +341,52 @@ function pickUp(world: World, a: Actor, pressed: boolean, cmd: PlayerCommand): v
   a.hands[slot] = newHand(it.kind as Exclude<typeof it.kind, 'head'>, it.ammo, it.spare);
   // M14 gun-fire-mode: a rifle a player picks up starts on single shot (B for full auto)
   if (a.playerIndex !== undefined && isWeapon(it.kind) && WEAPONS[it.kind].modes) a.hands[slot]!.semi = true;
-  world.events.emit('pickup', { actorId: a.id, itemId: it.id, hand: slot, item: it.kind, ...a.pos });
+  world.events.emit('pickup', { actorId: a.id, itemId: it.id, hand: slot, item: it.kind, auto, ...a.pos });
+}
+
+/**
+ * gun-pickup-drop: E takes the nearest weapon on the floor into a free hand (or swaps the worse
+ * hand, M17); walking over one picks it up when a hand is free (loaded guns only into the second
+ * hand). M6: E pulls a stuck blade or the planted sign out (0.5 s; with empty hands also by standing
+ * on it), and grenades on the floor go into the pocket.
+ */
+function pickUp(world: World, a: Actor, pressed: boolean, cmd: PlayerCommand): void {
+  if (!pressed) {
+    // throw-knives: standing still on a stuck blade with empty hands pulls it out
+    if (!a.hands[0] && !a.hands[1] && Math.hypot(cmd.moveX, cmd.moveZ) < 0.1) {
+      const stuck = pullable(world, a);
+      if (stuck?.state === 'stuck' && a.state === 'free' && !a.holding && a.cook === undefined && !a.carry) { startAction(world, a, 'pull', cmd, { itemId: stuck.id }); return; }
+    }
+    const plan = pickupPlan(world, a, true);
+    if (plan) takePlan(world, a, plan, cmd, undefined, true);
+    return;
+  }
+  const plan = pickupPlan(world, a);
+  if (plan) takePlan(world, a, plan, cmd);
+}
+
+/**
+ * M17 hold E and click: with both hands full, E waits. A click while it's held swaps that hand (and
+ * isn't a shot or a punch); letting go takes the smart pick. With a free hand E acts on press as before.
+ * Returns the command with the spent inputs removed.
+ */
+export function stepUse(world: World, a: Actor, cmd: PlayerCommand): PlayerCommand {
+  if (a.playerIndex === undefined) return cmd;
+  if (a.useHeldAt === undefined) {
+    if (!cmd.pickup) return cmd;
+    const plan = pickupPlan(world, a);
+    if (plan?.verb !== 'swap' || plan.hand === 'both') return cmd;
+    a.useHeldAt = world.time;
+    return { ...cmd, pickup: false };
+  }
+  const plan = pickupPlan(world, a);
+  if (plan?.verb !== 'swap' || plan.hand === 'both') { a.useHeldAt = undefined; return { ...cmd, pickup: false }; }
+  const click = cmd.press?.[0] ? 0 : cmd.press?.[1] ? 1 : undefined;
+  if (click !== undefined || !cmd.useHeld) {
+    a.useHeldAt = undefined;
+    takePlan(world, a, plan, cmd, click);
+  }
+  return { ...cmd, pickup: false, attack: null, press: [false, false], hold: [false, false] };
 }
 
 /** M14 gun-fire-mode: B flips the selector on the first hand holding a gun that has one (front hand first). */

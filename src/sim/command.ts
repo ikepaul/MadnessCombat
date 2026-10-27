@@ -32,6 +32,8 @@ export interface PlayerCommand {
   throwGun?: boolean;
   /** Pressed this tick (edge, M14 gun-fire-mode): B switches a rifle between single shot and full auto. */
   fireMode?: boolean;
+  /** M17: E held (with both hands full, a click picks the hand E swaps). */
+  useHeld?: boolean;
   /** Shift held: split aim, the back hand locks onto the nearest enemy on the other side. */
   split?: boolean;
   /** G held: pull a grenade's pin and cook it; releasing G lobs it toward the cursor (M6). */

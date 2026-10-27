@@ -5,6 +5,7 @@
 // Thrown blades that hit stick in the body or the wall until pulled out again (throw-knives).
 import { rootToWorld } from '../anim/skeleton';
 import { GRENADE, isMelee, MELEE, THROWN } from '../data/melee';
+import { isWeapon } from '../data/weapons';
 import { GRAVITY, TUNING } from '../data/tuning';
 import { type Actor, type ActorKind, alive, type HeldItem, newHand, newId, type Vec3 } from './actor';
 import { project } from '../render/camera';
@@ -51,6 +52,13 @@ export interface Item {
   punt?: boolean;
   /** M10b pop & catch: knocked up out of a grunt's hand; enemies leave it alone until this world time. */
   popUntil?: number;
+  /** M17: a thrown item came back off a wall or a body (your own rebound is caught without F). */
+  bounced?: boolean;
+  /** M17: who threw it and when, kept after it lands (your own thrown gun isn't auto-picked up again at once). */
+  ownedBy?: number;
+  ownedAt?: number;
+  /** M17 / M18 weapon pass: thrown to this player, caught by them without F. */
+  passTo?: number;
   /** Stuck in this actor at this actor-local point, at this angle relative to the body. */
   stuckTo?: number;
   stuckLocal?: [number, number];
@@ -118,6 +126,7 @@ export function stepItems(world: World, dt: number): void {
       if (sticky && !room.outdoor) { stickInWall(world, it, Math.sign(it.pos.x) * room.halfWidth, it.pos.z); continue; }
       it.pos.x = clamp(it.pos.x, -lim, lim);
       it.vel.x *= -0.4;
+      if (it.thrownBy !== undefined) it.bounced = true;
     }
     if (it.pos.z > room.zBack - 0.1 || it.pos.z < room.zFront) {
       if (sticky && !room.outdoor && it.pos.z > room.zBack - 0.1) { stickInWall(world, it, it.pos.x, room.zBack); continue; }
@@ -127,7 +136,9 @@ export function stepItems(world: World, dt: number): void {
     if (it.thrownBy !== undefined && it.kind === 'head') thrownItemHits(world, it);
     if (it.pos.y <= 0 && it.vel.y < 0) {
       it.pos.y = 0;
+      if (it.thrownBy !== undefined) { it.ownedBy = it.thrownBy; it.ownedAt = it.thrownAt; }
       it.thrownBy = undefined;
+      it.passTo = undefined;
       it.straight = undefined;
       if (it.vel.y < -2.5) {
         // one bounce, then roll to a stop
@@ -212,11 +223,27 @@ export function canCatch(world: World, o: Actor): boolean {
   return o.catchAt !== undefined && world.time - o.catchAt <= THROWN.catchWindow + 1e-6 && alive(o) && (o.state === 'free' || o.state === 'attack') && (!o.hands[0] || !o.hands[1]);
 }
 
-/** A weapon in the air within reach of someone's hands who just pressed F. */
+/**
+ * M17 (design/qol-pass.md): friendly flying weapons go into a free hand without F: a weapon popped
+ * out of a grunt's hand, your own throw coming back off a wall or a body (not an empty gun: you
+ * threw it away), a pass to you. Enemy throws still need F.
+ */
+export function autoCatch(world: World, o: Actor, it: Item): boolean {
+  if (o.playerIndex === undefined || !alive(o) || (o.state !== 'free' && o.state !== 'attack') || o.holding) return false;
+  if (o.hands[0] && o.hands[1]) return false;
+  const held = o.hands[0] ?? o.hands[1];
+  if (held && isMelee(held.item) && MELEE[held.item].twoHanded) return false;
+  if (it.passTo === o.id) return true;
+  if (it.popUntil !== undefined && world.time < it.popUntil) return true;
+  const empty = isWeapon(it.kind) && (it.ammo ?? 0) <= 0 && (it.spare ?? 0) <= 0;
+  return !!it.bounced && it.thrownBy === o.id && !empty;
+}
+
+/** A weapon in the air within reach of someone's hands who just pressed F (or catches it anyway, M17). */
 function snatch(world: World, it: Item): boolean {
   if (notHoldable(it.kind)) return false;
   for (const o of world.actors) {
-    if (!canCatch(world, o)) continue;
+    if (!canCatch(world, o) && !autoCatch(world, o, it)) continue;
     if (o.id === it.thrownBy && world.time - (it.thrownAt ?? -Infinity) < THROWN.ownCatchDelay) continue;
     const hx = o.pos.x + o.facing * 0.25, hy = o.pos.y + 0.6;
     if (Math.abs(it.pos.z - o.pos.z) > 0.3 || Math.hypot(it.pos.x - hx, it.pos.y - hy) > THROWN.catchReach) continue;
@@ -274,7 +301,7 @@ function thrownHits(world: World, it: Item, before: [number, number]): void {
   }
   if (!best) return;
   const o = best.a;
-  if (canCatch(world, o)) { catchItem(world, o, it); return; }
+  if (canCatch(world, o) || autoCatch(world, o, it)) { catchItem(world, o, it); return; }
   it.hit.push(o.id);
   const by = world.actorById(it.thrownBy!);
   const dirX = Math.sign(it.vel.x) || 1;
@@ -289,6 +316,7 @@ function thrownHits(world: World, it: Item, before: [number, number]): void {
     }
   } else world.hitActor(by, o, 'gun', dirX, 0, it.pos, best.part);
   // it bounces off and drops
+  it.bounced = true;
   it.vel.x *= -0.25;
   it.vel.y = 1.5;
   it.straight = undefined;

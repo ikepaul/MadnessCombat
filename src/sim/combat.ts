@@ -6,7 +6,7 @@ import { aboutFeet, lyingAt, rootToWorld, STANDING } from '../anim/skeleton';
 import { GRAVITY, TUNING } from '../data/tuning';
 import { DISARM, GRENADE, GUARD, GUN_BLOCK, isMelee, LOW_SLASH, MELEE, SHIELD, TOPPLE } from '../data/melee';
 import { GUNS, isWeapon, WEAPONS } from '../data/weapons';
-import { stepHands } from './guns';
+import { stepHands, stepUse } from './guns';
 import { blastFlight } from './explosives';
 import { tryTakedown } from './stealth';
 import { ceilingBounce, knockbackScale, wallRestitution } from './improbability';
@@ -63,6 +63,8 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
   if (cmd.grab) a.catchAt = world.time;
   // M7: E behind an unaware enemy is a takedown (before E picks anything up)
   if (a.state === 'free' && tryTakedown(world, a, cmd)) cmd = { ...cmd, pickup: false };
+  // M17: E with both hands full waits for a click (that hand) or the release (the smart pick)
+  cmd = stepUse(world, a, cmd);
   // a hand holding a gun fires instead of punching (M5): LMB = hand 0, RMB = hand 1
   if (a.state === 'free' || a.state === 'attack') {
     cmd = withoutGunPunches(a, cmd);
