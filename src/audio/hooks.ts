@@ -135,6 +135,24 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
       play('moan', at(a.pos.x, a.pos.y + 0.8, a.pos.z));
     }
   });
+  // M12: the walls, the duel, the vending machine, the stab, the last stand's heartbeat
+  let heart: number | undefined;
+  world.events.on('wallDrop', (e) => {
+    const r = world.room, x = e.side === 'right' ? r.halfWidth : e.side === 'left' ? -r.halfWidth : 0;
+    if (e.phase === 'shadow') play('fallWhistle', at(x, 3, e.side === 'back' ? r.zBack : 9.2));
+    else { play('heavyLand', at(x, 0.5, 9.2)); play('wall', at(x, 0.5, 9.2)); engine.duck(0.3); }
+  });
+  world.events.on('swordDive', (e) => play(e.phase === 'windup' ? 'crackle' : e.phase === 'dive' ? 'whooshHeavy' : 'slash', at(e.x, e.y + 0.6, e.z)));
+  world.events.on('teleport', (e) => play('implode', at(e.x, e.y + 0.7, e.z)));
+  world.events.on('wallBlast', (e) => { play('explosion', at(e.x, e.y, e.z, { gain: 0.8 })); play('wall', at(e.x, e.y, e.z)); });
+  world.events.on('vendingSmash', (e) => { play('glass', at(e.x, e.y + 0.8, e.z)); play('hitMetal', at(e.x, e.y + 0.5, e.z, { delay: 0.15 })); });
+  world.events.on('stab', (e) => { play('knifeFlesh', at(e.x, e.y + 0.6, e.z)); play('stinger', {}); });
+  world.events.on('bloodFlood', (e) => play('pullOut', at(e.x, 0.1, e.z, { rate: 0.6, gain: 0.6 })));
+  world.events.on('lastStand', (e) => {
+    if (e.phase === 'start') heart = engine.play('heartbeat', {});
+    else if (heart !== undefined) { engine.stop(heart, 1.5); heart = undefined; }
+  });
+  world.events.on('roomChanged', () => { if (heart !== undefined) { engine.stop(heart, 0.2); heart = undefined; } });
   // M11: improbability (a boing on every bounce, the tape wobble), the jetpack, the collapse, the tank
   let burner: number | undefined;
   world.events.on('improbability', (e) => engine.setWobble(e.on));

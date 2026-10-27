@@ -246,7 +246,11 @@ function* lift(s: Seq, _entry: string): Beat {
   world.flags.add('ending');
   const p = world.activePlayers[0];
   if (!p) return;
-  const boss = spawnBossCameo(world, p.pos.x - p.facing * 0.7, p.pos.z, p.facing);
+  // right behind you, inside the room (with your back to a wall he comes from the other side)
+  const lim = world.room.halfWidth - 0.35;
+  let bx = p.pos.x - p.facing * 0.7;
+  if (Math.abs(bx) > lim) { p.facing = (-p.facing) as 1 | -1; bx = p.pos.x - p.facing * 0.7; }
+  const boss = spawnBossCameo(world, Math.max(-lim, Math.min(lim, bx)), p.pos.z, p.facing);
   boss.boss.phase = 'cameo';
   boss.pos.y = TUNING.boss.hover;
   boss.invulnerable = false;
@@ -259,7 +263,8 @@ function* lift(s: Seq, _entry: string): Beat {
   yield S3B.stabBeat;
   target.invulnerable = false;
   startLastStand(world);
-  s.music('laststand');
+  // the music drops out: the heartbeat and the drone only
+  s.music(null);
   caption(s, 'Five seconds. Him behind you, then the target.', 4);
   let bossHits = 0;
   const off = world.events.on('hit', (e) => {

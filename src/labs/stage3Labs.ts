@@ -6,6 +6,7 @@ import { STAGE3 } from '../data/stages/stage3';
 import { createActor, newHand } from '../sim/actor';
 import { gruntBrain, newAiState } from '../sim/ai';
 import { dropBlock, flyIn, setImprobable, startCollapse } from '../sim/improbability';
+import { dropWall } from '../sim/arena';
 import { stageRunner } from '../sim/stage';
 import type { World } from '../sim/world';
 import { registerLab } from './registry';
@@ -125,4 +126,64 @@ registerLab({
     b.hp = b.maxHp = 6;
   },
   info: (world) => { const b = world.actors.find((a) => a.variant === 'vending'); return b ? `brute ${b.hp}/${b.maxHp}` : '-'; },
+});
+
+// ---------- M12 ----------
+
+registerLab({
+  slug: 'world-arena-lock',
+  title: `The desert box (ep3 2:30): three walls drop out of the sky one at a time, each after its shadow, crushing whatever is under them, until you're sealed in. ${CONTROLS}`,
+  palette: 'warm',
+  setup(world) {
+    world.setRoom(STAGE3.rooms.desert.room);
+    hero(world, 0);
+    for (const [x, z] of [[3.2, 9.2], [-3.2, 9.6], [1.0, 10.2]]) grunt(world, x, z);
+    world.seq.run(function* walls() {
+      yield 1.5;
+      for (const side of ['right', 'back', 'left'] as const) { const w = dropWall(world, side); yield () => w.phase === 'landed'; yield 0.7; }
+    });
+  },
+});
+
+registerLab({
+  slug: 'boss-clown-zombie',
+  title: `The zombie mini-boss (ep3 2:38): green, on his jetpack, swinging the street sign. Bullets barely touch him while he holds it (10%): get close and steal it (F), then finish him. ${CONTROLS}`,
+  palette: 'warm',
+  setup(world) {
+    world.setRoom(STAGE3.rooms.desert.room);
+    hero(world, -2.4).hands = [newHand('rifle', undefined, 2), null];
+    const z = createActor('zombie', 1.6, 9.4, -1, { held: 'sign' });
+    z.ai = newAiState(world);
+    z.brain = gruntBrain(world);
+    z.variant = 'riot';
+    z.hp = z.maxHp = 3;
+    z.pose.green = 1;
+    z.pose.jetpack = true;
+    z.damageScale = 0.1;
+    world.actors.push(z);
+    world.events.on('disarm', (e) => { if (e.actorId === z.id) z.damageScale = undefined; });
+  },
+  info: (world) => { const z = world.actors.find((a) => a.variant === 'riot'); return z ? `hp ${z.hp.toFixed(1)}  ·  ${z.hands[0] ? 'armoured (sign)' : 'disarmed'}` : '-'; },
+});
+
+registerLab({
+  slug: 'boss-halo-duel',
+  title: `The boss in the vending room (ep3 3:13-3:24): he raises two, then sword dives at you (rising with the blade is the telegraph). Three hits and he teleports away. ${CONTROLS}`,
+  palette: 'warm',
+  setup(world) { stageFrom(world, 'vending').hands = [newHand('smg', undefined, 3), null]; },
+});
+
+registerLab({
+  slug: 'world-destructible-wall',
+  title: `Blasted through the wall (ep3 3:03): in the sealed desert box the boss's push throws you through the wall into the next room. Starts in the desert (the whole sequence). ${CONTROLS}`,
+  palette: 'warm',
+  setup(world) { stageFrom(world, 'desert'); },
+});
+
+registerLab({
+  slug: 'world-last-stand',
+  title: `The last stand (ep3 3:40): shoot the bodyguards; the boss stabs you from behind. Red bars: you can't move, only aim and fire for ~5 s (behind you too). Two hits on him, one on the target; the stage ends either way. ${CONTROLS}`,
+  palette: 'warm',
+  setup(world) { stageFrom(world, 'lift').hands = [newHand('shotgun', undefined, 3), null]; },
+  info: (world) => (world.lastStand ? `last stand ${Math.max(0, 5 - world.lastStand.t).toFixed(1)} s` : '-'),
 });

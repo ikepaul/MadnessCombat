@@ -519,3 +519,88 @@ export function paintVoid(ctx: Ctx, room: RoomDef): void {
   for (let z = zb; z > zn; z -= 0.3) { pt = P(v.x + (r() - 0.5) * 0.15, 0, z); ctx.lineTo(pt[0], pt[1]); }
   ctx.stroke();
 }
+
+// ---------- M12: the desert box, the vending room ----------
+
+/** The desert (our own design): a hot haze, low dunes, rippled sand, a few rocks. */
+export function paintDesert(ctx: Ctx, room: RoomDef, _pal: Palette): void {
+  const hy = P(0, 0, 1e6)[1], zb = room.zBack;
+  ctx.fillStyle = linear(ctx, 0, 0, 0, hy, [[0, '#d8c4a2'], [0.7, '#ecdcc0'], [1, '#f3e7d2']]);
+  ctx.fillRect(0, 0, SCREEN_W, hy);
+  // a white sun disc (not alive here)
+  ctx.beginPath(); ctx.arc(1460, 150, 46, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,250,236,0.9)'; ctx.fill();
+  const r = mulberry32(17);
+  for (const [k, col] of [[0.5, '#cdb38a'], [1, '#c2a578']] as const) {
+    ctx.beginPath(); ctx.moveTo(0, hy);
+    for (let x = 0; x <= SCREEN_W; x += 40) ctx.lineTo(x, hy - (20 + 40 * Math.abs(Math.sin(x / (300 * k) + k * 3))) * k - r() * 4);
+    ctx.lineTo(SCREEN_W, hy); ctx.closePath(); ctx.fillStyle = col; ctx.fill();
+  }
+  ctx.fillStyle = linear(ctx, 0, hy, 0, SCREEN_H, [[0, '#d2b98e'], [1, '#bda079']]);
+  ctx.fillRect(0, hy, SCREEN_W, SCREEN_H - hy);
+  ctx.strokeStyle = 'rgba(80,60,30,0.18)'; ctx.lineWidth = 2;
+  for (let z = room.zFront - 0.6; z < zb + 4; z += 0.45) {
+    ctx.beginPath();
+    for (let x = -10; x <= 10; x += 0.5) { const [px, py] = P(x, 0.02 * Math.sin(x * 2 + z * 3), z); if (x === -10) ctx.moveTo(px, py); else ctx.lineTo(px, py); }
+    ctx.stroke();
+  }
+  for (let i = 0; i < 9; i++) {
+    const x = (r() * 2 - 1) * 4, z = room.zFront + r() * (zb - room.zFront + 2), [px, py] = P(x, 0, z), s = scaleAt(z);
+    ctx.beginPath(); ctx.ellipse(px, py - 0.03 * s, (0.08 + r() * 0.1) * s, (0.04 + r() * 0.05) * s, 0, Math.PI, 0); ctx.fillStyle = '#9c8463'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = INK; ctx.stroke();
+  }
+  for (const side of room.lockWalls ?? []) paintLockWall(ctx, room, side, 0);
+}
+
+/** A concrete slab wall of the desert box (landed, or `y` H above the ground while it falls). */
+export function paintLockWall(ctx: Ctx, room: RoomDef, side: 'right' | 'back' | 'left', y: number): void {
+  const hw = room.halfWidth, h = room.height, zb = room.zBack, zn = room.zFront - 1;
+  const col = side === 'back' ? '#a9a194' : side === 'left' ? '#958d80' : '#8c8478';
+  let q: [number, number][];
+  if (side === 'back') q = [P(-hw - 3, h + y, zb), P(hw + 3, h + y, zb), P(hw + 3, y, zb), P(-hw - 3, y, zb)];
+  else { const x = side === 'right' ? hw : -hw; q = [P(x, h + y, zn), P(x, h + y, zb), P(x, y, zb), P(x, y, zn)]; }
+  poly(ctx, q); ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.stroke();
+  // slab seams
+  ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+  if (side === 'back') for (let x = -hw - 3; x < hw + 3; x += 1.2) line(ctx, P(x, y, zb), P(x, h + y, zb));
+  else { const x = side === 'right' ? hw : -hw; for (let z = zn; z < zb; z += 0.6) line(ctx, P(x, y, z), P(x, h + y, z)); }
+}
+
+/** Where a wall will land: a shadow band that darkens as it falls. */
+export function paintLockShadow(ctx: Ctx, room: RoomDef, side: 'right' | 'back' | 'left', k: number): void {
+  const hw = room.halfWidth, zb = room.zBack, zn = room.zFront - 0.6, w = 0.45;
+  const q = side === 'back' ? [P(-hw - 3, 0, zb - w), P(hw + 3, 0, zb - w), P(hw + 3, 0, zb), P(-hw - 3, 0, zb)]
+    : side === 'right' ? [P(hw - w, 0, zn), P(hw, 0, zn), P(hw, 0, zb), P(hw - w, 0, zb)] : [P(-hw, 0, zn), P(-hw + w, 0, zn), P(-hw + w, 0, zb), P(-hw, 0, zb)];
+  poly(ctx, q); ctx.fillStyle = `rgba(0,0,0,${0.12 + 0.3 * k})`; ctx.fill();
+}
+
+/** The vending room's machine: the brute's twin, asleep; smashed = glass gone, cans spilled. */
+export function paintVendingProp(ctx: Ctx, x: number, z: number, smashed: boolean): void {
+  const s = scaleAt(z), [fx, fy] = P(x, 0, z);
+  ctx.save();
+  ctx.translate(fx, fy);
+  ctx.scale(s, s);
+  ctx.lineJoin = 'round';
+  paintVendingBody(ctx, 0, false);
+  if (smashed) {
+    ctx.fillStyle = '#121316'; ctx.fillRect(-0.32, -1.43, 0.46, 0.91);
+    ctx.lineWidth = 0.012; ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+    for (const [x0, y0, x1, y1] of [[-0.32, -1.3, -0.15, -1.1], [-0.15, -1.1, 0.12, -1.25], [-0.2, -0.8, 0.1, -0.95]]) { ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); }
+    for (const [cx, rot] of [[-0.6, 0.4], [-0.45, -0.8], [0.55, 1.2]]) {
+      ctx.save(); ctx.translate(cx, -0.04); ctx.rotate(rot); ctx.beginPath(); ctx.roundRect(-0.035, -0.07, 0.07, 0.14, 0.015);
+      ctx.fillStyle = rot > 0 ? '#a3141c' : '#c9c3b9'; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 0.01; ctx.stroke(); ctx.restore();
+    }
+  }
+  ctx.restore();
+}
+
+/** The hole the boss blasted you through (the vending room's left wall): rubble edge, desert light beyond. */
+export function paintWallHole(ctx: Ctx, room: RoomDef, side: 'left' | 'right'): void {
+  const x = side === 'left' ? -room.halfWidth : room.halfWidth, r = mulberry32(23);
+  const pts: [number, number][] = [];
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    pts.push(P(x, 1.0 + Math.sin(a) * (0.75 + r() * 0.2), 9.25 + Math.cos(a) * (0.55 + r() * 0.15)));
+  }
+  poly(ctx, pts);
+  ctx.fillStyle = '#e8d7b6'; ctx.fill();
+  ctx.lineWidth = 4; ctx.strokeStyle = INK; ctx.stroke();
+}

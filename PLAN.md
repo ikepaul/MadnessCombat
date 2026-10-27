@@ -362,15 +362,15 @@ Labs: `world-improbability-mode`, `world-arena-collapse`, `world-falling-hazard`
 **Read first:** `research/stages.md` (Stage 3 rooms 7–11), `world-arena-lock`, `boss-clown` (clip 4), `boss-halo` (clips 6–7), `throw-catch-return`, `world-destructible` (clip 2), `world-last-stand`.
 
 Build:
-- [ ] Desert: squad leader + knife squad (knife-disarm), **arena lock** (walls drop with shadows and crush), drop-in waves, blood flood (cosmetic), **zombie mini-boss** on the jetpack with the street sign (bullets barely hurt, invented 10% damage) → grab the sign → finisher.
-- [ ] Boss: mass raise ≈ 5, bullet-sponge (no damage here), **wall blast** = transition through a destructible wall into the next room.
-- [ ] Vending room: knife-throwing grunt (catch-and-return), the empty-pistol gag, throw into the vending machine, the boss flies in, raises 2 zombies, **sword dive**, damage → **teleport away**.
-- [ ] Console room (the target flees, door waves).
-- [ ] Final lift room: the target + 2 elite bodyguards → **last stand** (decided): red bars, can't move, aim/fire for ≈ 5 s (the backward over-the-shoulder shot is allowed only here), kill the boss and the target → death → credits card with body count vs. 91.
+- [x] Desert: squad leader + knife squad (knife-disarm), **arena lock** (walls drop with shadows and crush), drop-in waves, blood flood (cosmetic), **zombie mini-boss** on the jetpack with the street sign (bullets barely hurt, invented 10% damage) → grab the sign → finisher.
+- [x] Boss: mass raise ≈ 5, bullet-sponge (no damage here), **wall blast** = transition through a destructible wall into the next room.
+- [x] Vending room: knife-throwing grunt (catch-and-return), the empty-pistol gag, throw into the vending machine, the boss flies in, raises 2 zombies, **sword dive**, damage → **teleport away**.
+- [x] Console room (the target flees, door waves).
+- [x] Final lift room: the target + 2 elite bodyguards → **last stand** (decided): red bars, can't move, aim/fire for ≈ 5 s (the backward over-the-shoulder shot is allowed only here), kill the boss and the target → death → credits card with body count vs. 91.
 
 Look & sound:
-- [ ] Wall drops with dust and impact shake, the blood flood spreading, the wall-blast hole, teleport implosion VFX, last-stand red bars + heartbeat + desaturation fade.
-- [ ] Sealed-arena / boss-duel music cue, last-stand cue (heartbeat + drone), credits.
+- [x] Wall drops with dust and impact shake, the blood flood spreading, the wall-blast hole, teleport implosion VFX, last-stand red bars + heartbeat + desaturation fade.
+- [x] Sealed-arena / boss-duel music cue, last-stand cue (heartbeat + drone), credits.
 
 Acceptance: the last stand ends the stage whether or not both are killed (proposal: the stage still counts as finished) · the stage completes with a scripted bot · all three stages are playable in sequence.
 Labs: `world-arena-lock`, `boss-clown` (clip 4), `boss-halo` (clips 6–7), `throw-catch-return`, `world-destructible` (clip 2), `world-last-stand`, `world-kill-counter`.

@@ -44,6 +44,10 @@
     "s3-tables": { "ambience": "ambRoom", "combat": "madness-combat-v1" },
     "s3-camera": { "ambience": "ambRoom", "combat": "madness-combat-v1" },
     "s3-street": { "ambience": null, "combat": "madness-combat-v1" },
+    "s3-desert": { "ambience": null, "combat": "madness-combat-v1" },
+    "s3-vending": { "ambience": "ambRoom", "combat": "madness-combat-v1" },
+    "s3-console": { "ambience": "ambRoom", "combat": "madness-combat-v1" },
+    "s3-lift": { "ambience": "ambRoom", "combat": "madness-combat-v1" },
     "test-room": {
       "ambience": null,
       "combat": "madness-combat-v1"
