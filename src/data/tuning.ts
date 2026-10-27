@@ -163,6 +163,14 @@ export const TUNING = {
     wipe: 0.35,
     /** Walking out / starting the climb before the wipe starts (s). invented */
     traverse: 0.45,
+    /**
+     * Co-op exits (playtest 2026-10-27): at a ceiling vent the boost works this far from the
+     * braced partner (H); he is pulled up this long after the boost (s); a player gone ahead into
+     * a wall vent is out of sight after this long (s). invented
+     */
+    boostReach: 1.1,
+    pullDelay: 0.7,
+    crawlHide: 0.45,
     /** move-climb-vault: ladder ~1.1 H/s (ep2 f990-f1040); the vault over the parapet ~1 s (f1090-f1130). */
     climbSpeed: 1.1,
     vaultTime: 0.9,

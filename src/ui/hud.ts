@@ -13,7 +13,7 @@ import type { GameScene } from '../scenes/GameScene';
 import { STAGE_NAMES } from '../scenes/TitleScene';
 import { SETTINGS } from '../settings';
 import type { Actor, Hand } from '../sim/actor';
-import { usableExitAt } from '../sim/stage';
+import { boostBase, exitSpot, needsBoost, partnerAhead, usableExitAt, waitingInExit } from '../sim/stage';
 import { takedownTarget } from '../sim/stealth';
 
 const W = 1920, H = 1080;
@@ -138,7 +138,20 @@ export class InkHud {
   private promptTarget(me: Actor): { key: string; verb: string; at: [number, number, number]; id: string } | undefined {
     const w = this.game.world;
     const exit = usableExitAt(w, me);
-    if (exit) return { key: SETTINGS.keys.use, verb: exit.kind === 'vent' ? 'GO IN' : exit.kind === 'lift' ? 'RIDE' : 'CLIMB', at: [me.pos.x, me.pos.y + 1.35, me.pos.z], id: `exit${exit.kind}` };
+    const head: [number, number, number] = [me.pos.x, me.pos.y + 1.35, me.pos.z];
+    const ahead = partnerAhead(w, me);
+    if (exit) {
+      // co-op: a ceiling vent takes a boost; a partner already gone on is followed
+      const verb = needsBoost(w, exit) ? (boostBase(w, me) ? 'GO UP' : 'BOOST') : ahead?.id === exit.id ? 'FOLLOW' : exit.kind === 'vent' ? 'GO IN' : exit.kind === 'lift' ? 'RIDE' : 'CLIMB';
+      return { key: SETTINGS.keys.use, verb, at: head, id: `exit${exit.kind}${verb}` };
+    }
+    if (me.traversing?.kind === 'brace') return { key: SETTINGS.keys.use, verb: 'STAND UP', at: [me.pos.x, me.pos.y + 1.1, me.pos.z], id: 'brace' };
+    if (w.coop && !me.traversing && me.state === 'free') {
+      const base = w.activePlayers.find((q) => q !== me && q.traversing?.kind === 'brace');
+      if (base) return { key: '', verb: 'BOOST UP', at: [base.pos.x, base.pos.y + 1.3, base.pos.z], id: 'boostHint' };
+      if (ahead) { const s = exitSpot(w, ahead); return { key: '', verb: 'FOLLOW', at: [s.x, 1.4, s.z], id: `follow${ahead.id}` }; }
+      if (waitingInExit(w, me)) return { key: '', verb: 'WAITING', at: head, id: 'waiting' };
+    }
     if (me.state !== 'free') return undefined;
     const prey = takedownTarget(w, me);
     if (prey) return { key: SETTINGS.keys.use, verb: 'TAKEDOWN', at: [prey.pos.x, prey.pos.y + 1.3, prey.pos.z], id: `td${prey.id}` };
@@ -167,6 +180,10 @@ export class InkHud {
     const pop = 1 + 0.35 * Math.max(0, 1 - this.glyphAge / 0.18);
     const [x, y0] = project(t.at[0], t.at[1], t.at[2]);
     const y = y0 + Math.sin(this.glyphAge * 4) * 3;
+    // co-op hints (waiting, follow, boost) are a word with no key
+    this.glyphText.setVisible(!!t.key);
+    if (!t.key) { this.glyphVerb.setText(t.verb).setOrigin(0.5, 0.5).setPosition(x, y); return; }
+    this.glyphVerb.setOrigin(0, 0.5);
     const r = 22 * pop;
     g.fillStyle(INK_HEX, 1).fillRoundedRect(x - r - 4, y - r - 4, (r + 4) * 2, (r + 4) * 2, 10);
     g.fillStyle(0xf2f2f3, 1).fillRoundedRect(x - r, y - r, r * 2, r * 2, 8);

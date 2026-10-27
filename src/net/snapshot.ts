@@ -31,6 +31,8 @@ export interface ActorSnap {
   bodyKick?: boolean;
   /** Climbing out, crawling into a vent... (the guest hides the E prompt meanwhile). */
   traversing?: Actor['traversing'];
+  /** Gone ahead through a co-op exit (hidden once out of sight). */
+  parked?: string;
   corpse?: CorpseState['phase'];
   gibbed?: boolean;
   pinned?: boolean;
@@ -89,7 +91,7 @@ function snapActor(a: World['actors'][number]): ActorSnap {
     id: a.id, kind: a.kind, playerIndex: a.playerIndex, enemy: !!a.ai,
     pos: [a.pos.x, a.pos.y, a.pos.z], facing: a.facing, state: a.state, stateT: a.stateT,
     hp: a.hp, maxHp: a.maxHp, revive: a.revive, entering: a.entering,
-    bodyState: a.body.state, bodyHeight: a.body.height, bodyKick: a.body.kick || undefined, traversing: a.traversing, corpse: a.corpse?.phase, gibbed: a.corpse?.gibbed, pinned: a.corpse?.pinned,
+    bodyState: a.body.state, bodyHeight: a.body.height, bodyKick: a.body.kick || undefined, traversing: a.traversing, parked: a.parked,corpse: a.corpse?.phase, gibbed: a.corpse?.gibbed, pinned: a.corpse?.pinned,
     pose: a.pose, hands: a.hands, grenades: a.grenades,
     variant: a.variant, carry: a.carry, unaware: a.ai?.aware === false ? a.ai.idle ?? 'stand' : undefined,
     hover: a.hover, fallingAway: a.fallingAway, ceilingStuck: a.ceilingStuck,
@@ -166,6 +168,7 @@ export function applySnapshot(world: World, s: Snapshot): void {
     a.body.height = as.bodyHeight;
     a.body.kick = as.bodyKick;
     a.traversing = as.traversing;
+    a.parked = as.parked;
     a.pose = as.pose;
     a.hands = as.hands;
     a.grenades = as.grenades ?? 0;

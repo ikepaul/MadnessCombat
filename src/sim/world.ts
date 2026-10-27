@@ -138,9 +138,9 @@ export class World {
     return this.players.length > 1;
   }
 
-  /** Players who can fight right now (not dead, not downed). */
+  /** Players who can fight right now (not dead, not downed, not gone ahead through a co-op exit). */
   get activePlayers(): Actor[] {
-    return this.players.filter((p) => p.state !== 'dead' && p.state !== 'downed');
+    return this.players.filter((p) => p.state !== 'dead' && p.state !== 'downed' && !p.parked);
   }
 
   private resetDoors(): void {

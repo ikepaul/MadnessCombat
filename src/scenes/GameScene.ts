@@ -40,7 +40,7 @@ import { STAGE1, type StageRoomId } from '../data/stages/stage1';
 import { STAGE1_BEATS, type Stage1Beat, stage1From } from '../data/stages/stage1Script';
 import { STAGE2 } from '../data/stages/stage2';
 import { STAGE3 } from '../data/stages/stage3';
-import { type StageDef, stageRunner } from '../sim/stage';
+import { outOfSight, type StageDef, stageRunner } from '../sim/stage';
 import { coopLink, type CoopLink } from '../net/link';
 import { applySnapshot, type Snapshot, SnapshotWriter } from '../net/snapshot';
 import { paintReviveBar, paintReviveCircle } from '../render/canvas/revivePainter';
@@ -485,6 +485,8 @@ export class GameScene extends Phaser.Scene {
   /** PLAN.md M3: player death -> restart the room. Co-op: once nobody is left standing. */
   private watchPlayerDeath(dt: number): void {
     if (this.world.players.length === 0 || this.world.activePlayers.length > 0) return;
+    // co-op: the last one standing went through an exit (his partner comes along, revived)
+    if (this.world.players.some((p) => p.parked)) return;
     // M10: the stage 2 ending kills the hero on purpose (world-last-stand): the end card, not a restart
     if (this.world.flags.has('ending') || this.cleared) return;
     this.deadFor += dt * this.clock.timeScale;
@@ -513,6 +515,8 @@ export class GameScene extends Phaser.Scene {
     for (const a of this.world.actors) {
       // gibbed bodies are gone (throw-grenade): only the pieces (VFX) remain
       if (a.corpse?.phase === 'frozen' || a.corpse?.gibbed) continue;
+      // co-op: gone ahead up the ladder / into the vent, waiting for the partner
+      if (outOfSight(this.world, a)) continue;
       // at equal depth the attacker draws in front, so the punching fist is visible
       const bias = a.state === 'attack' ? 0.002 : a.state === 'grabbed' ? -0.001 : 0;
       list.push({ z: a.pos.z - bias, draw: () => (a.kind === 'boss' ? paintBoss(ctx, a, { time: this.world.time, flashes }) : paintCharacter(ctx, a, pal, this.world.time, { blood, flashes })) });

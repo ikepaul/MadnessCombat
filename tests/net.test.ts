@@ -150,10 +150,11 @@ describe('snapshots across room changes (M9)', () => {
     const snaps: Snapshot[] = [];
     writer.take(); // the guest's first (joining) snapshot
     for (let i = 0; i < 60 * 3; i++) host.step();
-    // walk off the right edge into the corner
+    // both walk off the right edge into the corner (co-op exits wait for everyone)
     host.players[0].pos.x = 3.3;
+    host.players[1].pos.x = 3.3;
     for (let i = 0; i < 60 * 2 && host.roomId !== 'corner'; i++) {
-      host.commands = [{ ...IDLE_COMMAND, moveX: 1 }, { ...IDLE_COMMAND }];
+      host.commands = [{ ...IDLE_COMMAND, moveX: 1 }, { ...IDLE_COMMAND, moveX: 1 }];
       host.step();
       snaps.push(JSON.parse(JSON.stringify(writer.take())) as Snapshot);
     }
