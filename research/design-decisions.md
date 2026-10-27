@@ -36,7 +36,8 @@ Decisions taken with the user while researching (2026-10-26). The mechanic notes
 - Bosses, the target and special enemies get a design pass (character sheet in the style frame) before their milestone, in our own designs.
 - Neutral names until we name things: hero, grunt, halo boss, clown, target, welder, sun brute.
 
-## Still open (to ask later, not blocking the first milestone)
-- Controls on gamepad (twin-stick?) or keyboard + mouse only.
-- Difficulty settings / checkpoints per room.
-- How the stage select works (linear unlock vs. free choice).
+## Decided for M13 (2026-10-27, with the user)
+- **Controls**: keyboard + mouse only (no gamepad).
+- **Difficulty**: one difficulty, the current tuning (3 lives, a life back per kill).
+- **Stage select**: unlock as you go. Stage 1 from the start; finishing a stage unlocks the next (saved in the browser). "Continue" resumes at the last room checkpoint.
+- **Checkpoints**: dying restarts the room you died in, with the weapons and body count you entered it with; unlimited tries.

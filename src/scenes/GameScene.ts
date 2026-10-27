@@ -48,7 +48,9 @@ import { MusicSystem } from '../audio/music';
 import { BoomboxSource } from '../audio/boombox';
 import { FeelDirector } from '../feel/feel';
 import { FeelFx } from '../render/feelFx';
-import { cycleEffects, saveSettings, SETTINGS } from '../settings';
+import { cycleEffects, effectLevel, saveSettings, SETTINGS } from '../settings';
+import { LAST_STAGE, PROGRESS, saveCheckpoint, stageFinished } from '../progress';
+import type { UIScene } from './UIScene';
 
 /** One music system for the game (survives room restarts). */
 let music: MusicSystem | undefined;
@@ -66,6 +68,8 @@ export interface GameSceneData {
   stage?: 1 | 2 | 3;
   room?: StageRoomId | string;
   wave?: string;
+  /** M13: start from the saved room checkpoint (Continue, a death) or from the stage's start (false). */
+  resume?: boolean;
   /** `&beat=riot|grenade|boss|waveB`: start the stage script at that beat (playtesting). */
   beat?: string;
   /** Co-op (PLAN.md M4b): this laptop hosts the game, or joins as player 2. */
@@ -79,11 +83,10 @@ const ROOMS_BY_ID = Object.fromEntries([TEST_ROOM, ...Object.values(STAGE1.rooms
 const ROOM_STAGES: Record<number, StageDef> = { 2: STAGE2, 3: STAGE3 };
 
 /**
- * M9 checkpoint per room: where the stage was entered last, with each player's loadout and the
- * body count so far. A death restarts the scene there; the end card's restart clears it.
+ * M9 checkpoint per room (decided with the user, M13: dying restarts the room): where the stage
+ * was entered last, with each player's loadout and the body count so far. Saved with the progress
+ * (src/progress.ts), so "Continue" on the title screen picks up there too.
  */
-interface Checkpoint { stage: number; room: string; entry: string; kills: number; players: Pick<Actor, 'hands' | 'grenades'>[] }
-let checkpoint: Checkpoint | undefined;
 
 /**
  * Enemies the music counts: alive, in the room and aware of you. M9: sneaking past unaware guards
@@ -136,7 +139,8 @@ export class GameScene extends Phaser.Scene {
 
   /** Stage 1 (neutral palette) has no blood; 2 and 3 do. */
   get blood(): boolean {
-    return STAGE_BLOOD[paletteStage(this.paletteId)];
+    // M13 settings: blood off everywhere, or as each stage has it
+    return SETTINGS.blood !== 'off' && STAGE_BLOOD[paletteStage(this.paletteId)];
   }
 
   create(data: GameSceneData): void {
@@ -163,8 +167,11 @@ export class GameScene extends Phaser.Scene {
       this.world = new World(TEST_ROOM);
       this.setupTestRoom();
     } else this.setupStage(data);
-    // let the last body land before the end card
-    this.world.events.on('roomCleared', () => this.time.delayedCall(1500, () => (this.cleared = true)));
+    // let the last body land before the end card; a finished stage unlocks the next (M13)
+    this.world.events.on('roomCleared', () => {
+      if (this.stageInfo && !this.lab && !data.testRoom && data.coop !== 'guest') stageFinished(this.stageInfo.stage);
+      this.time.delayedCall(1500, () => (this.cleared = true));
+    });
 
     this.roomLayer = new CanvasLayer(this, 'layer-room', 0);
     this.decalLayer = new CanvasLayer(this, 'layer-decals', 2);
@@ -242,15 +249,20 @@ export class GameScene extends Phaser.Scene {
         audio()?.applySettings();
       },
     });
-    // end card: Enter goes on to the next stage (or fights this one again if there's none yet), R replays this one
+    // end card: Enter goes on to the next stage (after the last one: the credits), R replays this one, Esc to the title
     this.input.keyboard?.on('keydown-ENTER', () => {
-      if (!this.cleared || !host) return;
-      checkpoint = undefined;
+      if (!this.cleared || !host || this.lab) return;
       const next = this.nextStage;
-      if (next) this.scene.restart({ stage: next, coop: this.data_.coop });
-      else this.restart();
+      if (next) this.scene.restart({ stage: next, coop: this.data_.coop, resume: false });
+      else if (this.stageInfo?.stage === LAST_STAGE && !this.data_.coop) this.toTitle('credits');
+      else this.scene.restart({ ...this.data_, resume: false });
     });
-    this.input.keyboard?.on('keydown-R', () => { if (this.cleared && host && this.nextStage) { checkpoint = undefined; this.restart(); } });
+    this.input.keyboard?.on('keydown-R', () => { if (this.cleared && host) this.scene.restart({ ...this.data_, resume: false }); });
+    // M13: Esc pauses (the pause menu), or leaves the end card for the title screen
+    this.input.keyboard?.on('keydown-ESC', (e: KeyboardEvent) => {
+      if (this.cleared) { if (!this.data_.coop) this.toTitle(); return; }
+      (this.scene.get('ui') as UIScene).openPause(e);
+    });
     this.scene.launch('ui');
   }
 
@@ -284,13 +296,21 @@ export class GameScene extends Phaser.Scene {
     return this.stageInfo.stage === 1 ? 2 : this.stageInfo.stage === 2 ? 3 : undefined;
   }
 
+  /** Restart the room: back to its checkpoint (decided: unlimited tries, the room you died in). */
   restart(): void {
-    this.scene.restart({ ...this.data_, palette: this.paletteId });
+    this.scene.restart({ ...this.data_, palette: this.paletteId, resume: true });
+  }
+
+  /** Leave for the title screen (the pause menu, the end card, after the credits). */
+  toTitle(view?: 'credits'): void {
+    this.scene.stop('ui');
+    this.scene.start('title', { view: view ?? 'main' });
   }
 
   /** M9: a room-graph stage from its start, a checkpoint, or `&room=`. */
   private setupRoomStage(def: StageDef, data: GameSceneData): void {
-    const cp = checkpoint?.stage === def.stage && !data.room ? checkpoint : undefined;
+    const saved = PROGRESS.checkpoint;
+    const cp = data.resume !== false && !data.room && saved?.stage === def.stage && saved.room && def.rooms[saved.room] ? saved : undefined;
     const room = data.room && data.room in def.rooms ? data.room : cp?.room ?? def.start.room;
     const entry = cp?.entry ?? (room === def.start.room ? def.start.entry : Object.keys(def.rooms[room].entries)[0]);
     this.world = new World(def.rooms[room].room);
@@ -308,7 +328,7 @@ export class GameScene extends Phaser.Scene {
     this.stageInfo = { stage: def.stage, room, targetBodyCount: def.targetBodyCount };
     const world = this.world;
     world.events.on('roomEnter', (e) => {
-      checkpoint = { stage: e.stage, room: e.room, entry: e.entry, kills: world.kills, players: world.players.map((p) => ({ hands: structuredClone(p.hands), grenades: p.grenades })) };
+      saveCheckpoint({ stage: e.stage, room: e.room, entry: e.entry, kills: world.kills, players: world.players.map((p) => ({ hands: structuredClone(p.hands), grenades: p.grenades })) });
       if (this.stageInfo) this.stageInfo.room = e.room;
     });
   }
@@ -457,7 +477,7 @@ export class GameScene extends Phaser.Scene {
       paintRoom(this.roomLayer.ctx, this.world.room, PALETTES[this.paletteId], this.world.elevator);
       this.roomLayer.upload();
     }
-    const flashes = SETTINGS.effects !== 'off';
+    const flashes = effectLevel() !== 'off';
     this.actorLayer.clear();
     // doors sit in the side walls, behind everything in the room
     this.world.room.doors.forEach((d, i) => paintDoor(ctx, this.world.room, d, this.world.doors[i]?.open ?? 0, pal));

@@ -33,6 +33,8 @@ export class BootScene extends Phaser.Scene {
         });
       }
       else if (params.get('room') === 'test') this.scene.start('game', { testRoom: true, palette });
+      // M13: no route given: the title screen (the stage routes stay for playtesting)
+      else if (!params.has('stage') && !params.has('beat') && !params.has('wave') && !params.has('room')) this.scene.start('title');
       else {
         // the stage route is the default: /?stage=1&room=arena runs the whole stage, &wave=A starts at wave A;
         // /?stage=2 runs stage 2 room by room (&room=office starts in that room, M9)
