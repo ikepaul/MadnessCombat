@@ -108,7 +108,7 @@ export function paintBoss(ctx: Ctx, a: Actor, o: BossPaintOptions): void {
   coatPath(ctx); ctx.lineWidth = 0.016; ctx.strokeStyle = INK; ctx.stroke();
   if (lit) { ctx.beginPath(); ctx.moveTo(0.1, -0.56); ctx.lineTo(0.16, -0.02); boltStroke(ctx, 0.008); }
 
-  // head: bald, pale; eye slit glows (two x's once dead)
+  // head: bald, pale; eye slit glows (one wide X once dead)
   ctx.beginPath(); ctx.ellipse(0.01, -0.8, 0.185, 0.235, 0, 0, Math.PI * 2); ctx.fillStyle = BOSS.skin; ctx.fill();
   const hg = ctx.createLinearGradient(-0.18, 0, 0.2, 0);
   hg.addColorStop(0, 'rgba(0,0,0,0.22)'); hg.addColorStop(0.35, 'rgba(0,0,0,0.08)'); hg.addColorStop(0.6, 'rgba(0,0,0,0)'); hg.addColorStop(1, 'rgba(255,255,255,0.18)');
@@ -116,8 +116,8 @@ export function paintBoss(ctx: Ctx, a: Actor, o: BossPaintOptions): void {
   ctx.beginPath(); ctx.ellipse(0.08, -0.93, 0.05, 0.028, -0.55, 0, Math.PI * 2); ctx.fillStyle = '#ececef'; ctx.globalAlpha = 0.7; ctx.fill(); ctx.globalAlpha = 1;
   ctx.beginPath(); ctx.ellipse(0.01, -0.8, 0.185, 0.235, 0, 0, Math.PI * 2); ctx.lineWidth = 0.016; ctx.strokeStyle = INK; ctx.stroke();
   if (dead) {
-    ctx.lineWidth = 0.014; ctx.strokeStyle = INK;
-    for (const cx of [0.06, 0.13]) { ctx.beginPath(); ctx.moveTo(cx - 0.02, -0.86); ctx.lineTo(cx + 0.02, -0.82); ctx.moveTo(cx + 0.02, -0.86); ctx.lineTo(cx - 0.02, -0.82); ctx.stroke(); }
+    ctx.lineWidth = 0.018; ctx.strokeStyle = INK; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(-0.02, -0.91); ctx.lineTo(0.17, -0.75); ctx.moveTo(0.17, -0.91); ctx.lineTo(-0.02, -0.75); ctx.stroke();
   } else {
     glow(ctx, 0.1, -0.84, 0.13, cast > 0 || wardK > 0 ? 0.6 : 0.35);
     ctx.beginPath(); ctx.moveTo(0.04, -0.84); ctx.lineTo(0.165, -0.84); ctx.strokeStyle = BOLT; ctx.lineWidth = 0.024; ctx.stroke();

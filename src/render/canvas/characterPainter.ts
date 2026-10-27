@@ -476,18 +476,16 @@ export function paintHead(ctx: Ctx, skin: string, skinHi: string, dead: boolean)
   paintFace(ctx, dead);
 }
 
-/** Face A, "slit" (decided): one dash toward the facing side. Dead: two small x's. Never a cross. */
+/** Face A, "slit" (decided): one dash toward the facing side. Dead: one wide X over the face (2026-10-27). */
 function paintFace(ctx: Ctx, dead: boolean): void {
   ctx.strokeStyle = INK;
   ctx.lineCap = 'round';
   if (dead) {
-    ctx.lineWidth = 0.014;
-    for (const cx of [0.05, 0.12]) {
-      ctx.beginPath();
-      ctx.moveTo(cx - 0.02, -0.06); ctx.lineTo(cx + 0.02, -0.02);
-      ctx.moveTo(cx + 0.02, -0.06); ctx.lineTo(cx - 0.02, -0.02);
-      ctx.stroke();
-    }
+    ctx.lineWidth = 0.018;
+    ctx.beginPath();
+    ctx.moveTo(-0.03, -0.11); ctx.lineTo(0.17, 0.05);
+    ctx.moveTo(0.17, -0.11); ctx.lineTo(-0.03, 0.05);
+    ctx.stroke();
     return;
   }
   ctx.lineWidth = 0.02;
