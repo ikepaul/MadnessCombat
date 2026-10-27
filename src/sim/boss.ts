@@ -3,26 +3,31 @@
 // movement and combat steps while he lives. Moves so far: the entrance (floats down from above the
 // frame), the ward (our shield: blocks rays from his front for ~1 s, then a window), and one act
 // at a time: the lightning raise (a corpse rises as a zombie), the lightning strike (knockdown +
-// disarm, dodged by moving), and the hover dash -> grab -> body slams -> throw. Only head hits
-// hurt him. The corpse sweep and the cannon come next.
+// disarm, dodged by moving), and the hover dash -> grab -> body slams -> throw. Phase 2, from his
+// first head wound: he sweeps the corpses off the screen, summons the cannon (shadow, drop, crush;
+// it stays as terrain) and fires volleys from behind it. Only head hits hurt him (3 kill).
 import { lyingAt } from '../anim/skeleton';
 import { TUNING } from '../data/tuning';
 import { isWeapon } from '../data/weapons';
 import { project, type ScreenPoint, scaleAt } from '../render/camera';
 import { type Actor, alive, createActor } from './actor';
+import type { Cannon } from './cannon';
 import { applyHit, die, dropBody, setClip } from './combat';
 import type { HitKind } from './events';
 import { canRaise, raiseCorpse } from './zombies';
 import type { World } from './world';
 
-const B = TUNING.boss, ST = B.strike, D = B.dash, SL = B.slam;
+const B = TUNING.boss, ST = B.strike, D = B.dash, SL = B.slam, SW = B.sweep, CN = B.cannon;
 
 /** What he is doing (one at a time); none = hovering, the ward free to rise. */
 export type BossAct =
   | { kind: 'cast'; spell: 'raise' | 'strike'; t: number; targetId: number; at: { x: number; z: number }; bolted: boolean }
   | { kind: 'dash'; t: number; targetId: number; from: { x: number; z: number }; to: { x: number; z: number } }
   | { kind: 'grab'; t: number; targetId: number; slams: number; done: number; presses: number; side: 1 | -1 }
-  | { kind: 'recover'; t: number; time: number };
+  | { kind: 'recover'; t: number; time: number }
+  | { kind: 'sweep'; t: number; dir: 1 | -1; pushed: boolean }
+  | { kind: 'summon'; t: number; cannon: Cannon }
+  | { kind: 'volley'; t: number; from: { x: number; z: number }; started: boolean };
 
 export interface BossState {
   phase: 'enter' | 'fight';
@@ -38,6 +43,13 @@ export interface BossState {
   window: number;
   /** Shots the ward stopped while up (ep1: a blocked burst is answered with lightning). */
   blocked: number;
+  /** Phase 2 (sweep, cannon) starts at his first head wound or after TUNING.boss.sweep.after s. */
+  stage: 1 | 2;
+  /** His cannon once summoned, and the seconds until its next volley. */
+  cannon?: Cannon;
+  cannonIn: number;
+  /** From the start of phase 2 until his cannon lands: hits don't count. */
+  untouchable?: boolean;
 }
 
 export const isBoss = (a: Actor | undefined): a is Actor & { boss: BossState } => !!a && a.kind === 'boss' && !!a.boss;
@@ -51,7 +63,8 @@ export function spawnBoss(world: World, x: number, z: number, facing: 1 | -1): A
   a.pose.ward = 0;
   a.pose.cast = 0;
   a.pose.grip = 0;
-  a.boss = { phase: 'enter', t: 0, raiseIn: B.firstRaise, strikeIn: ST.first, dashIn: D.first, ward: 0, window: 0, blocked: 0 };
+  a.pose.push = 0;
+  a.boss = { phase: 'enter', t: 0, raiseIn: B.firstRaise, strikeIn: ST.first, dashIn: D.first, ward: 0, window: 0, blocked: 0, stage: 1, cannonIn: 0 };
   world.actors.push(a);
   world.events.emit('bossArrive', { actorId: a.id, phase: 'descend', x, y: a.pos.y, z });
   return a;
@@ -83,20 +96,32 @@ export function stepBoss(world: World, a: Actor & { boss: BossState }, dt: numbe
   s.raiseIn -= dt;
   s.strikeIn -= dt;
   s.dashIn -= dt;
+  s.cannonIn -= dt;
   stepWard(world, a, s, dt);
   const act = s.act;
   if (act?.kind === 'cast') stepCast(world, a, s, act, dt);
   else if (act?.kind === 'dash') stepDash(world, a, s, act, dt);
   else if (act?.kind === 'grab') stepGrab(world, a, s, act, dt);
+  else if (act?.kind === 'sweep') stepSweep(world, a, s, act, dt);
+  else if (act?.kind === 'summon') stepSummon(world, a, s, act, dt);
+  else if (act?.kind === 'volley') stepVolley(world, a, s, act, dt);
   else if (act?.kind === 'recover') { act.t += dt; if (act.t >= act.time) s.act = undefined; }
   else choose(world, a, s);
-  a.pose.cast = act?.kind === 'cast' ? Math.min(1, act.t / B.castTime) : Math.max(0, (a.pose.cast ?? 0) - dt / 0.2);
+  // hand up while casting or summoning the cannon
+  const handUp = act?.kind === 'cast' ? act.t / B.castTime : act?.kind === 'summon' ? act.t / CN.shadow : 0;
+  a.pose.cast = handUp > 0 ? Math.min(1, handUp) : Math.max(0, (a.pose.cast ?? 0) - dt / 0.2);
   a.pose.grip = act?.kind === 'grab' ? Math.min(1, (a.pose.grip ?? 0) + dt / 0.15) : Math.max(0, (a.pose.grip ?? 0) - dt / 0.2);
+  a.pose.push = act?.kind === 'sweep' ? Math.min(1, act.t / SW.windup) : Math.max(0, (a.pose.push ?? 0) - dt / 0.3);
 }
 
-/** Free to act: dash at someone close, else strike, else raise (each on its own timer). */
+/**
+ * Free to act. Phase 2 opens with the sweep, the summon and a volley; after that volleys come
+ * back on their timer. Otherwise: dash at someone close, else strike, else raise.
+ */
 function choose(world: World, a: Actor, s: BossState): void {
   if (s.ward > 0) return;
+  if (s.stage === 1 && s.t >= SW.after) { startPhase2(world, a, s); return; }
+  if (s.cannon && s.cannonIn <= 0) { s.act = { kind: 'volley', t: 0, from: { x: a.pos.x, z: a.pos.z }, started: false }; return; }
   const p = nearestPlayer(world, a);
   if (p && s.dashIn <= 0 && grabbable(p) && Math.abs(p.pos.x - a.pos.x) <= D.range && Math.abs(p.pos.z - a.pos.z) <= D.depthBand) {
     startDash(world, a, s, p);
@@ -292,6 +317,127 @@ function letGo(world: World, a: Actor & { boss: BossState }): void {
   a.boss.dashIn = D.coolHit;
 }
 
+// ---------- phase 2: the corpse sweep and the cannon ----------
+
+/** Phase 2 starts now, whatever he was doing: the sweep, then the cannon. */
+function startPhase2(world: World, a: Actor, s: BossState): void {
+  if (s.act?.kind === 'grab' && isBoss(a)) letGo(world, a);
+  s.stage = 2;
+  // nothing hurts him until his cannon is down (so phase 2 always plays out)
+  s.untouchable = true;
+  if (s.ward > 0) { s.ward = 0; world.events.emit('ward', { actorId: a.id, up: false, ...a.pos }); }
+  const p = nearestPlayer(world, a);
+  const dir = (p && p.pos.x < a.pos.x ? -1 : 1) as 1 | -1;
+  s.act = { kind: 'sweep', t: 0, dir, pushed: false };
+  world.events.emit('bossSweep', { actorId: a.id, phase: 'windup', dir, count: 0, ...a.pos });
+}
+
+
+/**
+ * Telekinetic sweep (ep1 f2229-f2259): his hand swings out flat, and every intact body on the
+ * ground slides off the screen, away from him. Nothing left to raise; then the cannon.
+ */
+function stepSweep(world: World, a: Actor, s: BossState, w: Extract<BossAct, { kind: 'sweep' }>, dt: number): void {
+  w.t += dt;
+  a.facing = w.dir;
+  if (!w.pushed && w.t >= SW.windup) {
+    w.pushed = true;
+    let count = 0;
+    for (const o of world.actors) {
+      if (o.state !== 'dead' || o.swept || o.corpse?.gibbed || o.grabbedBy !== undefined || o.kind === 'boss') continue;
+      // the bodies go off whichever edge is away from him
+      const dir = Math.sign(o.pos.x - a.pos.x) || w.dir;
+      if (o.corpse?.phase === 'frozen') { o.corpse.phase = 'settled'; world.events.emit('corpseThawed', { actorId: o.id }); }
+      o.flight = undefined;
+      o.swept = { vx: dir * SW.speed, vy: SW.hop };
+      count++;
+    }
+    world.events.emit('bossSweep', { actorId: a.id, phase: 'push', dir: w.dir, count, ...a.pos });
+  }
+  if (w.t >= SW.windup + 0.4) startSummon(world, a, s);
+}
+
+/** A swept body slides off the screen with a little hop; gone once it's past the edge. */
+export function stepSwept(world: World, o: Actor & { swept: { vx: number; vy: number } }, dt: number): boolean {
+  o.pos.x += o.swept.vx * dt;
+  o.pos.y = Math.max(0, o.pos.y + o.swept.vy * dt);
+  o.swept.vy -= 12 * dt;
+  o.pose.root = lyingAt((o.pose.root.r || Math.PI / 2) + Math.sign(o.swept.vx) * 4 * dt);
+  return Math.abs(o.pos.x) > world.room.halfWidth + 1.2;
+}
+
+/** He raises his hand; the cannon's shadow appears beside him, then it drops (world-falling-hazard). */
+function startSummon(world: World, a: Actor, s: BossState): void {
+  const p = nearestPlayer(world, a);
+  const facing = (p ? (p.pos.x >= a.pos.x ? 1 : -1) : a.facing) as 1 | -1;
+  a.facing = facing;
+  const c: Cannon = { x: clampX(world, a.pos.x + facing * CN.offset), z: a.pos.z, facing, timer: 0, live: true, y: CN.dropHeight, shots: 0, byId: a.id };
+  world.cannons.push(c);
+  s.cannon = c;
+  s.act = { kind: 'summon', t: 0, cannon: c };
+  world.events.emit('cannonDrop', { x: c.x, z: c.z, phase: 'shadow' });
+}
+
+function stepSummon(world: World, a: Actor, s: BossState, m: Extract<BossAct, { kind: 'summon' }>, dt: number): void {
+  const t0 = m.t, c = m.cannon;
+  m.t += dt;
+  if (m.t < CN.shadow) return;
+  if (t0 < CN.shadow) world.events.emit('cannonDrop', { x: c.x, z: c.z, phase: 'fall' });
+  c.y = Math.max(0, (c.y ?? 0) - CN.fallSpeed * dt);
+  if (c.y > 0) return;
+  landCannon(world, a, c);
+  s.untouchable = false;
+  s.act = { kind: 'volley', t: 0, from: { x: a.pos.x, z: a.pos.z }, started: false };
+}
+
+/** Footprint of the landed cannon (H): barrel + stand. */
+const CANNON_HALF = { x: 0.42, z: 0.22, top: 0.72 };
+
+/** It lands: whoever is under it is crushed and shoved clear, and it stays as solid ground. */
+function landCannon(world: World, a: Actor, c: Cannon): void {
+  const H = CANNON_HALF;
+  for (const o of world.actors) {
+    if (o === a || o.swept) continue;
+    const dx = o.pos.x - c.x, dz = o.pos.z - c.z;
+    if (Math.abs(dz) > Math.max(CN.crushBand, H.z + 0.2)) continue;
+    if (alive(o) && Math.abs(dx) <= CN.crushRadius && Math.abs(dz) <= CN.crushBand) applyHit(world, a, o, 'cannon', Math.sign(dx) || c.facing, 0, { x: o.pos.x, y: 0.5, z: o.pos.z });
+    // nothing may stay inside the solid footprint: shove it out the nearer side
+    if (Math.abs(dx) < H.x + TUNING.move.radius) o.pos.x = clampX(world, c.x + (Math.sign(dx) || -c.facing) * (H.x + TUNING.move.radius + 0.02));
+  }
+  world.room.props.push({ kind: 'cannon', x0: c.x - H.x, x1: c.x + H.x, z0: c.z - H.z, z1: c.z + H.z, top: H.top });
+  world.events.emit('cannonDrop', { x: c.x, z: c.z, phase: 'land' });
+  world.events.emit('cameraShake', { px: TUNING.boss.cannon.landShake, seconds: 0.35 });
+}
+
+/**
+ * He glides behind his cannon and fires a volley at whoever is nearest: TUNING.cannon's 1.3 s,
+ * the barrel swinging to the target's depth. He can't raise the ward while he works it.
+ */
+function stepVolley(world: World, a: Actor, s: BossState, v: Extract<BossAct, { kind: 'volley' }>, dt: number): void {
+  const c = s.cannon;
+  if (!c) { s.act = undefined; return; }
+  v.t += dt;
+  const p = nearestPlayer(world, a);
+  if (!v.started) {
+    // turn the cannon toward them and take position behind it
+    if (p) c.facing = p.pos.x >= c.x ? 1 : -1;
+    const to = { x: clampX(world, c.x - c.facing * CN.behind), z: c.z };
+    const u = Math.min(1, v.t / 0.3);
+    a.pos.x = v.from.x + (to.x - v.from.x) * u;
+    a.pos.z = v.from.z + (to.z - v.from.z) * u;
+    a.facing = c.facing;
+    if (u < 1) return;
+    v.started = true;
+    c.shots = CN.shots;
+    c.timer = CN.firstShot;
+  }
+  a.facing = c.facing;
+  if (p) c.aimZ = Math.max(c.z - CN.aimBand, Math.min(c.z + CN.aimBand, p.pos.z));
+  if ((c.shots ?? 0) > 0) return;
+  s.act = { kind: 'recover', t: 0, time: 0.6 };
+  s.cannonIn = CN.every;
+}
+
 // ---------- helpers ----------
 
 function clampX(world: World, x: number): number {
@@ -340,23 +486,35 @@ export function wardPolygon(a: Actor): ScreenPoint[] {
 /**
  * Hits on the boss (applyHit hands them here). Only a player's bullet or thrown gun to the head
  * counts (the ward stops those from his front while it's up). Everything else just flashes him.
- * A hit that counts makes him drop whoever he's holding. Dies at 0.
+ * The first one starts phase 2 at once, and nothing counts again until his cannon has landed; a
+ * later one makes him drop whoever he's holding. Dies at 0.
  */
 export function bossHit(world: World, by: Actor | undefined, o: Actor, kind: HitKind, part: 'head' | 'body', dirX: number, dirZ: number, at: { x: number; y: number; z: number }): void {
   const s = o.boss;
   // the ward has already stopped what came at his front (src/sim/hitscan.ts): whatever reached his head counts
-  const counts = !!s && s.phase === 'fight' && part === 'head' && (kind === 'bullet' || kind === 'gun') && by?.playerIndex !== undefined;
+  const counts = !!s && s.phase === 'fight' && !s.untouchable && part === 'head' && (kind === 'bullet' || kind === 'gun') && by?.playerIndex !== undefined;
   const damage = counts ? 1 : 0;
   o.hp = Math.max(0, o.hp - damage);
   o.pose.impact = TUNING.hit.impact;
   o.pose.lean = -0.15 * Math.sign(dirX || -o.facing) * o.facing;
   const killed = o.hp <= 0;
   world.events.emit('hit', { actorId: o.id, attackerId: by?.id ?? 0, kind, part, damage, killed, dirX, dirZ, combo: false, chain: 0, ...at });
-  if (counts && isBoss(o)) letGo(world, o);
+  if (counts && isBoss(o)) {
+    // the first wound opens phase 2 at once; later ones make him drop whoever he holds
+    if (o.boss.stage === 1 && !killed) startPhase2(world, o, o.boss);
+    else letGo(world, o);
+  }
   if (!killed) return;
   o.pose.ward = 0;
   o.pose.cast = 0;
   o.pose.grip = 0;
+  o.pose.push = 0;
+  // nobody mans the cannon now (it stays: wave B's grunts take it over); one still falling lands
+  if (s?.cannon) {
+    if ((s.cannon.y ?? 0) > 0) { s.cannon.y = 0; landCannon(world, o, s.cannon); }
+    s.cannon.shots = 0;
+    s.cannon.byId = undefined;
+  }
   o.boss = undefined;
   die(world, o, by, kind, dirX, dirZ, false, 'heavy');
 }

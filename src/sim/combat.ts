@@ -293,6 +293,8 @@ const DAMAGE: Record<HitKind, number> = {
   takedown: 99,
   // M8: the boss's lightning strike knocks down (a hero loses one life like any hit)
   lightning: 2,
+  // a cannonball (or the falling cannon) kills grunts and zombies outright
+  cannon: 99,
 };
 
 /**

@@ -88,6 +88,8 @@ export interface Pose {
   cast?: number;
   /** M8 boss: 0..1 both hands up, holding the hero overhead (body slams). */
   grip?: number;
+  /** M8 boss: 0..1 the telekinetic sweep gesture (front hand swept out flat). */
+  push?: number;
 }
 
 export type MoveState = 'ground' | 'air' | 'goingProne' | 'diving' | 'prone' | 'standingUp';
@@ -247,6 +249,8 @@ export interface Actor {
   takenBy?: number;
   /** Enemy AI memory (src/sim/ai.ts). */
   ai?: import('./ai').AiState;
+  /** M8: a corpse the boss swept away, sliding off the screen at this speed (removed once off it). */
+  swept?: { vx: number; vy: number };
   /** M8 boss state machine (src/sim/boss.ts). */
   boss?: import('./boss').BossState;
   /** Lab/AI controller; the player is driven by World.command instead. */

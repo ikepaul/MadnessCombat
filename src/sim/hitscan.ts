@@ -176,13 +176,14 @@ export function castRay(world: World, from: ScreenPoint, dir: ScreenPoint, shoot
   }
   if (gun && (!hit || gun.t < hit.t - 1e-6)) {
     const end: ScreenPoint = [from[0] + dir[0] * gun.t, from[1] + dir[1] * gun.t];
-    const covered = world.room.props.some((p) => p.z0 < gun!.actor.pos.z && (rayVsProp(from, dir, p) ?? Infinity) < gun!.t);
+    const covered = world.room.props.some((p) => p.kind !== 'cannon' && p.z0 < gun!.actor.pos.z && (rayVsProp(from, dir, p) ?? Infinity) < gun!.t);
     if (!covered) return { disarm: gun.actor, end };
   }
   if (hit) {
     // cover: crossed first on screen AND in front of the target in depth
     for (const p of world.room.props) {
-      if (p.z0 >= hit.actor.pos.z) continue;
+      // the boss's cannon is no cover: shots pass under the barrel (ep1 f2469)
+      if (p.z0 >= hit.actor.pos.z || p.kind === 'cannon') continue;
       const t = rayVsProp(from, dir, p);
       if (t !== undefined && t < hit.t) {
         const end: ScreenPoint = [from[0] + dir[0] * t, from[1] + dir[1] * t];

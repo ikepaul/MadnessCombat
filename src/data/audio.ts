@@ -94,6 +94,10 @@ export const SOUNDS = {
   rumble: def('rumble', 'world', 0.8, { variants: 1, limit: 1, reverb: 0.4 }),
   wardHum: def('wardHum', 'weapons', 0.6, { variants: 2, limit: 2, reverb: 0.3 }),
   ricochet: def('ricochet', 'impacts', 0.55, { variants: 4, limit: 3, reverb: 0.2 }),
+  cannonBoom: def('cannonBoom', 'weapons', 1, { variants: 3, limit: 2, reverb: 0.5 }),
+  fallWhistle: def('fallWhistle', 'world', 0.6, { variants: 1, limit: 1, reverb: 0.2 }),
+  heavyLand: def('heavyLand', 'impacts', 1, { variants: 2, limit: 1, reverb: 0.5 }),
+  telekinesis: def('telekinesis', 'weapons', 0.8, { variants: 2, limit: 1, reverb: 0.3 }),
   /** Outdoor wind bed: turned down ~8 dB (user: the rain-like hiss was too loud, 2026-10-26). */
   ambWind: def('windLoop', 'world', 0.2, { variants: 1, limit: 1, reverb: 0, loop: true }),
   /** Indoor room tone: turned down ~4 dB with the wind. */

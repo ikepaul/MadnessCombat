@@ -57,11 +57,11 @@ function fightWaveA(seed: number, reaction: number, players = 1) {
 describe('balance (stage 1 wave A)', () => {
   it('a quick, competent player clears wave A alone', () => {
     for (const seed of [1, 2, 3]) expect(fightWaveA(seed, 0.1).cleared).toBe(true);
-  }, 30_000); // three whole waves: slower than the 5 s default when every test file runs in parallel
+  });
 
   it('two quick, competent players clear co-op wave A', () => {
     for (const seed of [1, 2, 3]) expect(fightWaveA(seed, 0.1, 2).cleared).toBe(true);
-  }, 30_000);
+  });
 
   it.skipIf(!process.env.BALANCE)('report', () => {
     const rows = [`ai ${JSON.stringify(TUNING.ai)}`];

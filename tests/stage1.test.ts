@@ -140,6 +140,10 @@ function playStage(world: World, hero: Actor, throwGrenade: boolean) {
   // raise bolts only (strikes go at heroes)
   world.events.on('zombieRise', (e) => { if (e.phase === 'start') log.bolts++; });
   world.events.on('bossArrive', (e) => { if (e.phase === 'descend') log.bossAt = world.time; });
+  const phase2: string[] = [];
+  world.events.on('bossSweep', (e) => phase2.push(`sweep:${e.phase}`));
+  world.events.on('cannonDrop', (e) => phase2.push(`cannon:${e.phase}`));
+  Object.assign(log, { phase2 });
   const mem = { cook: 0 };
   for (let i = 0; i < 60 * 300 && log.cleared.length === 0; i++) {
     // brawl the boombox NPC, "kill all" whoever walks on screen (as in the M3 wave test), the grenade, the boss
@@ -168,8 +172,9 @@ describe('stage 1 headless', () => {
     // the pile went up: fewer bodies left for the boss to raise
     expect(log.gibs).toBeGreaterThan(0);
     expect(intactAfter).toBe(intactBefore - log.gibs);
-    // he raised someone, and went down
+    // he raised someone, went into phase 2 (sweep, cannon), and went down
     expect(log.bolts).toBeGreaterThan(0);
+    expect((log as typeof log & { phase2: string[] }).phase2).toEqual(['sweep:windup', 'sweep:push', 'cannon:shadow', 'cannon:fall', 'cannon:land']);
     const boss = world.actors.find((a) => a.kind === 'boss')!;
     expect(alive(boss)).toBe(false);
     // the boombox NPC + wave A's 18 grunts + the boss + every zombie he raised; the dancer lives

@@ -138,6 +138,11 @@ export function paintBoss(ctx: Ctx, a: Actor, o: BossPaintOptions): void {
   } else if (!dead && wardK > 0) {
     hand(ctx, 0.3, -0.6 + sway, 0.07); glow(ctx, 0.3, -0.6 + sway, 0.14, 0.4 * wardK);
     ward(ctx, wardK, t);
+  } else if (!dead && (pose.push ?? 0) > 0) {
+    // telekinetic sweep: the front hand swings out flat, palm glowing
+    const k = pose.push!, e = k * k * (3 - 2 * k), hx = 0.21 + 0.3 * e, hy = -0.3 - 0.32 * e;
+    glow(ctx, hx, hy, 0.12 + 0.15 * k, 0.3 + 0.4 * k);
+    hand(ctx, hx, hy, 0.07);
   } else {
     const front = up(0.21, -0.3 - sway, 0.22, -1.18);
     hand(ctx, front[0], front[1]);

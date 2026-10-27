@@ -101,8 +101,9 @@ describe('ward and damage', () => {
     hero.hands[0] = newHand('pistol', 99, 0);
     const wards = record(world, 'ward'), blocked = record(world, 'wardHit'), hits = record(world, 'hit');
     landed(world);
-    // the ward only in this test: no lightning or dash to keep him busy
+    // the ward only in this test: no lightning, dash or phase 2 to keep him busy
     boss.boss!.strikeIn = boss.boss!.dashIn = boss.boss!.raiseIn = Infinity;
+    boss.boss!.stage = 2;
     expect(wards.map((w) => w.up)).toEqual([true]);
     tick(world, { press: [true, false], aim: head(boss) });
     expect(blocked).toHaveLength(1);
@@ -131,6 +132,7 @@ describe('ward and damage', () => {
     expect(boss.hp).toBe(B.hp);
     hero.pos.x = 1.5;
     boss.boss!.window = 99; // keep the ward down for this test
+    boss.boss!.stage = 2; // and no phase 2 transition (its own test below)
     hero.hands[0] = newHand('pistol', 99, 0);
     tick(world, { press: [true, false], aim: chest(boss) });
     tick(world, {}, 20);
@@ -170,6 +172,7 @@ describe('ward and damage', () => {
 /** Only the move under test: the others wait forever. */
 function only(boss: Actor, move: 'strike' | 'dash' | 'raise') {
   const s = boss.boss!;
+  s.stage = 2; // no sweep / cannon either
   s.strikeIn = move === 'strike' ? 0 : Infinity;
   s.dashIn = move === 'dash' ? 0 : Infinity;
   s.raiseIn = move === 'raise' ? 0 : Infinity;
@@ -285,5 +288,156 @@ describe('hover dash, grab and body slams', () => {
     expect(hero.grabbedBy).toBeUndefined();
     expect(hero.state).toBe('knockback');
     expect(hero.hp).toBe(hero.maxHp);
+  });
+});
+
+describe('phase 2: corpse sweep and cannon', () => {
+  const C = B.cannon;
+  /** A boss in the fight with nothing on his timers but phase 2. */
+  function phase2(heroX = 2.5, bossX = -2) {
+    const t = setup(heroX, bossX);
+    landed(t.world);
+    const s = t.boss.boss!;
+    s.strikeIn = s.dashIn = s.raiseIn = Infinity;
+    s.window = 99;
+    return t;
+  }
+  /** Wound him once (a head shot from the hero) to open phase 2. */
+  function wound(world: World, hero: Actor, boss: Actor) {
+    hero.hands[0] = newHand('pistol', 99, 0);
+    tick(world, { press: [true, false], aim: head(boss) });
+    hero.hands[0] = null;
+  }
+
+  it('his first head wound opens phase 2: the sweep sends every intact body off the screen', () => {
+    const { world, hero, boss } = phase2();
+    world.spawnCorpses(5);
+    const gibbed = world.actors.find((a) => a.corpse)!;
+    gibbed.corpse!.gibbed = true;
+    const sweeps = record(world, 'bossSweep');
+    wound(world, hero, boss);
+    expect(sweeps.map((e) => e.phase)).toEqual(['windup']);
+    tick(world, {}, secs(B.sweep.windup) + 1);
+    expect(sweeps.map((e) => e.phase)).toEqual(['windup', 'push']);
+    expect(sweeps[1].count).toBe(4);
+    tick(world, {}, secs(1));
+    const left = world.actors.filter((a) => a.kind === 'grunt' && a.state === 'dead');
+    expect(left).toEqual([gibbed]);
+  });
+
+  it('without a wound, phase 2 starts after 30 s of fighting', () => {
+    const { world } = phase2();
+    const sweeps = record(world, 'bossSweep');
+    tick(world, {}, secs(B.sweep.after - 1));
+    expect(sweeps).toHaveLength(0);
+    tick(world, {}, secs(1) + 2);
+    expect(sweeps).toHaveLength(1);
+  });
+
+  it('the cannon: shadow, drop, it crushes what is under it and stays as solid ground', () => {
+    const { world, hero, boss } = phase2();
+    const drops = record(world, 'cannonDrop');
+    wound(world, hero, boss);
+    // a grunt standing where it will land (placed after the shot, so it can't catch the bullet)
+    const g = createActor('grunt', boss.pos.x + C.offset, boss.pos.z, -1);
+    world.actors.push(g);
+    tick(world, {}, secs(B.sweep.windup + 0.4) + 2);
+    expect(drops.map((d) => d.phase)).toEqual(['shadow']);
+    const cannon = world.cannons[0];
+    expect(cannon.live).toBe(true);
+    expect(cannon.y).toBeGreaterThan(0);
+    tick(world, {}, secs(C.shadow + C.dropHeight / C.fallSpeed) + 2);
+    expect(drops.map((d) => d.phase)).toEqual(['shadow', 'fall', 'land']);
+    expect(cannon.y).toBe(0);
+    expect(g.state).toBe('dead');
+    const prop = world.room.props.find((p) => p.kind === 'cannon')!;
+    expect(prop).toBeDefined();
+    expect(g.pos.x < prop.x0 || g.pos.x > prop.x1).toBe(true);
+  });
+
+  /** Wound him and wait until he's behind the landed cannon, about to fire. */
+  function toVolley(world: World, hero: Actor, boss: Actor) {
+    wound(world, hero, boss);
+    tick(world, {}, secs(B.sweep.windup + 0.4 + C.shadow + C.dropHeight / C.fallSpeed) + 4);
+    tick(world, {}, secs(0.3) + 1);
+    return world.cannons[0];
+  }
+
+  it('volleys: he hovers behind it and fires 4 balls 1.3 s apart; standing in the lane gets you knocked down', () => {
+    const { world, hero, boss } = phase2(1.8, -2);
+    const fires = record(world, 'cannonFire');
+    const cannon = toVolley(world, hero, boss);
+    expect(boss.pos.x).toBeCloseTo(cannon.x - cannon.facing * C.behind, 1);
+    tick(world, {}, secs(C.firstShot) + 10);
+    expect(fires).toHaveLength(1);
+    expect(hero.hp).toBe(hero.maxHp - 1);
+    expect(['knockback', 'down', 'getUp']).toContain(hero.state);
+    for (let i = 0; i < secs(4 * TUNING.cannon.interval); i++) { tick(world); hero.hp = hero.maxHp; }
+    expect(fires).toHaveLength(C.shots);
+    expect(cannon.shots).toBe(0);
+  });
+
+  it('going prone lets the whole volley pass over you', () => {
+    const { world, hero, boss } = phase2(1.8, -2);
+    const fires = record(world, 'cannonFire');
+    toVolley(world, hero, boss);
+    tick(world, { dive: true });
+    tick(world, {}, secs(C.firstShot + C.shots * TUNING.cannon.interval));
+    expect(fires).toHaveLength(C.shots);
+    expect(hero.hp).toBe(hero.maxHp);
+  });
+
+  it("his ward can't come up while he works the cannon, and shots pass over it to his head", () => {
+    const { world, hero, boss } = phase2(1.8, -2);
+    wound(world, hero, boss);
+    tick(world, {}, secs(B.sweep.windup + 0.4 + C.shadow + C.dropHeight / C.fallSpeed + 0.3) + 6);
+    boss.boss!.window = 0; // the ward could rise now, but he's busy
+    hero.hands[0] = newHand('pistol', 99, 0);
+    hero.state = 'free';
+    tick(world, {}, 2);
+    expect(boss.boss!.ward).toBe(0);
+    const hp = boss.hp;
+    tick(world, { press: [true, false], aim: head(boss) });
+    expect(boss.hp).toBe(hp - 1);
+  });
+
+  it('when he dies the cannon stays, silent, as terrain', () => {
+    const { world, hero, boss } = phase2(1.8, -2);
+    wound(world, hero, boss);
+    tick(world, {}, secs(B.sweep.windup + 0.4 + C.shadow + C.dropHeight / C.fallSpeed + 0.3) + 6);
+    hero.hands[0] = newHand('pistol', 99, 0);
+    while (alive(boss)) { tick(world, { press: [true, false], aim: head(boss) }); tick(world, {}, 12); hero.hp = hero.maxHp; }
+    const fires = record(world, 'cannonFire');
+    tick(world, {}, secs(5));
+    expect(fires).toHaveLength(0);
+    expect(world.cannons).toHaveLength(1);
+    expect(world.room.props.some((p) => p.kind === 'cannon')).toBe(true);
+  });
+});
+
+describe('phase 2 always plays', () => {
+  it("a burst to the head can't skip it: after the first wound nothing counts until the cannon lands", () => {
+    const { world, hero, boss } = setup(2.5, -2);
+    landed(world);
+    const s = boss.boss!;
+    s.strikeIn = s.dashIn = s.raiseIn = Infinity;
+    s.window = 99;
+    hero.hands[0] = newHand('smg', 99, 0);
+    const sweeps = record(world, 'bossSweep');
+    // a full-auto burst at his head for a whole second
+    for (let i = 0; i < 60; i++) tick(world, { hold: [true, false], press: [i === 0, false], aim: head(boss) });
+    expect(boss.hp).toBe(B.hp - 1);
+    expect(sweeps[0]?.phase).toBe('windup');
+    expect(alive(boss)).toBe(true);
+    // once the cannon is down he can be hurt again
+    hero.hands[0] = null;
+    for (let i = 0; i < secs(5) && !(world.cannons[0]?.y === 0); i++) tick(world);
+    expect(world.cannons[0].y).toBe(0);
+    expect(boss.boss!.untouchable).toBe(false);
+    hero.hands[0] = newHand('pistol', 99, 0);
+    hero.hp = hero.maxHp;
+    tick(world, {}, 1);
+    tick(world, { press: [true, false], aim: head(boss) });
+    expect(boss.hp).toBe(B.hp - 2);
   });
 });

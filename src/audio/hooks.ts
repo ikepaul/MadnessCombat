@@ -137,6 +137,13 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
   world.events.on('ward', (e) => { if (e.up) play('wardHum', at(e.x, e.y + 0.7, e.z)); });
   world.events.on('bossDash', (e) => play(e.phase === 'go' ? 'whooshThrow' : 'cloth', at(e.x, e.y + 0.6, e.z, e.phase === 'go' ? { rate: 0.8 } : { gain: 0.6 })));
   world.events.on('bossSlam', (e) => { const p = at(e.x, e.y, e.z); play('impactHeavy', p); play('crack', { ...p, gain: 0.7 }); });
+  world.events.on('bossSweep', (e) => { if (e.phase === 'push') { play('telekinesis', at(e.x, e.y + 0.7, e.z)); if (e.count > 0) play('bodyFall', at(e.x + e.dir * 2, 0, e.z, { gain: 0.6, rate: 0.8 })); } });
+  world.events.on('cannonDrop', (e) => {
+    if (e.phase === 'shadow') play('fallWhistle', at(e.x, 2, e.z));
+    else if (e.phase === 'land') { play('heavyLand', at(e.x, 0.3, e.z)); engine.duck(0.4); }
+  });
+  // the boss's cannon (the debug labs' cannon stays quiet, as before)
+  world.events.on('cannonFire', (e) => { if (world.cannons.find((c) => c.x === e.x && c.z === e.z)?.live) { play('cannonBoom', at(e.x, 0.6, e.z)); engine.duck(0.25); } });
   world.events.on('wardHit', (e) => {
     const a = world.actorById(e.actorId);
     if (a) play('ricochet', at(a.pos.x + a.facing * 0.6, a.pos.y + 0.7, a.pos.z));

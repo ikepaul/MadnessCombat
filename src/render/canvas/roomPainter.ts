@@ -154,7 +154,8 @@ export function paintDoor(ctx: Ctx, room: RoomDef, d: DoorDef, open: number, pal
 
 export function paintProp(ctx: Ctx, p: PropDef, pal: Palette): void {
   if (p.kind === 'table') paintTable(ctx, p, pal);
-  else paintPole(ctx, p, pal);
+  else if (p.kind === 'pole') paintPole(ctx, p, pal);
+  // the cannon's footprint: drawn with the cannon itself (src/render/canvas/cannonPainter.ts)
 }
 
 /** Stage 1 landmark (own design): leaning wooden pole, crossbar, two insulators, sagging wire. */

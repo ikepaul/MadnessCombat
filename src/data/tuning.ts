@@ -137,6 +137,19 @@ export const TUNING = {
      * to `minSlams`. The whole grab costs the hero one life, on the throw. invented
      */
     slam: { count: 6, every: 0.58, lift: 0.4, mashPer: 3, minSlams: 2, throwBoost: 2, recover: 0.8 },
+    /**
+     * Phase 2 (research/stages.md beat 4): starts at his first head wound, or after `after` s of
+     * fighting. He sweeps the corpses off the screen (ep1 f2229-f2259; boss-halo: the push covers
+     * ~3.6 H in ~0.33 s), then summons the cannon. Wind-up and hop invented.
+     */
+    sweep: { after: 30, windup: 0.5, speed: 11, hop: 1.2 },
+    /**
+     * The summoned cannon (ep1 f2279-f2399, world-falling-hazard): its shadow first (0.5-1.0 s), then
+     * it drops onto its stand beside him and crushes whatever is under it. He hovers behind it and
+     * fires ~4 balls one per 1.3 s (TUNING.cannon), the barrel swinging to the target's depth within
+     * `aimBand`. Then a new volley every `every` s. Placement, fall speed, aim swing invented.
+     */
+    cannon: { offset: 1.0, shadow: 0.8, dropHeight: 6, fallSpeed: 14, crushRadius: 0.6, crushBand: 0.4, shots: 4, firstShot: 0.6, every: 9, behind: 0.75, aimBand: 0.8, landShake: 12 },
   },
   health: {
     /** decided with the user (2026-10-26): 4 light or 2 heavy hits (light 1, heavy 2). */

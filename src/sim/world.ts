@@ -11,7 +11,7 @@ import type { RoomDef } from './room';
 import type { WaveDirector } from './waves';
 import { stepProps } from './cover';
 import { Seq } from './sequencer';
-import { isBoss, stepBoss } from './boss';
+import { isBoss, stepBoss, stepSwept } from './boss';
 import { installAlertRules } from './stealth';
 
 /** Props can change in play (a kicked-over table), so each World gets its own copies. */
@@ -181,11 +181,15 @@ export class World {
     // scripts first: they react to the last tick and set this tick's scripted commands
     this.seq.step(this.dt);
     assignTokens(this);
+    const gone: Actor[] = [];
     for (const a of this.actors) {
       if (a.corpse?.phase === 'frozen') continue;
       if (isBoss(a)) { stepBoss(this, a, this.dt); continue; }
+      if (a.swept) { if (stepSwept(this, a as Actor & { swept: NonNullable<Actor['swept']> }, this.dt)) gone.push(a); continue; }
       stepActor(this, a, this.commandFor(a), this.dt);
     }
+    // M8: bodies the boss swept off the screen are gone for good
+    for (const a of gone) this.actors.splice(this.actors.indexOf(a), 1);
     this.commands = this.commands.map(clearEdges);
     for (const [id, c] of this.scripted) this.scripted.set(id, clearEdges(c));
     stepRevives(this, this.dt);

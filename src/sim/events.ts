@@ -133,6 +133,10 @@ export interface GameEvents {
   bossDash: At & { targetId: number; phase: 'windup' | 'go' };
   /** He slammed the held hero into the floor (shake, dust); `n` counts up from 1. */
   bossSlam: At & { targetId: number; n: number };
+  /** Telekinetic sweep: the gesture starts, then the corpses fly off the screen (`dir` = away from him). */
+  bossSweep: At & { phase: 'windup' | 'push'; dir: 1 | -1; count: number };
+  /** The summoned cannon: its shadow appears, it starts falling, it lands (crushing what's under it). */
+  cannonDrop: { x: number; z: number; phase: 'shadow' | 'fall' | 'land' };
 }
 
 export type HitKind =
@@ -142,7 +146,9 @@ export type HitKind =
   // M7: silent stealth kill
   | 'takedown'
   // M8: the boss's lightning strike
-  | 'lightning';
+  | 'lightning'
+  // M8: a cannonball, or the cannon landing on you
+  | 'cannon';
 
 /** Melee hits (combos chain these). */
 export const MELEE_KINDS: HitKind[] = ['light', 'heavy', 'uppercut', 'finisher', 'stab', 'slash', 'smash'];

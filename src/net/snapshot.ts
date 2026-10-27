@@ -52,6 +52,9 @@ export interface Snapshot {
   /** M7: props change in play (kicked-over tables). */
   props: World['room']['props'];
   kills: number;
+  /** M8: the boss's cannon (falling, landed, firing) and the balls in flight. */
+  cannons?: World['cannons'];
+  balls?: World['balls'];
   lastKillKind?: ActorKind;
   /** Sim events since the last snapshot, in order. */
   events: [keyof GameEvents, unknown][];
@@ -94,7 +97,7 @@ export class SnapshotWriter {
     const actors = w.actors.filter((a) => full || a.corpse?.phase !== 'frozen' || this.justFrozen.has(a.id)).map(snapActor);
     const snap: Snapshot = {
       session: this.session, roomId: w.room.id, tick: w.tick, full, actors,
-      items: w.items, doors: w.doors.map((d) => d.open), props: w.room.props, kills: w.kills, lastKillKind: w.lastKillKind,
+      items: w.items, doors: w.doors.map((d) => d.open), props: w.room.props, cannons: w.cannons, balls: w.balls, kills: w.kills, lastKillKind: w.lastKillKind,
       events: full ? [] : this.events,
     };
     this.events = [];
@@ -143,6 +146,8 @@ export function applySnapshot(world: World, s: Snapshot): void {
   }
   world.items = s.items;
   if (s.props) world.room.props = s.props;
+  if (s.cannons) world.cannons = s.cannons;
+  if (s.balls) world.balls = s.balls;
   s.doors.forEach((open, i) => { if (world.doors[i]) world.doors[i].open = open; });
   world.tick = s.tick;
   for (const [type, payload] of s.events) world.events.emit(type, payload as never);

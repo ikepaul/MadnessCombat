@@ -24,6 +24,8 @@ const MARK_TICKS = 42;
 /** boss-halo: the bolt itself shows 2 frames (4 ticks), then an afterglow fades over 0.25 s. */
 const BOLT_TICKS = 4;
 const GLOW_TICKS = 15;
+/** The sweep's ripple rolls out over this long (s): the push itself takes ~0.33 s (boss-halo). */
+const RIPPLE_TIME = 0.5;
 
 export class Vfx {
   private puffs: Puff[] = [];
@@ -40,6 +42,8 @@ export class Vfx {
   /** M8: lightning bolts (screen points) and ward ricochet sparks, ticks left. */
   private bolts: { from: ScreenPoint; to: ScreenPoint; s: number; seed: number; left: number }[] = [];
   private sparks: { x: number; y: number; s: number; facing: number; seed: number; left: number }[] = [];
+  /** Telekinesis ripples (seconds since the push). */
+  private ripples: { x: number; y: number; s: number; dir: number; t: number }[] = [];
 
   /** `blood()` = the current stage shows blood (off for stage 1). */
   constructor(private world: World, private blood: () => boolean) {
@@ -133,6 +137,14 @@ export class Vfx {
     world.events.on('bossArrive', (e) => { if (e.phase === 'land') this.dust(e.x, 0, e.z, 10); });
     // the hover dash kicks up the ground under him; each slam throws up dust and an impact star
     world.events.on('bossDash', (e) => { if (e.phase === 'go') this.dust(e.x, 0, e.z, 8); });
+    // the sweep: a distortion ripple rolling out of his palm; the cannon landing: a dust burst
+    world.events.on('bossSweep', (e) => {
+      if (e.phase !== 'push') return;
+      const [x, y] = project(e.x + e.dir * 0.55, e.y + 0.7, e.z);
+      this.ripples.push({ x, y, s: scaleAt(e.z), dir: e.dir, t: 0 });
+      this.dust(e.x + e.dir * 1.5, 0, e.z, 10);
+    });
+    world.events.on('cannonDrop', (e) => { if (e.phase === 'land') this.dust(e.x, 0, e.z, 18); });
     world.events.on('bossSlam', (e) => {
       const [x, y] = project(e.x, e.y + 0.2, e.z);
       this.stars.push({ x, y, s: scaleAt(e.z), left: STAR_TICKS, big: true });
@@ -171,6 +183,8 @@ export class Vfx {
     this.bolts = this.bolts.filter((b) => b.left > 0);
     for (const sp of this.sparks) sp.left--;
     this.sparks = this.sparks.filter((sp) => sp.left > 0);
+    for (const r of this.ripples) r.t += dt;
+    this.ripples = this.ripples.filter((r) => r.t < RIPPLE_TIME);
     for (const p of this.puffs) {
       p.life += dt;
       p.x += p.vx * dt;
@@ -254,6 +268,7 @@ export class Vfx {
     for (const b of this.booms) this.drawBoom(ctx, b);
     for (const b of this.bolts) this.drawBolt(ctx, b);
     for (const sp of this.sparks) this.drawSparks(ctx, sp);
+    for (const r of this.ripples) this.drawRipple(ctx, r);
     for (const m of this.marks) this.drawMark(ctx, m);
     for (const b of this.blasts) {
       ctx.save();
@@ -357,6 +372,24 @@ export class Vfx {
     const g = ctx.createRadialGradient(b.to[0], b.to[1], 0, b.to[0], b.to[1], 0.35 * b.s);
     g.addColorStop(0, `${BOLT_GLOW}${(0.6 * k).toFixed(3)})`); g.addColorStop(1, `${BOLT_GLOW}0)`);
     ctx.fillStyle = g; ctx.fillRect(b.to[0] - 0.35 * b.s, b.to[1] - 0.35 * b.s, 0.7 * b.s, 0.7 * b.s);
+    ctx.restore();
+  }
+
+  /**
+   * Telekinesis (design/art-direction.md M8: distortion ripple): three arcs rolling out across the
+   * floor in the push direction, widening and fading, a faint cyan edge on a pale wash.
+   */
+  private drawRipple(ctx: Ctx, r: { x: number; y: number; s: number; dir: number; t: number }): void {
+    ctx.save(); ctx.lineCap = 'round';
+    for (let i = 0; i < 3; i++) {
+      const u = r.t / RIPPLE_TIME - i * 0.15;
+      if (u <= 0 || u >= 1) continue;
+      const cx = r.x + r.dir * u * 3.2 * r.s, rad = (0.3 + u * 0.9) * r.s, a = (1 - u) * 0.6;
+      const a0 = r.dir > 0 ? -1.1 : Math.PI - 1.1;
+      ctx.beginPath(); ctx.arc(cx - r.dir * rad * 0.6, r.y, rad, a0, a0 + 2.2);
+      ctx.strokeStyle = `rgba(240,248,255,${(a * 0.5).toFixed(3)})`; ctx.lineWidth = Math.max(4, 0.08 * r.s); ctx.stroke();
+      ctx.strokeStyle = `${BOLT_GLOW}${a.toFixed(3)})`; ctx.lineWidth = Math.max(1.5, 0.012 * r.s); ctx.stroke();
+    }
     ctx.restore();
   }
 

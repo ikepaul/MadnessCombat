@@ -13,7 +13,7 @@ export type Recipe =
   // M7
   | 'telegraph' | 'alert' | 'strain' | 'moan' | 'woodCrash' | 'whistle'
   // M8 boss
-  | 'crackle' | 'thunder' | 'rumble' | 'wardHum' | 'ricochet';
+  | 'crackle' | 'thunder' | 'rumble' | 'wardHum' | 'ricochet' | 'cannonBoom' | 'fallWhistle' | 'heavyLand' | 'telekinesis';
 
 /** Seeded RNG (mulberry32) so variants are stable between runs. */
 function rng(seed: number): () => number {
@@ -342,9 +342,16 @@ export function render(recipe: Recipe, sr: number, seed: number): Float32Array {
     case 'crackle': {
       // the lightning telegraph (0.8 s): electric crackle building under a rising buzz
       const b = new Buf(sr, 0.85);
+      // 70 sparks, denser toward the bolt: each a 20 ms burst of bright noise written in place
+      const len = Math.round(sr * 0.02);
       for (let k = 0; k < 70; k++) {
-        const t0 = 0.8 * Math.pow(r(), 0.6), g = 0.3 + 0.7 * (t0 / 0.8);
-        noise(b, r, () => 7000, (t) => (t < t0 ? 0 : Math.exp(-(t - t0) / 0.004)), g, 2500);
+        const t0 = 0.8 * Math.pow(r(), 0.6), g = 0.3 + 0.7 * (t0 / 0.8), i0 = Math.round(t0 * sr);
+        let prev = 0;
+        for (let i = 0; i < len && i0 + i < b.n; i++) {
+          const x = r() * 2 - 1, hp = x - prev; // crude high-pass: keeps it a sharp snap
+          prev = x;
+          b.d[i0 + i] += hp * g * Math.exp(-i / (sr * 0.004));
+        }
       }
       tone(b, (t) => 120 + 180 * (t / 0.8), (t) => Math.min(1, t / 0.8) * (t < 0.8 ? 1 : 0), 0.25, 'saw');
       return normalise(b.d, 0.5);
@@ -378,6 +385,36 @@ export function render(recipe: Recipe, sr: number, seed: number): Float32Array {
       noise(b, r, () => 8000, ad(0.0005, 0.006), 1, 2000);
       tone(b, (t) => f0 * Math.exp(-t * 2.2), (t) => (t < 0.01 ? t / 0.01 : Math.exp(-(t - 0.01) / 0.12)), 0.6);
       return normalise(b.d, 0.5);
+    }
+    case 'cannonBoom': {
+      // the cannon firing: a deep boom with a crack on top and a long tail
+      const b = new Buf(sr, 1.3);
+      noise(b, r, () => 6000, ad(0.0008, 0.015), 1, 800);
+      noise(b, r, (t) => 900 * Math.exp(-t * 5) + 90, ad(0.004, 0.35), 1.1, 30);
+      tone(b, (t) => 70 * Math.exp(-t * 2) + 30, ad(0.004, 0.3), 0.9);
+      return normalise(b.d, 0.9);
+    }
+    case 'fallWhistle': {
+      // something heavy falling out of the sky: a falling whistle over the shadow's 0.8 s + the drop
+      const b = new Buf(sr, 1.25);
+      tone(b, (t) => 1500 * Math.exp(-t * 1.1) + 250, (t) => Math.min(1, t / 0.3) * (t < 1.15 ? 1 : Math.max(0, 1 - (t - 1.15) / 0.1)), 0.5);
+      noise(b, r, (t) => 2500 * Math.exp(-t) + 400, (t) => Math.min(1, t / 0.5) * (t < 1.15 ? 0.5 : 0), 0.3, 300);
+      return normalise(b.d, 0.4);
+    }
+    case 'heavyLand': {
+      // the cannon slamming onto its stand: iron clang over a ground-shaking thud
+      const b = new Buf(sr, 1.0);
+      tone(b, (t) => 50 * Math.exp(-t * 3) + 28, ad(0.003, 0.35), 1);
+      noise(b, r, () => 700, ad(0.002, 0.12), 0.9, 40);
+      for (const [f, g] of [[310, 0.4], [747, 0.25], [1290, 0.15]] as const) tone(b, () => jitter(f, 0.03), ad(0.002, 0.4), g);
+      return normalise(b.d, 0.9);
+    }
+    case 'telekinesis': {
+      // the sweep: a pressure wave, a low warped whoosh rising and rushing away
+      const b = new Buf(sr, 0.9);
+      noise(b, r, (t) => 300 + 1600 * Math.sin(Math.min(1, t / 0.5) * Math.PI) ** 2, swell(0.35, 0.9), 1, 60);
+      tone(b, (t) => 90 + 60 * Math.sin(t * 9), swell(0.35, 0.9), 0.4, 'saw');
+      return normalise(b.d, 0.6);
     }
     case 'tapeStop': {
       const b = new Buf(sr, 0.35);
