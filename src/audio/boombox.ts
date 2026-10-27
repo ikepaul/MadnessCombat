@@ -1,7 +1,8 @@
 // The stage-1 boombox as a diegetic music source (PLAN.md M8, design/audio-direction.md "Music
 // system": positioned in the room, through the room reverb). It plays from wherever the boombox
 // is: in the boombox NPC's hand, on the floor, in the hero's hand. The user's tune once it's
-// delivered (cues.json `diegetic`), radio static until then (no placeholder music is generated).
+// delivered (cues.json `diegetic`); silent until then (no placeholder music is generated, and the
+// radio-static stand-in it used to play read as a constant whoosh over the whole stage).
 // For the outro ("the boombox tune returns") it swells and comes to the middle.
 import { project } from '../render/camera';
 import type { World } from '../sim/world';
@@ -45,7 +46,7 @@ export class BoomboxSource {
     if (this.voice !== undefined) { this.engine.place(this.voice, o); return; }
     if (this.starting) return;
     const tune = diegeticTrack(this.engine, r.id);
-    if (!tune) { this.voice = this.engine.play('boomboxStatic', o); this.engine.place(this.voice, o, 0); return; }
+    if (!tune) return;
     this.starting = true;
     void tune.then((buf) => {
       this.starting = false;
