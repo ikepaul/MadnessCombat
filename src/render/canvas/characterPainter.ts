@@ -179,7 +179,9 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
     // tilt toward the aim, at most 0.25 rad
     ctx.rotate(sk.head[2] + (aim !== undefined ? Math.max(-0.25, Math.min(0.25, aim * 0.18)) : 0));
     paintHead(ctx, col.skin, col.skinHi, pose.dead);
-    if (a.variant === 'leader' || a.variant === 'bodyguard') paintHeadGear(ctx, a.variant);
+    if (a.variant === 'leader' || a.variant === 'bodyguard' || a.variant === 'welder') paintHeadGear(ctx, a.variant);
+    // M10: knocked silly or out cold: stars round the head
+    if (pose.dazed) dazedStars(ctx, time);
     else if (isNpc(a.variant)) paintNpcHead(ctx, a.variant);
     else if (isStage2Cast(a.variant)) paintStage2Head(ctx, a.variant);
     if (opts.blood) for (const [wx, wy] of pose.wounds) if (wy <= -0.6) burst(ctx, wx - 0.01, wy + 0.79, 0.035, BLOOD, 7);
@@ -207,6 +209,7 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
     }
     // an unaware guard smoking (melee-stealth-kill): the cigarette, brighter on a drag
     if (smoking(a)) cigarette(ctx, sk.handF, time);
+    if (pose.welding) weldingTorch(ctx, sk.handF, time);
     // carried by the handle, hanging below the hand
     if (a.carry === 'boombox' && !pose.dead) paintBoombox(ctx, sk.handF[0], sk.handF[1] - 0.01, time);
     if (pose.held) {
@@ -221,6 +224,43 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
   ctx.restore();
   // PLAN.md M7: the enemy aim telegraph, a dashed red line from the muzzle to the aim point
   if (pose.telegraph !== undefined && rigF && target && !pose.dead) telegraphLine(ctx, rigF.muzzle, target, pose.telegraph, s, time);
+}
+
+/** Three little stars circling over the head (head space). */
+function dazedStars(ctx: Ctx, time: number): void {
+  for (let k = 0; k < 3; k++) {
+    const a = time * 4 + (k * Math.PI * 2) / 3, x = Math.cos(a) * 0.2, y = -0.3 + Math.sin(a) * 0.05;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) { const r = i % 2 ? 0.018 : 0.045, t = (i / 10) * Math.PI * 2 - Math.PI / 2; ctx.lineTo(Math.cos(t) * r, Math.sin(t) * r); }
+    ctx.closePath();
+    ctx.fillStyle = '#fff3b0'; ctx.fill(); ctx.lineWidth = 0.008; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.restore();
+  }
+}
+
+/** enemy-welder: the torch in the front hand, a white-hot tip and sparks spraying off it (screen-bright). */
+function weldingTorch(ctx: Ctx, handF: readonly [number, number, number], time: number): void {
+  ctx.save();
+  ctx.translate(handF[0], handF[1]);
+  ctx.rotate(0.9);
+  ctx.fillStyle = '#3a3b40'; ctx.fillRect(0, -0.018, 0.16, 0.036);
+  ctx.lineWidth = 0.008; ctx.strokeStyle = INK; ctx.strokeRect(0, -0.018, 0.16, 0.036);
+  ctx.translate(0.17, 0);
+  ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 0.16);
+  g.addColorStop(0, 'rgba(255,250,220,0.95)'); g.addColorStop(0.3, 'rgba(140,210,255,0.5)'); g.addColorStop(1, 'rgba(140,210,255,0)');
+  ctx.fillStyle = g; ctx.fillRect(-0.16, -0.16, 0.32, 0.32);
+  // sparks: short bright streaks thrown out and falling
+  for (let k = 0; k < 12; k++) {
+    const u = (time * 3.1 + k * 0.137) % 1, ang = -1.2 + ((k * 0.61) % 1) * 2.4;
+    const r = 0.04 + u * 0.32, x = Math.cos(ang) * r, y = Math.sin(ang) * r + u * u * 0.25;
+    ctx.globalAlpha = 1 - u;
+    ctx.lineWidth = 0.012; ctx.strokeStyle = u < 0.4 ? '#ffffff' : '#ffc070';
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - Math.cos(ang) * 0.04, y - Math.sin(ang) * 0.04 - 0.01); ctx.stroke();
+  }
+  ctx.restore();
 }
 
 const smoking = (a: Actor) => a.ai?.aware === false && a.ai.idle === 'smoke' && !a.pose.dead && a.state === 'free';
@@ -284,10 +324,17 @@ function telegraphLine(ctx: Ctx, from: ScreenPoint, to: ScreenPoint, u: number, 
 }
 
 /** M7 head gear (style frame sheet, own designs), head space: squad leader shades, bodyguard earpiece. */
-export function paintHeadGear(ctx: Ctx, kind: 'leader' | 'bodyguard'): void {
+export function paintHeadGear(ctx: Ctx, kind: 'leader' | 'bodyguard' | 'welder'): void {
   ctx.save();
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  if (kind === 'leader') {
+  if (kind === 'welder') {
+    // style frame M7 sheet: the welder's mask (used in M10's elevator)
+    ctx.strokeStyle = '#3a3b40'; ctx.lineWidth = 0.03;
+    ctx.beginPath(); ctx.moveTo(-0.01, -0.12); ctx.lineTo(-0.19, -0.04); ctx.stroke();
+    ctx.beginPath(); ctx.roundRect(-0.02, -0.175, 0.24, 0.35, 0.06); ctx.fillStyle = '#6b6d73'; ctx.fill(); ctx.lineWidth = 0.016; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.beginPath(); ctx.roundRect(0.05, -0.08, 0.15, 0.065, 0.015); ctx.fillStyle = '#1d2a22'; ctx.fill(); ctx.lineWidth = 0.01; ctx.stroke();
+    ctx.strokeStyle = 'rgba(160,255,190,0.45)'; ctx.lineWidth = 0.008; ctx.beginPath(); ctx.moveTo(0.07, -0.068); ctx.lineTo(0.11, -0.068); ctx.stroke();
+  } else if (kind === 'leader') {
     ctx.lineWidth = 0.012; ctx.strokeStyle = INK;
     ctx.beginPath(); ctx.moveTo(0.02, -0.05); ctx.lineTo(-0.17, -0.07); ctx.stroke();
     ctx.fillStyle = '#18181b';

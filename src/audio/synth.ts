@@ -14,6 +14,8 @@ export type Recipe =
   | 'telegraph' | 'alert' | 'strain' | 'moan' | 'woodCrash' | 'whistle'
   // M9
   | 'cityLoop' | 'wipe' | 'rungs'
+  // M10
+  | 'motorLoop' | 'cutterLoop' | 'ding' | 'cableSnap' | 'stinger'
   // M8 boss
   | 'crackle' | 'thunder' | 'rumble' | 'wardHum' | 'ricochet' | 'cannonBoom' | 'fallWhistle' | 'heavyLand' | 'telekinesis';
 
@@ -423,6 +425,48 @@ export function render(recipe: Recipe, sr: number, seed: number): Float32Array {
       noise(b, r, (t) => 3000 * Math.exp(-t * 8) + 150, swell(0.05, 0.35), 0.8, 60);
       tone(b, (t) => 220 * Math.exp(-t * 6), swell(0.03, 0.35), 0.5);
       return normalise(b.d, 0.5);
+    }
+    case 'motorLoop': {
+      // the elevator climbing: a motor drone with a rattle on the guide rails, 4 s loop
+      const b = new Buf(sr, 4.5);
+      tone(b, (t) => 62 + 3 * Math.sin(t * 1.3), () => 1, 0.5, 'saw');
+      tone(b, () => 124, () => 0.4, 0.2);
+      noise(b, r, () => 700, (t) => 0.35 + 0.35 * Math.max(0, Math.sin(t * 9.3)) ** 6, 0.8, 200);
+      return normalise(bandpass(loopable(b.d, sr), sr, 220, 0.6), 0.35);
+    }
+    case 'cutterLoop': {
+      // enemy-welder: the plasma cutter, a harsh hiss with crackle, 2 s loop
+      const b = new Buf(sr, 2.5);
+      noise(b, r, () => 7000, (t) => 0.7 + 0.3 * Math.sin(t * 31), 1, 1800);
+      const len = Math.round(sr * 0.006);
+      for (let k = 0; k < 60; k++) {
+        const i0 = Math.floor(r() * (b.n - len)), g = 0.4 + r() * 0.6;
+        for (let i = 0; i < len; i++) b.d[i0 + i] += (r() * 2 - 1) * g * Math.exp(-i / (sr * 0.0015));
+      }
+      return normalise(loopable(b.d, sr, 0.3), 0.35);
+    }
+    case 'ding': {
+      // the lift arriving: a two-tone bell
+      const b = new Buf(sr, 1.2);
+      tone(b, () => 1320, ad(0.002, 0.45), 0.8);
+      tone(b, () => 2640, ad(0.002, 0.2), 0.25);
+      tone(b, () => 1046, (t) => (t < 0.28 ? 0 : Math.exp(-(t - 0.28) / 0.5)), 0.8);
+      return normalise(b.d, 0.4);
+    }
+    case 'cableSnap': {
+      // world-destructible: steel cables parting, a whip-crack and a long ringing twang
+      const b = new Buf(sr, 1.2);
+      noise(b, r, () => 9000, ad(0.0005, 0.01), 1, 2500);
+      tone(b, (t) => 420 * Math.exp(-t * 1.5) + 80, ad(0.001, 0.4), 0.7, 'saw');
+      tone(b, () => jitter(1650, 0.05), ad(0.001, 0.25), 0.3);
+      return normalise(b.d, 0.75);
+    }
+    case 'stinger': {
+      // the stage 2 ending: a silence-breaking low impact with a long dark tail
+      const b = new Buf(sr, 2.6);
+      tone(b, (t) => 55 * Math.exp(-t * 0.3), ad(0.004, 0.9), 1, 'saw');
+      noise(b, r, (t) => 1200 * Math.exp(-t * 2) + 100, ad(0.002, 0.5), 0.6, 30);
+      return normalise(bandpass(b.d, sr, 140, 0.5), 0.8);
     }
     case 'cityLoop': {
       // stage 2 night streets and rooftops: a low traffic rumble, a soft wind and far-off hum, 9 s loop

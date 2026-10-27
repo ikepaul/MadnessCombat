@@ -326,13 +326,13 @@ Labs: `move-climb-vault`, `world-breach`, `world-objective-radar`, `boss-clown` 
 **Read first:** `research/stages.md` (Stage 2 rooms 7–11), `world-elevator-fight`, `enemy-welder`, `world-destructible`, `world-interrogate-knockout`, `boss-target` (clip 2), `world-last-stand` (ep2 ending).
 
 Build:
-- [ ] **Elevator room**: moving cab (scrolling shaft), two player positions (inside / on the roof via the hatch), roof attackers, **welder** cutting a slot in ≈ 2.7 s (kill him to stop it), a gunner firing down through it, grenade drop → throw-back, drops through the hole, door ambush, destructible cables → the cab falls, cable-climb transition.
-- [ ] Sword room (blade disarms, **dazed** state ≈ 5 s, invented), lobby (dual shotguns, **hold-up → interrogate → knockout**), crate room (cover AI facing the lift, vent flank, lift ambush from behind).
-- [ ] Final office: the target behind the desk (peek and shoot every ≈ 1.5 s, invented), two bodyguards, **shoot-to-disarm → surrender** → non-interactive ending cutscene (the boss shoots the player from behind) → our own end card + body count vs. 86.
+- [x] **Elevator room**: moving cab (scrolling shaft), two player positions (inside / on the roof via the hatch), roof attackers, **welder** cutting a slot in ≈ 2.7 s (kill him to stop it), a gunner firing down through it, grenade drop → throw-back, drops through the hole, door ambush, destructible cables → the cab falls, cable-climb transition.
+- [x] Sword room (blade disarms, **dazed** state ≈ 5 s, invented), lobby (dual shotguns, **hold-up → interrogate → knockout**), crate room (cover AI facing the lift, vent flank, lift ambush from behind).
+- [x] Final office: the target behind the desk (peek and shoot every ≈ 1.5 s, invented), two bodyguards, **shoot-to-disarm → surrender** → non-interactive ending cutscene (the boss shoots the player from behind) → our own end card + body count vs. 86.
 
 Look & sound:
-- [ ] Shaft parallax scroll, welder sparks (bright, additive) + cut-line glow, cable snap + fall shake, interrogation speech bubbles (pictogram style, no text from the show), dazed stars.
-- [ ] Elevator motor/rattle, plasma cutter loop, cable snap + fall wind + crash, lift ding, stage 2 ending stinger (silence → impact).
+- [x] Shaft parallax scroll, welder sparks (bright, additive) + cut-line glow, cable snap + fall shake, interrogation speech bubbles (pictogram style, no text from the show), dazed stars.
+- [x] Elevator motor/rattle, plasma cutter loop, cable snap + fall wind + crash, lift ding, stage 2 ending stinger (silence → impact).
 
 Acceptance: elevator scripted events fire in order, and the cables only break after the door ambush · the hold-up only triggers on the last unarmed enemy · the stage completes with a scripted bot.
 Labs: `world-elevator-fight`, `enemy-welder`, `world-destructible` (clip 1), `world-interrogate-knockout`, `boss-target` (clip 2).

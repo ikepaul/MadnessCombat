@@ -68,7 +68,7 @@ export interface AiState {
   guard?: number;
   guardSide?: 1 | -1;
   /** M8 wave B: this grunt goes for the boss's cannon and fires it (no cannon: he just fights). */
-  role?: 'cannon';
+  role?: 'cannon' | 'welder' | 'roof';
   /** M9 world-breach: caught off guard by an entry from above, this many seconds left. */
   surpriseT?: number;
 }
@@ -181,6 +181,13 @@ export function gruntBrain(world: World): Brain {
     ai.cooldown = Math.max(0, ai.cooldown - dt);
     // being taken down: held still
     if (checkHeld(world, a)) return { ...IDLE_COMMAND };
+    // M10 enemy-welder: the room script works him
+    if (ai.role === 'welder') return { ...IDLE_COMMAND, face: a.facing };
+    // M10: hands up (a hold-up): stand still facing whoever holds him
+    if (a.surrendered) {
+      const p = world.activePlayers[0];
+      return { ...IDLE_COMMAND, face: p && p.pos.x < a.pos.x ? -1 : 1 };
+    }
     // world-breach: someone just dropped through the ceiling
     if ((ai.surpriseT ?? 0) > 0) {
       ai.surpriseT! -= dt;
@@ -286,6 +293,8 @@ function rangedStep(world: World, a: Actor, p: Actor, gun: NonNullable<ReturnTyp
   // the gun hangs lowered (pointing at the floor ahead) until it's raised to aim
   const lowered = project(a.pos.x + face * 2, a.pos.y + 0.1, a.pos.z);
   if (a.state !== 'free' && a.state !== 'attack') { stopAiming(world, a); return { ...IDLE_COMMAND, face }; }
+  // M10 the elevator roof gunner: stays put and only shoots once the welder's slot is open
+  if (ai.role === 'roof' && !world.flags.has('slotOpen')) { stopAiming(world, a); return { ...IDLE_COMMAND, face, aim: lowered }; }
 
   // firing a burst (automatic guns): keep the trigger down
   if (ai.burstT !== undefined) {
@@ -365,6 +374,7 @@ function rangedStep(world: World, a: Actor, p: Actor, gun: NonNullable<ReturnTyp
     world.events.emit('aimStart', { actorId: a.id, targetId: p.id, weapon: w.id, ...a.pos });
     return { ...IDLE_COMMAND, face, aim: chestAim(p) };
   }
+  if (ai.role === 'roof') return { ...IDLE_COMMAND, face, aim: lowered };
   return { ...positionFor(world, a, p, w, face), face, aim: lowered };
 }
 

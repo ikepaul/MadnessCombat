@@ -77,6 +77,14 @@ export interface Pose {
   hurt: number;
   /** A cooked grenade in the front hand (M6). */
   grenade?: boolean;
+  /** M10: stars over the head (dazed / knocked out). */
+  dazed?: boolean;
+  /** M10: hands up. */
+  handsUp?: boolean;
+  /** M10 enemy-welder: cutting (sparks, the torch). */
+  welding?: boolean;
+  /** M10: ducked behind cover (the target behind his desk). */
+  ducked?: boolean;
   /** Enemy aim telegraph progress 0..1 (gun raised, red line); undefined = not aiming (M7). */
   telegraph?: number;
   /** Zombie green spreading over the body while it rises, 0..1 (M7). */
@@ -243,12 +251,22 @@ export interface Actor {
   catchAt?: number;
   /** Hits absorbed while held as a human shield (combat-human-shield). */
   shieldHits?: number;
+  /** M10: a melee kill leaves this one dazed instead (stars, ~5 s), once. */
+  dazeOnDefeat?: boolean;
+  /** M10: lying dazed until this world time. */
+  dazedUntil?: number;
+  /** M10: knocked out after an interrogation: stays down, out of the fight. */
+  koed?: boolean;
+  /** M10: hands up (a hold-up, the target's surrender). */
+  surrendered?: boolean;
+  /** M10: hits only make him flinch (the target in his last room: shoot the gun out of his hand). */
+  protected?: boolean;
   /** M9: can't be hurt (the target before his final room, the boss's cameo); rays pass through. */
   invulnerable?: boolean;
   /** M9 room transitions: climbing out, vaulting in, walking out (moved by the stage runner, not stepped). */
-  traversing?: { kind: 'vault' | 'climb' | 'crawl' | 'out' | 'drop'; t: number };
+  traversing?: { kind: 'vault' | 'climb' | 'crawl' | 'out' | 'drop' | 'hatch'; t: number };
   /** M7 grunt variants: squad leader (shades, gun), elite bodyguard (2 hits, headshot 1), the VIP they guard. */
-  variant?: 'leader' | 'bodyguard' | 'vip' | 'riot' | 'target' | NpcVariant;
+  variant?: 'leader' | 'bodyguard' | 'vip' | 'riot' | 'target' | 'welder' | NpcVariant;
   /** M8: something carried that isn't a weapon (the boombox NPC's boombox), drawn at the front hand. */
   carry?: 'boombox';
   /** Being taken down (stealth kill) by this actor: held still until the kill (M7). */

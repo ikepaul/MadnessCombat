@@ -55,6 +55,11 @@ export type PropDef = TableDef | PoleDef | CannonPropDef | CrateDef;
 /** A floor area (H). */
 export interface Zone { x0: number; x1: number; z0: number; z1: number }
 
+/** An upper floor at height `y` (H); `holes` are open gaps you fall through. */
+export interface Deck extends Zone { y: number; holes: Zone[] }
+
+export const inZone = (z: Zone, x: number, zz: number) => x >= z.x0 && x <= z.x1 && zz >= z.z0 && zz <= z.z1;
+
 export interface LampDef {
   x: number;
   z: number;
@@ -89,6 +94,13 @@ export interface RoomDef {
   holes?: Zone[];
   /** Street flavour: a manhole cover at (x, z). */
   manhole?: { x: number; z: number };
+  /**
+   * M10: walkable upper floors with no solid sides (the elevator cab's roof). You stand on one once
+   * your feet are at its height; open holes in it (the hatch, a cut slot) drop you through.
+   */
+  decks?: Deck[];
+  /** M10 world-elevator-fight: this room is the elevator cab in its shaft. */
+  elevator?: { cable: { x: number; z: number }; hatch: Zone; slot: Zone };
   doors: DoorDef[];
   props: PropDef[];
   lamps: LampDef[];

@@ -7,6 +7,8 @@ import { bossInterruption, corridorSquad } from '../data/stages/stage2Script';
 import { createActor, newHand } from '../sim/actor';
 import { stageRunner } from '../sim/stage';
 import { WaveDirector } from '../sim/waves';
+import { gruntBrain, newAiState } from '../sim/ai';
+import { holdUps } from '../sim/interrogate';
 import type { World } from '../sim/world';
 import { registerLab } from './registry';
 
@@ -93,4 +95,65 @@ registerLab({
   palette: 'cool',
   setup(world) { stageFrom(world, 'office').hands[0] = newHand('pistolSuppressed', undefined, 2); },
   info: (world) => `target ${world.actors.some((a) => a.variant === 'target') ? 'in the room' : 'gone'}`,
+});
+
+// ---------- M10 ----------
+
+registerLab({
+  slug: 'world-elevator-fight',
+  title: `The elevator (ep2 2:20-2:53): two land on the roof, the welder cuts a slot, the gunner fires down, a grenade drops in (throw it back), three drop through; the doors open on gunmen: up through the hatch (E under it), shoot the cables, and the cab falls with them inside. ${CONTROLS}`,
+  palette: 'cool',
+  setup(world) { stageFrom(world, 'elevator').hands[0] = newHand('smg', undefined, 3); },
+  info: (world) => `cab ${world.elevator?.phase ?? '-'}  ·  cut ${world.elevator?.cut !== undefined ? Math.round(world.elevator.cut * 100) + '%' : '-'}  ·  cables ${world.elevator?.cableLocked ? 'locked' : world.elevator?.cableHp ?? '-'}`,
+});
+
+registerLab({
+  slug: 'enemy-welder',
+  title: `The welder (ep2 2:24): he cuts a slot in the cab roof in ~2.7 s so the gunner can fire down through it. Shoot him first (aim up through the ceiling) and there's no slot. ${CONTROLS}`,
+  palette: 'cool',
+  setup(world) { stageFrom(world, 'elevator').hands[0] = newHand('pistol', undefined, 3); },
+  info: (world) => `cut ${world.elevator?.cut !== undefined ? Math.round(world.elevator.cut * 100) + '%' : world.flags.has('slotOpen') ? 'slot open' : '-'}`,
+});
+
+registerLab({
+  slug: 'world-destructible',
+  title: `Cables (ep2 2:48): once the doors have opened and you're up on the roof, three shots part the cables and the cab drops with everyone inside. ${CONTROLS}`,
+  palette: 'cool',
+  setup(world) {
+    const hero = stageFrom(world, 'elevator');
+    hero.hands[0] = newHand('rifle', undefined, 3);
+  },
+  info: (world) => `cables ${world.elevator?.cableLocked ? 'locked (not yet)' : `${world.elevator?.cableHp ?? '-'} hits left`}`,
+});
+
+registerLab({
+  slug: 'world-interrogate-knockout',
+  title: `Hold-up (ep2 3:18): the last grunt in the lobby is unarmed. Keep a gun on him up close and he puts his hands up; E next to him: the questions (pictograms) and the gun butt. ${CONTROLS}`,
+  palette: 'cool',
+  setup(world) {
+    world.setRoom(STAGE2.rooms.lobby.room);
+    const hero = createActor('hero', -0.8, 9.2, 1);
+    hero.hands[0] = newHand('pistol', undefined, 2);
+    world.addPlayer(hero);
+    const g = createActor('grunt', 1.6, 9.2, -1);
+    g.ai = newAiState(world);
+    g.brain = gruntBrain(world);
+    world.actors.push(g);
+    world.seq.run(holdUps);
+  },
+  info: (world) => {
+    const g = world.actors.find((a) => a.kind === 'grunt');
+    return g ? (g.koed ? 'out cold' : g.surrendered ? 'hands up: press E next to him' : 'walk up with the gun on him') : '-';
+  },
+});
+
+registerLab({
+  slug: 'boss-target-surrender',
+  title: `The target's last stand (ep2 3:50): he ducks behind the desk and pops up to shoot; hits only make him flinch. Shoot the pistol out of his hand: he gives up, and the ending plays. ${CONTROLS}`,
+  palette: 'cool',
+  setup(world) { stageFrom(world, 'final').hands[0] = newHand('pistol', undefined, 4); },
+  info: (world) => {
+    const t = world.actors.find((a) => a.variant === 'target');
+    return t ? (t.surrendered ? 'surrendered' : t.pose.ducked ? 'ducked' : 'up, shooting') : '-';
+  },
 });
