@@ -62,8 +62,9 @@ export const TUNING = {
     cut: 2.7,
     /** Hits the cables take before they part. */
     cableHits: 3,
-    /** Pulling up through the hatch (H/s). */
+    /** Pulling up through the hatch (H/s); E works this far round the hole (H). */
     climbSpeed: 2.2,
+    hatchSlack: 0.3,
   },
   /** M10 world-interrogate-knockout. invented */
   interrogate: {
