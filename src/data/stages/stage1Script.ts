@@ -145,8 +145,9 @@ export function* bossFight(s: Seq) {
   const boss = spawnBoss(world, side * B.x, B.z, -side as 1 | -1);
   yield* s.until(() => boss.boss?.phase === 'fight' || dead(boss));
 
+  // his first raise (a strike at a hero doesn't count)
   let bolted = false;
-  const off = world.events.on('lightning', () => (bolted = true));
+  const off = world.events.on('zombieRise', (e) => { if (e.phase === 'start') bolted = true; });
   yield* s.until(() => bolted || dead(boss), B.boltWait);
   off();
   if (bolted) yield B.smgAfterBolt;

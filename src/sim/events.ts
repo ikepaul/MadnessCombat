@@ -129,6 +129,10 @@ export interface GameEvents {
   ward: At & { up: boolean };
   /** A ray stopped on the ward: ricochet sparks at that screen point. */
   wardHit: { actorId: number; at: [number, number] };
+  /** Hover dash: the wind-up (leans back), then the glide toward `targetId`. */
+  bossDash: At & { targetId: number; phase: 'windup' | 'go' };
+  /** He slammed the held hero into the floor (shake, dust); `n` counts up from 1. */
+  bossSlam: At & { targetId: number; n: number };
 }
 
 export type HitKind =
@@ -136,7 +140,9 @@ export type HitKind =
   // M6: knife stab, blade swing, blunt swing, thrown blade, explosion, long-weapon pin
   | 'stab' | 'slash' | 'smash' | 'knife' | 'blast' | 'pin'
   // M7: silent stealth kill
-  | 'takedown';
+  | 'takedown'
+  // M8: the boss's lightning strike
+  | 'lightning';
 
 /** Melee hits (combos chain these). */
 export const MELEE_KINDS: HitKind[] = ['light', 'heavy', 'uppercut', 'finisher', 'stab', 'slash', 'smash'];

@@ -9,7 +9,7 @@ import { registerLab } from './registry';
 
 registerLab({
   slug: 'boss-halo',
-  title: 'Stage-1 boss: floats down in 0.67 s, raises a corpse with lightning (hand up + crackle 0.8 s, bolt 2 frames, rise 1.0 s, at most 2 zombies), ward blocks shots from his front ~1 s then a 1.5 s window; 3 head shots kill. You have an SMG (R reloads, life refills). The 4 corpses respawn when gone.',
+  title: 'Stage-1 boss: floats down in 0.67 s; lightning (hand up + crackle 0.8 s) raises a corpse (at most 2 zombies) or strikes where you stood (move to dodge; knockdown + your gun flies off); up close he dashes (2.3 H in 0.27 s), grabs and slams you 6 times (mash any button to cut it short), then throws you; the ward blocks shots from his front ~1 s, then a 1.5 s window; 3 head shots kill. You have an SMG (R reloads, life refills). The 4 corpses respawn when gone.',
   setup(world) {
     world.setRoom(STAGE1.rooms.arena.room);
     const hero = createActor('hero', 2, 9.4, -1);
@@ -33,6 +33,8 @@ registerLab({
     const s = b.boss;
     const ward = s.ward > 0 ? `UP ${s.ward.toFixed(1)} s` : s.window > 0 ? `window ${s.window.toFixed(1)} s` : 'ready';
     const zombies = world.actors.filter((a) => a.kind === 'zombie' && alive(a)).length;
-    return `${s.phase}  ·  hp ${b.hp}/${TUNING.boss.hp}  ·  ward ${ward}  ·  ${s.cast ? `casting ${s.cast.t.toFixed(2)} s` : `next raise ${Math.max(0, s.raiseIn).toFixed(1)} s`}  ·  zombies ${zombies}/${TUNING.boss.maxZombies}`;
+    const act = s.act ? (s.act.kind === 'cast' ? `${s.act.spell} ${s.act.t.toFixed(2)} s` : s.act.kind === 'grab' ? `slam ${s.act.done}/${s.act.slams} (mash!)` : s.act.kind) : 'hovering';
+    const next = `raise ${Math.max(0, s.raiseIn).toFixed(1)} · strike ${Math.max(0, s.strikeIn).toFixed(1)} · dash ${Math.max(0, s.dashIn).toFixed(1)}`;
+    return `${s.phase}  ·  hp ${b.hp}/${TUNING.boss.hp}  ·  ward ${ward}  ·  ${act}  ·  next ${next}  ·  zombies ${zombies}/${TUNING.boss.maxZombies}`;
   },
 });

@@ -67,6 +67,11 @@ export class FeelDirector {
     });
     // M8: scripted shakes (a landing boss, a falling cannon); the boss's lightning cracks the screen
     world.events.on('cameraShake', (e) => this.sink.shake(e.px, e.seconds));
+    // art direction: boss slam 10 px, with a short freeze on each impact
+    world.events.on('bossSlam', () => {
+      this.stop(FEEL.hitStop.light);
+      this.sink.shake(FEEL.shake.bossSlam, FEEL.shake.decayMin + 0.1);
+    });
     world.events.on('lightning', () => {
       this.sink.shake(FEEL.shake.lightning, FEEL.shake.decayMin + 0.1);
       this.sink.chromatic(FEEL.chromatic.kill.px, FEEL.chromatic.kill.frames);

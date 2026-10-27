@@ -9,6 +9,7 @@ import { project, type ScreenPoint, scaleAt } from '../render/camera';
 import { type Actor, alive, type Hand, newHand } from './actor';
 import type { PlayerCommand } from './command';
 import { castRay, type Surface } from './hitscan';
+import { wardBlocked } from './boss';
 import { dropHeld } from './items';
 import { disarm, pullable, startAction } from './melee';
 import type { World } from './world';
@@ -138,6 +139,7 @@ function fire(world: World, a: Actor, i: 0 | 1, h: Hand, w: WeaponDef, dual: boo
     if (r.ward) {
       // M8: stopped on the boss's ward, sparks fly off it
       world.events.emit('wardHit', { actorId: r.ward.id, at: r.end });
+      wardBlocked(r.ward);
       rays.push({ end: r.end, surface: 'ward' });
       continue;
     }

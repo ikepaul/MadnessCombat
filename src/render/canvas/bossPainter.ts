@@ -79,7 +79,9 @@ export function paintBoss(ctx: Ctx, a: Actor, o: BossPaintOptions): void {
   const { pose } = a, t = o.time;
   const [fx, fy] = project(a.pos.x, a.pos.y, a.pos.z), s = scaleAt(a.pos.z);
   const [, gy] = project(a.pos.x, 0, a.pos.z);
-  const dead = pose.dead, cast = pose.cast ?? 0, wardK = pose.ward ?? 0;
+  const dead = pose.dead, cast = pose.cast ?? 0, wardK = pose.ward ?? 0, grip = dead ? 0 : pose.grip ?? 0;
+  /** Hands go from the sides to over his head while he holds someone up (body slams). */
+  const up = (x0: number, y0: number, x1: number, y1: number): [number, number] => [x0 + (x1 - x0) * grip, y0 + (y1 - y0) * grip];
   const lit = dead ? 0 : 1;
 
   // floor shadow: smaller and lighter the higher he floats (the descent's telegraph)
@@ -96,7 +98,8 @@ export function paintBoss(ctx: Ctx, a: Actor, o: BossPaintOptions): void {
   ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   const sway = Math.sin(t * 2.4 + 1) * 0.012;
 
-  hand(ctx, -0.21, -0.3 + sway);
+  const back = up(-0.21, -0.3 + sway, -0.12, -1.18);
+  hand(ctx, back[0], back[1]);
   poly(ctx, [[-0.13, -0.58], [-0.35, -0.97], [-0.17, -1.07], [0, -0.68]]);
   ctx.fillStyle = BOSS.collar; ctx.fill(); ctx.lineWidth = 0.016; ctx.strokeStyle = INK; ctx.stroke();
 
@@ -136,8 +139,9 @@ export function paintBoss(ctx: Ctx, a: Actor, o: BossPaintOptions): void {
     hand(ctx, 0.3, -0.6 + sway, 0.07); glow(ctx, 0.3, -0.6 + sway, 0.14, 0.4 * wardK);
     ward(ctx, wardK, t);
   } else {
-    hand(ctx, 0.21, -0.3 - sway);
-    if (lit) glow(ctx, 0.21, -0.3 - sway, 0.1, 0.25);
+    const front = up(0.21, -0.3 - sway, 0.22, -1.18);
+    hand(ctx, front[0], front[1]);
+    if (lit) glow(ctx, front[0], front[1], 0.1 + 0.08 * grip, 0.25 + 0.3 * grip);
   }
   ctx.restore();
 }

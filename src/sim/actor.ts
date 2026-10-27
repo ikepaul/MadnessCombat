@@ -86,6 +86,8 @@ export interface Pose {
   /** M8 boss: ward strength 0..1 (drawn in front of him), lightning telegraph progress 0..1 (hand up). */
   ward?: number;
   cast?: number;
+  /** M8 boss: 0..1 both hands up, holding the hero overhead (body slams). */
+  grip?: number;
 }
 
 export type MoveState = 'ground' | 'air' | 'goingProne' | 'diving' | 'prone' | 'standingUp';

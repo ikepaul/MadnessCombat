@@ -131,6 +131,13 @@ export class Vfx {
       this.sparks.push({ x: e.at[0], y: e.at[1], s: a ? scaleAt(a.pos.z) : 200, facing: a?.facing ?? 1, seed: Math.floor(Math.random() * 1e9), left: 4 });
     });
     world.events.on('bossArrive', (e) => { if (e.phase === 'land') this.dust(e.x, 0, e.z, 10); });
+    // the hover dash kicks up the ground under him; each slam throws up dust and an impact star
+    world.events.on('bossDash', (e) => { if (e.phase === 'go') this.dust(e.x, 0, e.z, 8); });
+    world.events.on('bossSlam', (e) => {
+      const [x, y] = project(e.x, e.y + 0.2, e.z);
+      this.stars.push({ x, y, s: scaleAt(e.z), left: STAR_TICKS, big: true });
+      this.dust(e.x, 0, e.z, 10);
+    });
     world.events.on('tick', () => this.step(world.dt));
   }
 

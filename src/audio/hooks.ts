@@ -135,6 +135,8 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
   world.events.on('bossCast', (e) => play('crackle', at(e.x, e.y + 1.2, e.z)));
   world.events.on('lightning', (e) => { play('thunder', at(e.to.x, e.to.y, e.to.z)); engine.duck(0.3); });
   world.events.on('ward', (e) => { if (e.up) play('wardHum', at(e.x, e.y + 0.7, e.z)); });
+  world.events.on('bossDash', (e) => play(e.phase === 'go' ? 'whooshThrow' : 'cloth', at(e.x, e.y + 0.6, e.z, e.phase === 'go' ? { rate: 0.8 } : { gain: 0.6 })));
+  world.events.on('bossSlam', (e) => { const p = at(e.x, e.y, e.z); play('impactHeavy', p); play('crack', { ...p, gain: 0.7 }); });
   world.events.on('wardHit', (e) => {
     const a = world.actorById(e.actorId);
     if (a) play('ricochet', at(a.pos.x + a.facing * 0.6, a.pos.y + 0.7, a.pos.z));

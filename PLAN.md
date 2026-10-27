@@ -286,7 +286,8 @@ Build:
 - [x] Wave A (from M3) → scripted grenade pickup → blow up the pile.
 - [ ] **Boss, stage-1 fight**: descend with a shadow. Lightning raise of 1–2 zombies from intact corpses (telegraph: raised hand + crackle). Cross-shaped shield → **our own shield shape** (blocks frontal rays ~1 s, then a window). Lightning strike = knockdown + disarm. Scripted SMG pickup. Hover dash (≈ 2–2.5 H in 0.27 s) → grab → 5–6 body slams every 0.5–0.67 s (mashing shortens, invented) → throw. Telekinetic corpse sweep. Summon cannon (falls with a shadow) → volleys every 1.3 s, ball 26 H/s (dodge by jump/prone), ≈ 4 shots. Dies to headshots while unshielded (boss HP invented).
   - [x] Part 1: descent with a shadow, lightning raise (telegraph, max 2 zombies), the ward (diamond, ~1 s + 1.5 s window, front side only), scripted SMG pickup, 3 head hits kill.
-  - [ ] Part 2: lightning strike (knockdown + disarm), hover dash → grab → body slams → throw, corpse sweep, cannon phase.
+  - [x] Part 2: lightning strike (lands where you stood when his hand went up: knockdown + disarm; answers a blocked burst), hover dash (wind-up 0.25 s, ~2 H in 0.27 s) → grab → 6 body slams every 0.58 s (mashing cuts it to 2) → throw (one life). A teammate's head shot makes him let go.
+  - [ ] Part 3: corpse sweep, cannon phase.
 - [ ] Wave B (≈ 9 grunts) with pickups (sawed-off, knives, 2 pistols). A grunt can man the cannon (an enemy uses a prop weapon). Jump onto the cannon, split-aim.
 - [ ] Ending: pick up the boombox, dance emote, body-count card vs. 32.
 

@@ -64,10 +64,12 @@ describe('boss entrance', () => {
 
 describe('lightning raise', () => {
   it('telegraphs with his hand, then a bolt raises an intact corpse; at most 2 zombies at a time', () => {
-    const { world, hero } = setup(3.2, -2);
+    const { world, hero, boss } = setup(3.2, -2);
     world.spawnCorpses(4);
     const casts = record(world, 'bossCast'), bolts = record(world, 'lightning'), rises = record(world, 'zombieRise');
     landed(world);
+    // raises only in this test
+    boss.boss!.strikeIn = boss.boss!.dashIn = Infinity;
     tick(world, {}, secs(B.firstRaise) + 1);
     expect(casts).toHaveLength(1);
     expect(bolts).toHaveLength(0); // still the telegraph
@@ -83,13 +85,13 @@ describe('lightning raise', () => {
   });
 
   it("doesn't raise gibbed corpses, and casts nothing with none left", () => {
-    const { world } = setup();
+    const { world, hero } = setup();
     world.spawnCorpses(2);
     for (const a of world.actors) if (a.corpse) a.corpse.gibbed = true;
     const casts = record(world, 'bossCast');
     landed(world);
     tick(world, {}, secs(5));
-    expect(casts).toHaveLength(0);
+    expect(casts.filter((c) => c.targetId !== hero.id)).toHaveLength(0);
   });
 });
 
@@ -99,6 +101,8 @@ describe('ward and damage', () => {
     hero.hands[0] = newHand('pistol', 99, 0);
     const wards = record(world, 'ward'), blocked = record(world, 'wardHit'), hits = record(world, 'hit');
     landed(world);
+    // the ward only in this test: no lightning or dash to keep him busy
+    boss.boss!.strikeIn = boss.boss!.dashIn = boss.boss!.raiseIn = Infinity;
     expect(wards.map((w) => w.up)).toEqual([true]);
     tick(world, { press: [true, false], aim: head(boss) });
     expect(blocked).toHaveLength(1);
@@ -106,6 +110,9 @@ describe('ward and damage', () => {
     expect(boss.hp).toBe(B.hp);
     tick(world, {}, secs(B.wardUp));
     expect(wards.map((w) => w.up)).toEqual([true, false]);
+    // (the blocked shot just queued a strike: tested on its own below)
+    expect(boss.boss!.strikeIn).toBeCloseTo(B.strike.afterWard, 1);
+    boss.boss!.strikeIn = Infinity;
     // the window: a head shot lands
     tick(world, { press: [true, false], aim: head(boss) });
     expect(boss.hp).toBe(B.hp - 1);
@@ -157,5 +164,126 @@ describe('ward and damage', () => {
     tick(world, {}, 10);
     expect(hero.holding).toBeUndefined();
     expect(boss.grabbedBy).toBeUndefined();
+  });
+});
+
+/** Only the move under test: the others wait forever. */
+function only(boss: Actor, move: 'strike' | 'dash' | 'raise') {
+  const s = boss.boss!;
+  s.strikeIn = move === 'strike' ? 0 : Infinity;
+  s.dashIn = move === 'dash' ? 0 : Infinity;
+  s.raiseIn = move === 'raise' ? 0 : Infinity;
+}
+
+describe('lightning strike', () => {
+  it('lands where you stood: knockdown, one life, and the gun flies out of your hand', () => {
+    const { world, hero, boss } = setup(2, -2);
+    landed(world);
+    boss.boss!.window = 99; // no ward in the way
+    hero.hands[0] = newHand('smg');
+    only(boss, 'strike');
+    const bolts = record(world, 'lightning');
+    tick(world, {}, secs(B.castTime) + 2);
+    expect(bolts).toHaveLength(1);
+    expect(bolts[0].targetId).toBe(hero.id);
+    expect(hero.state).toBe('knockback');
+    expect(hero.hp).toBe(hero.maxHp - 1);
+    expect(hero.hands[0]).toBeNull();
+    expect(world.items.some((it) => it.kind === 'smg')).toBe(true);
+  });
+
+  it('moving away during the telegraph dodges it', () => {
+    const { world, hero, boss } = setup(2, -2);
+    landed(world);
+    only(boss, 'strike');
+    tick(world, {}, 1);
+    const bolts = record(world, 'lightning');
+    tick(world, { moveX: 1 }, secs(B.castTime) + 2);
+    expect(bolts).toHaveLength(1);
+    expect(bolts[0].targetId).toBe(0);
+    expect(hero.hp).toBe(hero.maxHp);
+    expect(hero.state).toBe('free');
+  });
+
+  it('a burst his ward blocked is answered with lightning right after it drops', () => {
+    const { world, hero, boss } = setup(2.5, -2);
+    hero.hands[0] = newHand('pistol', 99, 0);
+    landed(world);
+    boss.boss!.strikeIn = boss.boss!.dashIn = boss.boss!.raiseIn = Infinity;
+    tick(world, { press: [true, false], aim: head(boss) });
+    const casts = record(world, 'bossCast');
+    tick(world, {}, secs(B.wardUp + B.strike.afterWard) + 2);
+    expect(casts.map((c) => c.targetId)).toEqual([hero.id]);
+  });
+});
+
+describe('hover dash, grab and body slams', () => {
+  it('dashes ~2 H in 0.27 s after a wind-up and grabs you', () => {
+    const { world, hero, boss } = setup(0.5, -1.8);
+    landed(world);
+    only(boss, 'dash');
+    const x0 = boss.pos.x, dash = record(world, 'bossDash');
+    tick(world, {}, 1);
+    expect(dash.map((d) => d.phase)).toEqual(['windup']);
+    tick(world, {}, secs(B.dash.windup) + 1);
+    expect(dash.map((d) => d.phase)).toEqual(['windup', 'go']);
+    tick(world, {}, secs(B.dash.time) + 1);
+    expect(boss.pos.x - x0).toBeCloseTo(hero.pos.x - B.dash.stopShort - x0, 1);
+    expect(boss.pos.x - x0).toBeGreaterThan(1.8);
+    expect(hero.state).toBe('grabbed');
+    expect(hero.grabbedBy).toBe(boss.id);
+  });
+
+  it('6 slams one every 0.58 s, then the throw: a hard knockdown and one life', () => {
+    const { world, hero, boss } = setup(0.5, -1.8);
+    landed(world);
+    only(boss, 'dash');
+    const slams: number[] = [];
+    world.events.on('bossSlam', () => slams.push(world.time));
+    tick(world, {}, secs(B.dash.windup + B.dash.time) + 2);
+    expect(hero.state).toBe('grabbed');
+    const x0 = hero.pos.x;
+    tick(world, {}, secs(B.slam.lift + B.slam.count * B.slam.every) + 2);
+    expect(slams).toHaveLength(B.slam.count);
+    for (let i = 1; i < slams.length; i++) expect(slams[i] - slams[i - 1]).toBeCloseTo(B.slam.every, 1);
+    expect(hero.hp).toBe(hero.maxHp - 1);
+    expect(hero.grabbedBy).toBeUndefined();
+    expect(hero.state).toBe('knockback');
+    tick(world, {}, 60);
+    expect(Math.abs(hero.pos.x - x0)).toBeGreaterThan(2);
+  });
+
+  it('mashing cuts the slams short', () => {
+    const { world, boss } = setup(0.5, -1.8);
+    landed(world);
+    only(boss, 'dash');
+    const slams = record(world, 'bossSlam');
+    tick(world, {}, secs(B.dash.windup + B.dash.time) + 2);
+    for (let i = 0; i < secs(B.slam.lift + B.slam.count * B.slam.every); i++) tick(world, { attack: i % 2 ? 'light' : null, jump: i % 2 === 0 });
+    expect(slams).toHaveLength(B.slam.minSlams);
+  });
+
+  it('a head shot from a teammate makes him drop you; nobody else can hit you while held', () => {
+    // the hero is the nearer one (he dashes at him); player 2 stands behind the boss
+    const { world, hero, boss } = setup(1.0, -1.0);
+    const partner = createActor('hero', -3.4, 9.4, 1);
+    world.addPlayer(partner);
+    partner.hands[0] = newHand('pistol', 99, 0);
+    landed(world);
+    only(boss, 'dash');
+    boss.boss!.window = 99;
+    tick(world, {}, secs(B.dash.windup + B.dash.time) + 2);
+    expect(hero.state).toBe('grabbed');
+    const g = createActor('grunt', hero.pos.x, hero.pos.z, 1);
+    world.actors.push(g);
+    world.hitActor(g, hero, 'heavy', 1, 0, hero.pos);
+    expect(hero.hp).toBe(hero.maxHp);
+    expect(alive(hero)).toBe(true);
+    world.commands[1] = { ...IDLE_COMMAND, press: [true, false], aim: head(boss) };
+    tick(world);
+    expect(boss.hp).toBe(B.hp - 1);
+    expect(hero.grabbedBy).toBeUndefined();
+    expect(hero.state).toBe('knockback');
+    expect(hero.hp).toBe(hero.maxHp);
   });
 });

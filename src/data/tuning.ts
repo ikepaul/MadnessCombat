@@ -120,6 +120,23 @@ export const TUNING = {
     ward: { x: 0.54, y: -0.62, hw: 0.25, hh: 0.68 },
     /** Head hits (any bullet or thrown gun to the head while the ward is down) to kill him. invented */
     hp: 3,
+    /**
+     * Lightning strike (boss-halo clip 2, ep1 f1729-f1739: knockdown + the gun flies off). Same hand-up
+     * telegraph as the raise; the bolt lands where the target stood when he raised his hand, so
+     * moving dodges it. Timings invented; ep1 strikes right after his shield drops.
+     */
+    strike: { first: 3, every: 5, afterWard: 0.4, range: 8, radius: 0.55, depthBand: 0.35 },
+    /**
+     * Hover dash -> grab (boss-halo clip 3): ~2-2.5 H in 0.27 s (ep1 f1929-f1939). Wind-up, stopping
+     * short, grab reach and cooldowns invented.
+     */
+    dash: { range: 2.6, depthBand: 1.0, first: 2, windup: 0.25, time: 0.27, stopShort: 0.45, reach: 0.65, grabBand: 0.35, coolHit: 6, coolMiss: 3, recover: 0.6 },
+    /**
+     * Body slams (ep1 f1949-f2099): 5-6 slams, one per 0.5-0.67 s, alternating sides, then a throw
+     * onto the pile (f2109-f2139). Mashing (any button) takes a slam off per `mashPer` presses down
+     * to `minSlams`. The whole grab costs the hero one life, on the throw. invented
+     */
+    slam: { count: 6, every: 0.58, lift: 0.4, mashPer: 3, minSlams: 2, throwBoost: 2, recover: 0.8 },
   },
   health: {
     /** decided with the user (2026-10-26): 4 light or 2 heavy hits (light 1, heavy 2). */

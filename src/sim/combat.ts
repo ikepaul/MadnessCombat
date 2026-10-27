@@ -291,6 +291,8 @@ const DAMAGE: Record<HitKind, number> = {
   stab: MELEE.knife.damage, slash: 4, smash: 4, knife: 4, blast: 99, pin: 99,
   // M7: the stealth kill always kills
   takedown: 99,
+  // M8: the boss's lightning strike knocks down (a hero loses one life like any hit)
+  lightning: 2,
 };
 
 /**
@@ -307,6 +309,8 @@ export function applyHit(
   if (o.state === 'getUp' || o.state === 'downed') return; // i-frames (invented); downed heroes are out of the fight
   // M8: the living boss has his own damage rule (src/sim/boss.ts)
   if (o.kind === 'boss' && o.state !== 'dead') { bossHit(world, by, o, kind, part, dirX, dirZ, at); return; }
+  // held up by the boss for the body slams: nobody else gets a hit in (not a human shield)
+  if (o.grabbedBy !== undefined && by?.id !== o.grabbedBy && world.actorById(o.grabbedBy)?.kind === 'boss' && kind !== 'blast') return;
   // combat-human-shield: a body held up as a shield takes what was meant for its holder
   if (o.grabbedBy !== undefined && by?.id !== o.grabbedBy && kind !== 'blast') { shieldHit(world, by, o, kind, at, part); return; }
   const corpse = o.state === 'dead';
@@ -816,7 +820,7 @@ function releaseFrom(world: World, o: Actor): void {
 }
 
 /** Let a carried body fall where it is. */
-function dropBody(o: Actor): void {
+export function dropBody(o: Actor): void {
   const r = o.pose.root.r;
   o.flight = { vx: 0, vz: 0, vy: 0, r, r0: r, rTo: r > 0.1 ? Math.PI / 2 : -Math.PI / 2, spin: 0, phase: 'air', t: 0, airtime: 0.3, hit: [] };
   if (alive(o)) {

@@ -137,7 +137,8 @@ function playStage(world: World, hero: Actor, throwGrenade: boolean) {
   world.events.on('music', (e) => log.music.push(e.cue));
   world.events.on('explosion', () => log.explosions++);
   world.events.on('gib', () => log.gibs++);
-  world.events.on('lightning', () => log.bolts++);
+  // raise bolts only (strikes go at heroes)
+  world.events.on('zombieRise', (e) => { if (e.phase === 'start') log.bolts++; });
   world.events.on('bossArrive', (e) => { if (e.phase === 'descend') log.bossAt = world.time; });
   const mem = { cook: 0 };
   for (let i = 0; i < 60 * 300 && log.cleared.length === 0; i++) {
@@ -182,11 +183,10 @@ describe('stage 1 headless', () => {
   it('drops one grenade per hero after the riot, falling in from above', () => {
     const { world, hero } = setup();
     world.step();
-    let dropped: { y: number; x: number } | undefined;
-    world.events.on('itemDrop', (e) => { const it = world.items.find((i) => i.id === e.itemId); if (it?.kind === 'grenade') dropped = { y: e.y, x: e.x }; });
+    const drops: number[] = [];
+    world.events.on('itemDrop', (e) => { if (world.items.find((i) => i.id === e.itemId)?.kind === 'grenade') drops.push(e.y); });
     playStage(world, hero, false);
-    expect(dropped?.y).toBeCloseTo(GRENADE_BEAT.dropHeight, 5);
-    expect(world.items.filter((it) => it.kind === 'grenade')).toHaveLength(1);
+    expect(drops).toEqual([GRENADE_BEAT.dropHeight]);
   });
 
   it("moves on after the timeout if nobody throws it, so the stage can't stall", () => {
@@ -204,7 +204,7 @@ describe('stage 1 headless', () => {
     const { world, hero } = setup();
     world.step();
     let boltAt = -1, smgAt = -1;
-    world.events.on('lightning', () => { if (boltAt < 0) boltAt = world.time; });
+    world.events.on('zombieRise', (e) => { if (boltAt < 0 && e.phase === 'start') boltAt = world.time; });
     world.events.on('itemDrop', (e) => { if (smgAt < 0 && world.items.find((i) => i.id === e.itemId)?.kind === 'smg') smgAt = world.time; });
     playStage(world, hero, true);
     expect(boltAt).toBeGreaterThan(0);
