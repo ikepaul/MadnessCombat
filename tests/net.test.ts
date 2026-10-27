@@ -193,3 +193,33 @@ describe('snapshots carry stage 3 (M11)', () => {
     expect(puppet.actorById(jet.id)?.hover).toBe(1.3);
   });
 });
+
+describe('guest sees what the host sees (playtest 2026-10-27)', () => {
+  it('snapshots carry the host palette (the guest decides colours and blood from it)', () => {
+    const host = new World(STAGE1.rooms.arena.room);
+    host.addPlayer(createActor('hero', 0, 9.2, 1));
+    const writer = new SnapshotWriter(host, 1, () => 'warm');
+    const s = JSON.parse(JSON.stringify(writer.take())) as Snapshot;
+    expect(s.palette).toBe('warm');
+  });
+
+  it('a flying kick reaches the puppet (its pose leans into it)', () => {
+    const { host, puppet, send } = hostAndPuppet();
+    send();
+    host.players[0].body.kick = true;
+    send();
+    expect(puppet.players[0].body.kick).toBe(true);
+    host.players[0].body.kick = false;
+    send();
+    expect(puppet.players[0].body.kick).toBeFalsy();
+  });
+});
+
+describe('guest exits (playtest 2026-10-27)', () => {
+  it('the room exits reach the puppet, so the guest can show the E prompt', () => {
+    const { host, puppet, send } = hostAndPuppet();
+    host.exits = [{ def: { id: 'vent', kind: 'vent', x0: 2.3, x1: 3.2, z0: 9.9, z1: 10.4, to: 'vent', entry: 'vent' }, open: true }];
+    send();
+    expect(puppet.exits.map((e) => e.def.id)).toEqual(['vent']);
+  });
+});
