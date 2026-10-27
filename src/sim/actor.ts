@@ -262,7 +262,9 @@ export interface Actor {
   /** M10b pop & catch: world time a weapon was caught; the next hit with it starts as a chain hit. */
   primedAt?: number;
   /** Combo chain being landed on this actor (src/sim/combat.ts chainBonus). */
-  chain?: { by: number; count: number; t: number; last: string };
+  chain?: { by: number; count: number; t: number; last: string; /** M18: hits from both players in it. */ team?: boolean };
+  /** M18 double-team: the last damaging hit a player landed on this one. */
+  lastHeroHit?: { by: number; t: number };
   /** Walk speed factor this tick (the machine gun slows you while firing). */
   walkFactor?: number;
   /** M14 melee-blade-deflect: guarding since (world time), blows turned so far. */

@@ -521,6 +521,9 @@ export function applyHit(
   // the launcher sends him up alive; jabs only keep him up (the heavy that follows finishes it)
   if (launcher) damage = J.launchDamage;
   else if (juggled && kind === 'light') damage = 0;
+  // M18 double-team: both players' blows within TUNING.coop.double.window = a kill (tough ones take +2)
+  const double = !corpse && !!by && by.playerIndex !== undefined && o.kind !== 'hero' && (damage > 0 || juggled) && doubleTeam(world, by, o);
+  if (double) damage = o.variant === 'riot' || o.variant === 'vending' || o.variant === 'agent' ? damage + TUNING.coop.double.toughBonus : 99;
   // M12 boss-clown clip 4: the zombie mini-boss shrugs off most of it while he holds the sign
   const taken = o.damageScale !== undefined && damage < 99 ? damage * o.damageScale : damage;
   o.hp = Math.max(0, o.hp - taken);
@@ -563,8 +566,12 @@ export function applyHit(
     const gore = goreKill(world, by, o, kind, part, pointBlank);
     // M10b head punt: a heavy that kills a juggled grunt sends the head flying into the next one
     const punt = juggled && o.kind === 'grunt' && (kind === 'heavy' || kind === 'uppercut');
-    const decap = o.kind === 'grunt' && (punt || gore.decap || kind === 'heavy' || kind === 'uppercut' || kind === 'slash' || (kind === 'finisher' && heavy) || ((pointBlank || kind === 'gun') && part === 'head'));
-    die(world, o, by, kind, dirX, dirZ, decap && !gore.gib, pointBlank ? 'heavy' : kind);
+    const decap = o.kind === 'grunt' && (punt || double || gore.decap || kind === 'heavy' || kind === 'uppercut' || kind === 'slash' || (kind === 'finisher' && heavy) || ((pointBlank || kind === 'gun') && part === 'head'));
+    die(world, o, by, kind, dirX, dirZ, decap && !gore.gib, pointBlank ? 'heavy' : kind, { team: double || !!o.chain?.team });
+    if (double) {
+      world.events.emit('fatality', { actorId: o.id, kind: 'double', ...o.pos });
+      world.events.emit('coopMove', { kind: 'double', phase: 'hit', byId: by!.id, partnerId: world.players.find((p) => p !== by)?.id ?? 0, targetId: o.id, actorId: o.id, ...o.pos });
+    }
     if (gore.gib) gibCorpse(world, o);
     else if (punt) puntHead(world, o, by, dirX);
     afterKill(world, by, o, kind, dirX);
@@ -638,15 +645,33 @@ export function applyHit(
  * target, each within TUNING.combo.window of the last, form a chain. The 3rd+ hit of a chain
  * and a heavy straight after a light (the quick cross) deal +1. Returns whether this hit gets it.
  */
+/**
+ * M18 double-team (design/coop-moves.md 3.7): this player's blow lands within the window of the
+ * other player's last one on the same enemy. Records the blow either way.
+ */
+function doubleTeam(world: World, by: Actor, o: Actor): boolean {
+  const last = o.lastHeroHit;
+  o.lastHeroHit = { by: by.id, t: world.time };
+  if (o.grabbedBy !== undefined) return false;
+  return !!last && last.by !== by.id && world.time - last.t <= TUNING.coop.double.window + 1e-6;
+}
+
 function chainBonus(world: World, by: Actor | undefined, o: Actor, kind: HitKind): boolean {
   if (!by) { o.chain = undefined; return false; }
   const c = o.chain;
   let prev: string | undefined;
-  if (c && c.by === by.id && world.time - c.t <= C_.window) {
+  // M18 shared chains: a hit by the other player keeps the chain going (hand-off juggles)
+  const shared = !!c && c.by !== by.id && by.playerIndex !== undefined && world.actorById(c.by)?.playerIndex !== undefined;
+  if (c && (c.by === by.id || shared) && world.time - c.t <= C_.window) {
     prev = c.last;
     c.count++;
     c.t = world.time;
     c.last = kind;
+    if (shared) {
+      world.events.emit('coopMove', { kind: 'chain', phase: 'hit', byId: by.id, partnerId: c.by, targetId: o.id, actorId: o.id, ...o.pos });
+      c.team = true;
+      c.by = by.id;
+    }
   } else {
     // M10b pop & catch: the first hit with a weapon you just caught is already a chain hit
     const primed = by.primedAt !== undefined && world.time - by.primedAt <= C_.window;
@@ -754,7 +779,7 @@ function dropWeapon(world: World, o: Actor, dirX: number): void {
 }
 
 /** `flight` = the knockback profile when it differs from the hit (a point-blank shotgun kill flies like a heavy hit). */
-export function die(world: World, o: Actor, by: Actor | undefined, kind: HitKind, dirX: number, dirZ: number, decap: boolean, flight: HitKind = kind): void {
+export function die(world: World, o: Actor, by: Actor | undefined, kind: HitKind, dirX: number, dirZ: number, decap: boolean, flight: HitKind = kind, team?: { team?: boolean; alsoId?: number }): void {
   dropWeapon(world, o, dirX);
   const wasDown = o.state === 'down' || o.state === 'knockback';
   o.state = 'dead';
@@ -764,7 +789,7 @@ export function die(world: World, o: Actor, by: Actor | undefined, kind: HitKind
   o.pose.death = deathStyle(kind);
   // a zombie that falls again stays down (enemy-zombie: only fresh corpses rise)
   o.corpse = { phase: 'tumble', t: 0, raisable: o.kind === 'grunt', gibbed: false, slumped: false };
-  world.events.emit('kill', { actorId: o.id, byId: by?.id ?? 0, kind, decap, ...o.pos });
+  world.events.emit('kill', { actorId: o.id, byId: by?.id ?? 0, kind, decap, ...(team?.team ? { team: true } : {}), ...(team?.alsoId ? { alsoId: team.alsoId } : {}), ...o.pos });
   creditKill(world, by?.id);
   if (decap) {
     o.pose.headless = true;
