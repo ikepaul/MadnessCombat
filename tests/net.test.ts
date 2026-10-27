@@ -8,6 +8,7 @@ import { applySnapshot, type Snapshot, SnapshotWriter } from '../src/net/snapsho
 import { WaveDirector } from '../src/sim/waves';
 import { STAGE2 } from '../src/data/stages/stage2';
 import { stageRunner } from '../src/sim/stage';
+import { dropBlock, setImprobable, startCollapse } from '../src/sim/improbability';
 import { World } from '../src/sim/world';
 
 class Client implements RelayClient {
@@ -169,5 +170,26 @@ describe('snapshots across room changes (M9)', () => {
     writer.needFull = true;
     writer.joining = true;
     expect(writer.take().events).toEqual([]);
+  });
+});
+
+describe('snapshots carry stage 3 (M11)', () => {
+  it('player 2 sees improbability mode, the collapse, the falling tank and the hovering jetpack', () => {
+    const { host, puppet, writer } = hostAndPuppet();
+    const send = () => applySnapshot(puppet, JSON.parse(JSON.stringify(writer.take())) as Snapshot);
+    send();
+    setImprobable(host, true);
+    startCollapse(host, -1, 0);
+    dropBlock(host, 1.5, 9.6);
+    const jet = createActor('grunt', -2, 9.2, 1);
+    jet.hover = 1.3;
+    jet.pose.jetpack = true;
+    host.actors.push(jet);
+    for (let i = 0; i < 90; i++) host.step();
+    send();
+    expect(puppet.physics).toBe('improbable');
+    expect(puppet.room.void).toEqual(host.room.void);
+    expect(puppet.blocks.length).toBe(1);
+    expect(puppet.actorById(jet.id)?.hover).toBe(1.3);
   });
 });
