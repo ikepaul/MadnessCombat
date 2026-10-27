@@ -53,6 +53,7 @@ export function stepLocomotion(world: World, a: Actor, cmd: PlayerCommand, dt: n
 
   switch (b.state) {
     case 'ground': {
+      b.kick = false; // (a kick cut short by a hit doesn't carry into the next jump)
       if (cmd.jump && !a.holding) {
         const boost = a.kind === 'hero' ? JUMP.hero.airSpeed : 1;
         b.vel = { x: wantX * boost, y: JUMP_V0, z: wantZ * boost };
@@ -91,6 +92,16 @@ export function stepLocomotion(world: World, a: Actor, cmd: PlayerCommand, dt: n
       break;
     }
     case 'air':
+      // dive in mid-air: the flying kick
+      if (cmd.dive && !b.kick && !a.holding) {
+        b.kick = true;
+        b.swept = [];
+        b.vel.x = a.facing * TUNING.flyKick.speed;
+        b.vel.z *= 0.5;
+        b.vel.y = Math.min(b.vel.y, TUNING.flyKick.maxRise);
+        b.takeoff = { x: b.vel.x, z: b.vel.z };
+        world.events.emit('dive', { actorId: a.id, ...a.pos });
+      }
       airStep(world, a, wantX, wantZ, dt);
       break;
     case 'diving': {
@@ -120,7 +131,9 @@ export function stepLocomotion(world: World, a: Actor, cmd: PlayerCommand, dt: n
 /** One tick of a jump or fall: steer a little, exact constant-gravity step, land on what's below. */
 function airStep(world: World, a: Actor, wantX: number, wantZ: number, dt: number): void {
   const b = a.body;
-  if (a.kind === 'hero') {
+  if (b.kick) {
+    // the kick is committed: no steering until it lands
+  } else if (a.kind === 'hero') {
     // full air control: ease toward the input (a released stick keeps most of the momentum)
     const k = Math.min(1, JUMP.hero.airAccel * dt);
     if (wantX !== 0 || wantZ !== 0) {
@@ -143,6 +156,7 @@ function airStep(world: World, a: Actor, wantX: number, wantZ: number, dt: numbe
     a.pos.y = ground;
     b.vel = { x: 0, y: 0, z: 0 };
     b.squashLeft = JUMP.landSquash;
+    b.kick = false;
     b.state = 'ground';
     b.stateTime = 0;
     world.events.emit('land', { actorId: a.id, ...a.pos, fallSpeed });
@@ -236,8 +250,8 @@ function syncLocomotionPose(a: Actor, moving: boolean): void {
   p.squash = b.squashLeft / TUNING.jump.landSquash;
   p.walkPhase = b.state === 'ground' && moving ? b.cycle : undefined;
   p.groundY = b.groundY;
-  // prone falls forward onto the face, a sweep goes in feet first on the back
-  const root = aboutFeet((b.sweep ? -1 : 1) * (Math.PI / 2) * p.prone, 1 - 0.08 * p.prone);
+  // prone falls forward onto the face, a sweep goes in feet first on the back; a flying kick leans back
+  const root = b.kick ? aboutFeet(-TUNING.flyKick.lean, 1) : aboutFeet((b.sweep ? -1 : 1) * (Math.PI / 2) * p.prone, 1 - 0.08 * p.prone);
   if (p.squash > 0) { root.sx *= 1 + 0.08 * p.squash; root.sy *= 1 - 0.1 * p.squash; }
   p.root = root;
 }

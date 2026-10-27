@@ -367,6 +367,25 @@ export const TUNING = {
     damage: 1,
   },
 
+  /**
+   * Flying kick (playtest 2026-10-27): dive in mid-air. A lunge along the facing, the foot out;
+   * the first enemy it meets takes a heavy blow (knockdown) and the kicker bounces off. invented
+   */
+  flyKick: {
+    /** Forward speed of the lunge (H/s) and the most it may still rise (H/s). */
+    speed: 4.2,
+    maxRise: 0.6,
+    /** The foot: ahead of the body and up from the feet (H), contact radius. */
+    reach: 0.42,
+    height: 0.38,
+    radius: 0.24,
+    /** Bounce off whoever was kicked (H/s back, H/s up). */
+    bounceBack: 1.2,
+    bounceUp: 2.2,
+    /** How far the body leans back for the kick (rad). */
+    lean: 0.35,
+  },
+
   /** melee-grab-throw. */
   grab: {
     /** "contact range": same reach as a punch. invented */

@@ -23,6 +23,15 @@ export function buildSkeleton(a: Actor, time: number): Layered {
   const s = {} as Skeleton;
   for (const k in sk) s[k as keyof Skeleton] = [...sk[k as keyof Skeleton]] as Skeleton[keyof Skeleton];
 
+  // the flying kick (playtest 2026-10-27): front foot thrust out level with the hips, back foot
+  // tucked, fists up by the face (the root leans the whole body back)
+  if (a.body.kick && !p.dead && a.state === 'free') {
+    s.footF = [0.44, -0.12, -0.3];
+    s.footB = [-0.02, -0.16, 0.3];
+    s.handF = [0.16, -0.62, 0];
+    s.handB = [-0.06, -0.58, 0];
+  }
+
   // idles (playtest 2026-10-27): guards' fidgets and chats, the hero's after standing still
   applyIdle(a, s, time);
 
