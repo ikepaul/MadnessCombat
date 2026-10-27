@@ -106,10 +106,10 @@
       ]
     },
     "madness-combat-m5": {
-      "bpm": 120,
+      "bpm": 133,
       "beatsPerBar": 4,
       "loopStart": 0,
-      "loopEnd": 271.949116,
+      "loopEnd": 286,
       "stems": [
         "MadnessCombat.M5.mp3"
       ]

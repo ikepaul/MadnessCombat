@@ -15,6 +15,7 @@ import { SETTINGS } from '../settings';
 import type { Actor, Hand } from '../sim/actor';
 import { TUNING } from '../data/tuning';
 import { emptyGun, type PickupPlan, pickupPlan } from '../sim/guns';
+import { partnerUnderCursor } from '../sim/coop';
 import { boostBase, exitSpot, needsBoost, partnerAhead, usableExitAt, waitingInExit } from '../sim/stage';
 import { takedownTarget } from '../sim/stealth';
 
@@ -205,6 +206,9 @@ export class InkHud {
       if (ahead) { const s = exitSpot(w, ahead); return { key: '', verb: 'FOLLOW', at: [s.x, 1.4, s.z], id: `follow${ahead.id}` }; }
       if (waitingInExit(w, me)) return { key: '', verb: 'WAITING', at: head, id: 'waiting' };
     }
+    // M18 (design/coop-moves.md): glyphs that teach the co-op moves
+    const coopHint = w.coop && SETTINGS.coopHints ? this.coopHint(me) : undefined;
+    if (coopHint) return coopHint;
     if (me.state !== 'free') return undefined;
     const prey = takedownTarget(w, me);
     if (prey) return { key: SETTINGS.keys.use, verb: 'TAKEDOWN', at: [prey.pos.x, prey.pos.y + 1.3, prey.pos.z], id: `td${prey.id}` };
@@ -214,6 +218,30 @@ export class InkHud {
     const it = plan.item;
     const verb = plan.verb === 'pull' ? 'PULL' : plan.verb === 'swap' ? 'SWAP' : 'TAKE';
     return { key: SETTINGS.keys.use, verb, at: [it.pos.x, it.pos.y + 0.45, it.pos.z], id: `it${it.id}${plan.verb}${plan.hand}`, plan };
+  }
+
+  /** M18: carried, carrying, the partner holding a grunt next to you, the cursor on your partner. */
+  private coopHint(me: Actor): { key: string; verb: string; at: [number, number, number]; id: string } | undefined {
+    const w = this.game.world, K = SETTINGS.keys;
+    const over = (a: Actor, h = 1.35): [number, number, number] => [a.pos.x, a.pos.y + h, a.pos.z];
+    // a long key name (SPACE) doesn't fit the key box: it's written out in the word instead
+    const glyph = (key: string, verb: string) => (key.length > 1 ? { key: '', verb: `${key} ${verb}` } : { key, verb });
+    if (me.carried) return { ...(me.carried === 'overhead' ? glyph(K.grab, `SPIN · ${K.jump} OFF`) : glyph(K.jump, 'OFF')), at: over(me, 1.0), id: `carried${me.carried}` };
+    const held = me.holding?.kind === 'actor' ? w.actorById(me.holding.id) : undefined;
+    if (held?.carried) return { key: K.grab, verb: 'THROW', at: over(me, 1.6), id: 'carrying' };
+    if (me.state !== 'free') return undefined;
+    const mate = w.activePlayers.find((p) => p !== me);
+    if (!mate) return undefined;
+    const victim = mate.holding?.kind === 'actor' ? w.actorById(mate.holding.id) : undefined;
+    if (victim && victim.kind !== 'hero' && victim.state === 'grabbed' && Math.abs(victim.pos.x - me.pos.x) < 1.6 && Math.abs(victim.pos.z - me.pos.z) < 0.5) {
+      return { key: K.grab, verb: 'TEAR · LMB/RMB HIT', at: over(victim, 1.4), id: `held${victim.id}` };
+    }
+    const p = this.scene.input.activePointer;
+    if (partnerUnderCursor(w, me, [p.x, p.y]) !== mate) return undefined;
+    const d = Math.hypot(mate.pos.x - me.pos.x, mate.pos.z - me.pos.z);
+    if (!me.hands[0] && !me.hands[1] && Math.abs(mate.pos.x - me.pos.x) <= TUNING.grab.assistRadius && Math.abs(mate.pos.z - me.pos.z) <= TUNING.grab.assistDepth) return { key: K.grab, verb: 'LIFT', at: over(mate), id: 'lift' };
+    if ((me.hands[0] || me.hands[1]) && d <= TUNING.coop.pass.range) return { key: K.throw, verb: 'PASS', at: over(mate), id: 'pass' };
+    return undefined;
   }
 
   private drawPrompt(me: Actor | undefined, dt: number): void {

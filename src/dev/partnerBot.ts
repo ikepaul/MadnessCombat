@@ -13,7 +13,7 @@ import type { World } from '../sim/world';
 export interface BotState {
   /** Seconds until the next swing / shot. */
   wait: number;
-  /** A lab's move on cue (N): returns this tick's command, or undefined to fight as usual. */
+  /** A lab's move on cue (N): returns this tick's command, or undefined when done. With a task the bot stands still between cues. */
   task?: (world: World, bot: Actor, me: Actor) => PlayerCommand | undefined;
   /** N was pressed: the task runs until it returns undefined. */
   cued: boolean;
@@ -39,6 +39,8 @@ export function partnerCommand(world: World, bot: Actor, state: BotState): Playe
     if (t) return t;
     state.cued = false;
   }
+  // a lab's bot waits for its cue (it would fight the lab's dummies otherwise)
+  if (state.task) return cmd;
   state.wait = Math.max(0, state.wait - world.dt);
   // a downed partner first: stand in the circle
   if (me.state === 'downed') {

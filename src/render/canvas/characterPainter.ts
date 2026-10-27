@@ -296,10 +296,11 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
   }
   // M18 split render: the cut face, red where there's blood, ink otherwise
   if (cut) {
-    const { nx, ny, d } = cut, tx = -ny, ty = nx;
+    // only across the body: centred at mid-height, half a body long each way along the cut
+    const { nx, ny, d } = cut, tx = -ny, ty = nx, cx = nx * d - tx * 0.52 * ty, cy = ny * d - 0.52 * Math.abs(ty);
     ctx.beginPath();
-    ctx.moveTo(nx * d + tx * 1.2, ny * d + ty * 1.2);
-    ctx.lineTo(nx * d - tx * 1.2, ny * d - ty * 1.2);
+    ctx.moveTo(cx + tx * 0.48, cy + ty * 0.48);
+    ctx.lineTo(cx - tx * 0.48, cy - ty * 0.48);
     ctx.lineWidth = 0.05;
     ctx.strokeStyle = opts.blood ? BLOOD : '#5d5e63';
     ctx.stroke();
