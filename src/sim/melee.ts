@@ -6,6 +6,7 @@ import { flatness, rootToWorld } from '../anim/skeleton';
 import { sampleClip } from '../anim/clips';
 import { DISARM, GRENADE, isMelee, MELEE, type MeleeDef, THROWN } from '../data/melee';
 import { isWeapon, WEAPONS } from '../data/weapons';
+import { GRAVITY, TUNING } from '../data/tuning';
 import { project, type ScreenPoint, scaleAt, unprojectFloor } from '../render/camera';
 import { type Actor, alive, type AttackKind, type HeldItem, newHand } from './actor';
 import { applyHit, setClip } from './combat';
@@ -320,6 +321,15 @@ export function disarm(world: World, by: Actor | undefined, o: Actor, how: 'knoc
   const it = dropHeld(world, h.item, o.pos, (Math.sign(dirX) || -o.facing) * 1.2, { ammo: h.ammo, spare: h.spare });
   it.vel.y += how === 'shot' ? 2 : 1;
   it.spin *= 1.5;
+  // M10b pop & catch: knocked out of the hand, it spins *up* (catch it with F) instead of skittering off
+  if (how === 'knock') {
+    it.vel.x *= 0.25;
+    it.vel.z = 0;
+    it.vel.y = Math.sqrt(2 * GRAVITY * TUNING.juggle.popHeight);
+    it.spin = Math.sign(it.spin || 1) * 18;
+    it.popUntil = world.time + TUNING.juggle.popReserve;
+    world.events.emit('popUp', { actorId: o.id, itemId: it.id, ...it.pos });
+  }
   world.events.emit('disarm', { actorId: o.id, byId: by?.id ?? 0, how, item: h.item, ...o.pos });
 }
 
@@ -334,7 +344,9 @@ export function stealTarget(world: World, a: Actor, o: Actor): boolean {
 
 function finishSteal(world: World, a: Actor, targetId: number): void {
   const o = world.actorById(targetId);
-  if (!o || !alive(o) || o.state === 'grabbed' || Math.abs(o.pos.z - a.pos.z) > 0.5 || Math.abs(o.pos.x - a.pos.x) > 1.2) return;
+  if (!o || !alive(o) || o.state === 'grabbed') return;
+  // M10b: a steal that misses (he got away) still knocks the weapon up out of his hand
+  if (Math.abs(o.pos.z - a.pos.z) > 0.5 || Math.abs(o.pos.x - a.pos.x) > 1.2) { disarm(world, a, o, 'knock', Math.sign(o.pos.x - a.pos.x) || a.facing); return; }
   const i: 0 | 1 | undefined = o.hands[0] ? 0 : o.hands[1] ? 1 : undefined;
   if (i === undefined) return;
   const h = o.hands[i]!;

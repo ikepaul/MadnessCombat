@@ -215,14 +215,21 @@ describe('ammo, reload, pick-up, thrown guns', () => {
     expect(hero.hands[1]?.item).toBe('shotgun');
   });
 
-  it('a thrown gun to the head kills a grunt; to the body it knocks him down', () => {
+  it('a thrown gun to the head stuns a grunt (M10b: a heavy then kills); to the body it knocks him down', () => {
     const { world, hero } = setup(EMPTY, -1.5);
     hero.hands[0] = newHand('pistol', 0, 0);
     hero.hands[0].clicked = true;
     const g = grunt(world, 0.5);
+    let headHit = false;
+    world.events.on('hit', (e) => { if (e.actorId === g.id && e.kind === 'gun' && e.part === 'head') headHit = true; });
     tick(world, { press: [true, false], aim: head(g) });
-    tick(world, {}, 30);
-    expect(g.state).toBe('dead');
+    for (let i = 0; i < 30 && !headHit; i++) tick(world);
+    tick(world);
+    expect(headHit).toBe(true);
+    expect(g.state).toBe('stun');
+    expect(g.hp).toBe(g.maxHp - 1);
+    // (he's still standing now: out of the way for the body throw)
+    world.actors.splice(world.actors.indexOf(g), 1);
     hero.hands[0] = newHand('deagle', 0, 0);
     hero.hands[0].clicked = true;
     const g2 = grunt(world, 0.5, Z);

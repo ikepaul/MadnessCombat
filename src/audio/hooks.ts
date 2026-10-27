@@ -21,6 +21,8 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
     return !!a && a.kind !== 'hero';
   };
   let lastHitCombo = false;
+  /** M10b: a kill at chain hit 3+ ticks higher still. */
+  let lastHitChain = 0;
 
   world.events.on('footstep', (e) => play(world.room.outdoor ? 'stepDirt' : 'stepConcrete', at(e.x, e.y, e.z, { gain: e.actorId === world.player?.id ? 1 : 0.6 })));
   world.events.on('land', (e) => play('land', at(e.x, e.y, e.z, { gain: Math.min(1, 0.5 + e.fallSpeed / 10) })));
@@ -33,6 +35,7 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
   });
   world.events.on('hit', (e) => {
     lastHitCombo = e.combo;
+    lastHitChain = e.chain;
     if (e.kind === 'takedown') return;
     const p = at(e.x, e.y, e.z);
     if (e.damage <= 0) {
@@ -54,7 +57,7 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
     // takedowns are silent (melee-stealth-kill)
     if (e.kind !== 'takedown') play('voxDeath', at(e.x, e.y + 0.7, e.z));
     // kill counter tick, pitched up for combo kills
-    play('tick', { rate: lastHitCombo ? 1.35 : 1 });
+    play('tick', { rate: lastHitChain >= 3 ? 1.5 : lastHitCombo ? 1.35 : 1 });
   });
   world.events.on('bodyFall', (e) => play('bodyFall', at(e.x, e.y, e.z, { gain: Math.min(1, 0.4 + e.speed / 8) })));
   world.events.on('wallHit', (e) => e.speed > 1.5 && play('wall', at(e.x, e.y, e.z, { gain: Math.min(1, e.speed / 6) })));
@@ -100,6 +103,20 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
   world.events.on('stick', (e) => play(e.surface === 'flesh' ? 'knifeFlesh' : 'knifeWall', at(e.x, e.y, e.z)));
   world.events.on('pull', (e) => play(e.phase === 'start' ? 'cloth' : 'pullOut', at(e.x, e.y + 0.4, e.z)));
   world.events.on('catch', (e) => play('catchSlap', at(e.x, e.y, e.z)));
+  // M10b combos & fatalities: launch whoosh, spike thud + crack, wall-bounce bump, the popped
+  // weapon's spin, a gun clonking off a skull, and a higher kill tick for every fatality
+  world.events.on('juggle', (e) => {
+    if (e.phase === 'launch') play('whooshHeavy', at(e.x, e.y + 0.6, e.z, { rate: 0.9 }));
+    else if (e.phase === 'spike') play('whooshHeavy', at(e.x, e.y + 0.6, e.z, { rate: 0.75 }));
+    else if (e.phase === 'bounce') { play('heavyLand', at(e.x, e.y, e.z, { gain: 0.8 })); play('crack', at(e.x, e.y, e.z)); }
+  });
+  world.events.on('wallBounce', (e) => play('thump', at(e.x, e.y + 0.5, e.z, { rate: 0.85 })));
+  world.events.on('popUp', (e) => play('whooshLight', at(e.x, e.y, e.z, { rate: 1.3 })));
+  world.events.on('hit', (e) => { if (e.kind === 'gun' && e.part === 'head') play('hitMetal', at(e.x, e.y, e.z)); });
+  world.events.on('fatality', (e) => {
+    if (e.kind === 'punt') play('whooshThrow', at(e.x, e.y, e.z, { rate: 1.2 }));
+    play('tick', { rate: 1.7 });
+  });
   world.events.on('disarm', (e) => {
     const p = at(e.x, e.y + 0.5, e.z);
     if (e.how === 'shot') play('hitMetal', p);

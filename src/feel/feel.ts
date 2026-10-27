@@ -57,6 +57,13 @@ export class FeelDirector {
         this.sink.killCam();
       }
     });
+    // M10b: every fatality gets the kill cam (the reward is feel only); launches and bounces thump the screen
+    world.events.on('fatality', () => {
+      this.stop(FEEL.hitStop.kill);
+      this.sink.killCam();
+    });
+    world.events.on('juggle', (e) => { if (e.phase === 'launch' || e.phase === 'bounce') this.sink.shake(FEEL.shake.heavyHit, FEEL.shake.decayMin); });
+    world.events.on('wallBounce', () => this.sink.shake(FEEL.shake.lightHit, FEEL.shake.decayMin));
     // shake per weapon (design/art-direction.md: pistol 2 px, SMG 1, shotgun 6)
     world.events.on('shot', (e) => this.sink.shake(WEAPONS[e.weapon].shake, FEEL.shake.decayMin));
     // throw-grenade: explosion shake 14 px, chromatic, a short freeze

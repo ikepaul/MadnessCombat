@@ -256,6 +256,8 @@ function scavenge(world: World, a: Actor): PlayerCommand | undefined {
   let best: (typeof world.items)[number] | undefined, bestD = Infinity;
   for (const it of world.items) {
     if (it.state !== 'floor' || notHoldable(it.kind)) continue;
+    // M10b pop & catch: a weapon popped out of a hand is the player's for a moment
+    if (it.popUntil !== undefined && world.time < it.popUntil) continue;
     // not from under a player's feet
     if (world.activePlayers.some((p) => Math.hypot(p.pos.x - it.pos.x, p.pos.z - it.pos.z) < AI.scavengeClear)) continue;
     const d = Math.hypot(it.pos.x - a.pos.x, it.pos.z - a.pos.z);

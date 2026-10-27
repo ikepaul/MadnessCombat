@@ -75,10 +75,11 @@ describe('improbability mode (world-improbability-mode)', () => {
     expect(g.pos.y).toBeLessThan(world.room.height);
   });
 
-  it('after the mode ends, bodies stop dead on the walls again', () => {
+  it('after the mode ends, walls are back to the normal bounce (M10b: a living grunt comes back, less elastic)', () => {
     const off = bounce(false);
     expect(off.walls.length).toBeGreaterThan(0);
-    expect(Math.abs(off.after / off.vx0)).toBeLessThanOrEqual(0.21);
+    expect(Math.abs(off.after / off.vx0)).toBeLessThanOrEqual(TUNING.juggle.wallBounce + 0.01);
+    expect(TUNING.juggle.wallBounce).toBeLessThan(TUNING.improbability.restitution);
   });
 });
 

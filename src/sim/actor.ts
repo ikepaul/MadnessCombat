@@ -50,6 +50,8 @@ export interface Pose {
   /** Screen points the front / back gun hand aim at (the cursor; split aim moves the back one). */
   aim?: [number, number];
   aimB?: [number, number];
+  /** M10b over-the-shoulder: a backward shot just fired with this hand at this screen point (drawn until `until`). */
+  backShot?: { hand: 0 | 1; until: number; target: [number, number] };
   /** Recoil kick per hand (H), decaying. */
   kick?: [number, number];
   /** Scenery corpses placed lying (no sim history). */
@@ -198,6 +200,12 @@ export interface Flight {
   hit: number[];
   /** Wall touched during the flight (slump against it). */
   wall?: 'left' | 'right' | 'back';
+  /** M10b: a launched grunt being juggled (jabs so far, who launched him). */
+  juggle?: { jabs: number; by?: number };
+  /** M10b: spiked into the floor: bounces once on landing. */
+  spiked?: boolean;
+  /** M10b: seconds of hang time banked by juggle jabs (spent at the top of the arc). */
+  hang?: number;
 }
 
 /** Corpse lifecycle (world-persistence-decals): tumble -> settle -> freeze (baked). */
@@ -235,6 +243,8 @@ export interface Actor {
   queued?: { kind: Exclude<AttackKind, 'finisher' | 'throw'>; aim?: [number, number]; at: number };
   /** A grab (F) pressed during a move: world time of the press (playtest: chaining). */
   grabQueued?: number;
+  /** M10b pop & catch: world time a weapon was caught; the next hit with it starts as a chain hit. */
+  primedAt?: number;
   /** Combo chain being landed on this actor (src/sim/combat.ts chainBonus). */
   chain?: { by: number; count: number; t: number; last: string };
   /** Walk speed factor this tick (the machine gun slows you while firing). */

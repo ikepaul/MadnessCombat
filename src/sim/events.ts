@@ -86,6 +86,14 @@ export interface GameEvents {
   explosion: { x: number; y: number; z: number; radius: number; byId: number };
   /** A corpse was blown apart (can't be raised any more). */
   gib: At;
+  /** M10b: the launcher, a jab keeping him up, the spike into the floor and its bounce. */
+  juggle: At & { actorId: number; phase: 'launch' | 'jab' | 'spike' | 'bounce' };
+  /** M10b: a sub-lethal slam bounced off a wall or a solid prop. */
+  wallBounce: At & { actorId: number; speed: number };
+  /** M10b: a knocked-away weapon spinning up (catch it with F). */
+  popUp: At & { itemId: number };
+  /** M10b: a contextual kill (kill-cam, pitched-up tick). */
+  fatality: At & { actorId: number; kind: 'punt' | 'backshot'; itemId?: number };
   /** Playtest 2026-10-27, extreme gore: a hand comes off a corpse. */
   dismember: At & { actorId: number; hand: 'F' | 'B'; dirX: number };
   /** A held body took a hit meant for its holder (combat-human-shield); `broke` = it fell apart. */

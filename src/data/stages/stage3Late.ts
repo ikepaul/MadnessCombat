@@ -256,8 +256,9 @@ function* lift(s: Seq, _entry: string): Beat {
   if (!p) return;
   // right behind you, inside the room (with your back to a wall he comes from the other side)
   const lim = world.room.halfWidth - 0.35;
-  let bx = p.pos.x - p.facing * 0.7;
-  if (Math.abs(bx) > lim) { p.facing = (-p.facing) as 1 | -1; bx = p.pos.x - p.facing * 0.7; }
+  // within reach of the over-the-shoulder shot (M10b: RMB fires backward at him without turning)
+  let bx = p.pos.x - p.facing * 0.55;
+  if (Math.abs(bx) > lim) { p.facing = (-p.facing) as 1 | -1; bx = p.pos.x - p.facing * 0.55; }
   const boss = spawnBossCameo(world, Math.max(-lim, Math.min(lim, bx)), p.pos.z, p.facing);
   boss.boss.phase = 'cameo';
   boss.pos.y = TUNING.boss.hover;
