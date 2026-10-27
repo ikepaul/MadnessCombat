@@ -86,6 +86,8 @@ export interface GameEvents {
   explosion: { x: number; y: number; z: number; radius: number; byId: number };
   /** A corpse was blown apart (can't be raised any more). */
   gib: At;
+  /** Playtest 2026-10-27, extreme gore: a hand comes off a corpse. */
+  dismember: At & { actorId: number; hand: 'F' | 'B'; dirX: number };
   /** A held body took a hit meant for its holder (combat-human-shield); `broke` = it fell apart. */
   shieldHit: At & { holderId: number; broke: boolean };
   /** A long-weapon thrust pinned a body to a wall or prop (melee-environment-weapon). */

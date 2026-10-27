@@ -18,6 +18,9 @@ export const DEFAULT_KEYS: Record<Action, string> = {
   reload: 'R', throw: 'Q', grenade: 'G', split: 'SHIFT',
 };
 
+export type FriendlyFire = 'damage' | 'knockdown' | 'through';
+export const FRIENDLY_FIRE_LABELS: Record<FriendlyFire, string> = { damage: 'full damage', knockdown: 'knockdown only', through: 'flies through' };
+
 export interface Settings {
   master: number;
   music: number;
@@ -28,11 +31,13 @@ export interface Settings {
   reducedMotion: boolean;
   /** M13: blood as each stage has it (stage 1 none, 2-3 on), or off everywhere. */
   blood: 'stage' | 'off';
+  /** Co-op: a thrown weapon hitting your ally does full damage, only knocks them down, or flies through (playtest 2026-10-27). */
+  friendlyFire: FriendlyFire;
   keys: Record<Action, string>;
 }
 
 const KEY = 'madness-like.settings';
-const DEFAULTS: Settings = { master: 0.8, music: 0.7, sfx: 0.9, effects: 'full', reducedMotion: false, blood: 'stage', keys: { ...DEFAULT_KEYS } };
+const DEFAULTS: Settings = { master: 0.8, music: 0.7, sfx: 0.9, effects: 'full', reducedMotion: false, blood: 'stage', friendlyFire: 'damage', keys: { ...DEFAULT_KEYS } };
 
 function load(): Settings {
   try {

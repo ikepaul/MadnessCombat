@@ -56,7 +56,7 @@ function* corner(s: Seq, _entry: string): Beat {
 
 /** Room 3, rooftop A: two SMG guards by a box. Slip behind it, lean out, head shots. */
 function* roofA(s: Seq, _entry: string): Beat {
-  s.spawn('grunt', 'smg', 1.8, 9.45, unaware({ face: -1 }));
+  s.spawn('grunt', 'smg', 1.8, 9.45, unaware({ idle: 'chat', face: -1 }));
   s.spawn('grunt', 'smg', 2.5, 9.95, unaware({ idle: 'smoke', face: -1 }));
   yield 1.2;
   caption(s, 'The tracker (top right): the target is ahead and below. The box is cover.');

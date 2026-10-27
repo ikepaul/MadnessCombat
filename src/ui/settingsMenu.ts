@@ -3,7 +3,7 @@
 import Phaser from 'phaser';
 import { audio } from '../audio/mixer';
 import { resetProgress } from '../progress';
-import { type Action, ACTION_LABELS, DEFAULT_KEYS, SETTINGS, saveSettings } from '../settings';
+import { type Action, ACTION_LABELS, DEFAULT_KEYS, FRIENDLY_FIRE_LABELS, type FriendlyFire, SETTINGS, saveSettings } from '../settings';
 import type { MenuItem } from './menu';
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
@@ -16,6 +16,8 @@ export function settingsItems(onControls: () => void, onBack: () => void): MenuI
     adjust: (d) => { SETTINGS[k] = step(SETTINGS[k], d); apply(); },
   });
   const effects = ['full', 'reduced', 'off'] as const;
+  const ff: FriendlyFire[] = ['damage', 'knockdown', 'through'];
+  const cycleFriendly = (d: number) => { SETTINGS.friendlyFire = ff[(ff.indexOf(SETTINGS.friendlyFire) + d + 3) % 3]; apply(); };
   return [
     vol('Master volume', 'master'),
     vol('Music', 'music'),
@@ -27,6 +29,7 @@ export function settingsItems(onControls: () => void, onBack: () => void): MenuI
     },
     { label: () => `Reduced motion   ${SETTINGS.reducedMotion ? 'on' : 'off'}`, action: () => { SETTINGS.reducedMotion = !SETTINGS.reducedMotion; apply(); }, adjust: () => { SETTINGS.reducedMotion = !SETTINGS.reducedMotion; apply(); } },
     { label: () => `Blood   ${SETTINGS.blood === 'stage' ? 'as each stage has it' : 'off'}`, action: () => { SETTINGS.blood = SETTINGS.blood === 'stage' ? 'off' : 'stage'; apply(); }, adjust: () => { SETTINGS.blood = SETTINGS.blood === 'stage' ? 'off' : 'stage'; apply(); } },
+    { label: () => `Thrown weapons hit your ally   ◀ ${FRIENDLY_FIRE_LABELS[SETTINGS.friendlyFire]} ▶`, action: () => cycleFriendly(1), adjust: (d) => cycleFriendly(d) },
     { label: 'Controls', action: onControls },
     { label: () => 'Reset progress', action: () => resetProgress() },
     { label: 'Back', action: onBack },

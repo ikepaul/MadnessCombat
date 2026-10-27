@@ -25,6 +25,11 @@ export const TUNING = {
     strideLength: 0.6,
     /** Aim must cross this far past the body (px) to flip facing. invented */
     facingDeadzonePx: 12,
+    /**
+     * The hero's own speeds (playtest 2026-10-27, "snappy"): ~35% over the shared walk speeds,
+     * which enemies keep (their AI speeds are shares of those). invented
+     */
+    hero: { walkSpeed: 1.5, combatWalkSpeed: 2.4 },
   },
 
   jump: {
@@ -34,6 +39,12 @@ export const TUNING = {
     apex: 1.15,
     /** move-jump: keep takeoff momentum; small air steer. invented (<= 30%) */
     airSteer: 0.3,
+    /**
+     * The hero in the air (playtest 2026-10-27): full steering. Velocity eases toward the input at
+     * `airAccel` (1/s) up to `airSpeed` x the ground speed, and the takeoff carries that boost too
+     * (a little more jump distance). invented
+     */
+    hero: { airAccel: 14, airSpeed: 1.15 },
     /** design/art-direction.md: 2-frame (30 fps) landing squash. */
     landSquash: 2 / 30,
   },
@@ -47,6 +58,8 @@ export const TUNING = {
     height: 0.3,
     /** move-prone-dodge: forward dive ~1 H when moving, measured ep1 f2460. */
     diveDistance: 1.0,
+    /** The hero gets up quicker than the measured 0.4 s (playtest 2026-10-27, "snappy"). invented */
+    heroUpTime: 0.28,
   },
 
   /** Hit points. research/design-decisions.md: grunts die from 1 good hit, the player survives ~3. */

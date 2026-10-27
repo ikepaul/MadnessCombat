@@ -36,7 +36,7 @@ export interface ActorSnap {
   variant?: Actor['variant'];
   /** M8: the boombox NPC's boombox. */
   carry?: Actor['carry'];
-  unaware?: 'stand' | 'smoke' | 'patrol';
+  unaware?: 'stand' | 'smoke' | 'chat' | 'patrol';
   /** M11: hovering (the jetpack: its flames), falling into the void, stuck in the ceiling. */
   hover?: number;
   fallingAway?: number;
@@ -58,6 +58,7 @@ export interface Snapshot {
   decks?: World['room']['decks'];
   /** M11: improbability mode, the collapse (crack / void), falling tanks, the vending machine at the back. */
   physics?: World['physics'];
+  gore?: World['gore'];
   stage3Room?: Pick<World['room'], 'void' | 'crack' | 'vending' | 'lockWalls' | 'outdoor'>;
   /** M12: the desert box's falling walls and the last stand (the red bars). */
   lockWalls?: World['lockWalls'];
@@ -120,7 +121,7 @@ export class SnapshotWriter {
       session: this.session, roomId: w.room.id, tick: w.tick, full, actors,
       items: w.items, doors: w.doors.map((d) => d.open), props: w.room.props, cannons: w.cannons, balls: w.balls, kills: w.kills, lastKillKind: w.lastKillKind,
       elevator: w.elevator, decks: w.room.decks,
-      physics: w.physics, blocks: w.blocks, stage3Room: { void: w.room.void, crack: w.room.crack, vending: w.room.vending, lockWalls: w.room.lockWalls, outdoor: w.room.outdoor },
+      physics: w.physics, gore: w.gore, blocks: w.blocks, stage3Room: { void: w.room.void, crack: w.room.crack, vending: w.room.vending, lockWalls: w.room.lockWalls, outdoor: w.room.outdoor },
       lockWalls: w.lockWalls, lastStand: w.lastStand,
       events: full && this.joining ? [] : this.events,
     };
@@ -176,6 +177,7 @@ export function applySnapshot(world: World, s: Snapshot): void {
   if (s.props) world.room.props = s.props;
   world.elevator = s.elevator;
   if (s.physics) world.physics = s.physics;
+  if (s.gore) world.gore = s.gore;
   if (s.blocks) world.blocks = s.blocks;
   if (s.stage3Room) {
     world.room.void = s.stage3Room.void; world.room.crack = s.stage3Room.crack; world.room.vending = s.stage3Room.vending;

@@ -1,6 +1,7 @@
 // Combat state machine (PLAN.md M2): punches, hit reactions, knockdown and get-up, grabs and
 // throws, the low sweep, the finisher, death and corpses. Numbers from TUNING, which cites
 // research/mechanics/melee-* and move-knockdown-getup.
+import { afterKill, gibCorpse, goreKill } from './gore';
 import { aboutFeet, lyingAt, rootToWorld, STANDING } from '../anim/skeleton';
 import { GRAVITY, TUNING } from '../data/tuning';
 import { DISARM, GRENADE, MELEE, SHIELD } from '../data/melee';
@@ -371,8 +372,12 @@ export function applyHit(
     // melee-decapitation: a killing blow from a heavy attack knocks the head off (decided with the
     // user); so do a point-blank shotgun to the head (gun-shotgun) and a thrown gun to the head
     const pointBlank = !!bullet?.pointBlank;
-    const decap = o.kind === 'grunt' && (kind === 'heavy' || kind === 'uppercut' || kind === 'slash' || (kind === 'finisher' && heavy) || ((pointBlank || kind === 'gun') && part === 'head'));
-    die(world, o, by, kind, dirX, dirZ, decap, pointBlank ? 'heavy' : kind);
+    // playtest 2026-10-27: stage 3's extreme gore takes more heads and gibs (src/sim/gore.ts)
+    const gore = goreKill(world, by, o, kind, part, pointBlank);
+    const decap = o.kind === 'grunt' && (gore.decap || kind === 'heavy' || kind === 'uppercut' || kind === 'slash' || (kind === 'finisher' && heavy) || ((pointBlank || kind === 'gun') && part === 'head'));
+    die(world, o, by, kind, dirX, dirZ, decap && !gore.gib, pointBlank ? 'heavy' : kind);
+    if (gore.gib) gibCorpse(world, o);
+    afterKill(world, by, o, kind, dirX);
     return;
   }
   // M11: the hovering jetpack and the vending-machine brute don't go down: a flinch, nothing more

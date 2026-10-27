@@ -50,7 +50,7 @@ export interface AiState {
   /** M7 stealth: false = unaware (idles, smokes or patrols facing a fixed way). */
   aware?: boolean;
   /** What an unaware enemy does, and its patrol span (x). */
-  idle?: 'stand' | 'smoke' | 'patrol';
+  idle?: 'stand' | 'smoke' | 'chat' | 'patrol';
   patrol?: [number, number];
   /** Patrol: walking direction and the wait at a turn. */
   patrolDir?: 1 | -1;

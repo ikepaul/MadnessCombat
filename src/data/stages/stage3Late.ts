@@ -140,15 +140,23 @@ function* vending(s: Seq, _entry: string): Beat {
   yield* raise(s, boss, 2);
   for (const p of world.activePlayers) s.drop('smg', Math.max(-3, Math.min(3, p.pos.x - p.facing * 0.5)), p.pos.z, 2.4);
   caption(s, 'He dives with a sword. Get out of the way, and hit him three times.', 5);
-  let hits = 0;
-  const off = world.events.on('hit', (e) => { if (e.actorId === boss.id && (e.kind === 'bullet' || e.kind === 'gun' || e.kind === 'knife')) hits++; });
+  // one hit counts per dive (playtest: an SMG burst landed all three at once and he was gone in a second)
+  let hits = 0, scored = false;
+  const off = world.events.on('hit', (e) => {
+    if (scored || e.actorId !== boss.id || (e.kind !== 'bullet' && e.kind !== 'gun' && e.kind !== 'knife')) return;
+    scored = true;
+    hits++;
+  });
   while (hits < D.hitsToTeleport) {
     const p = world.activePlayers[0];
     if (!p) break;
+    scored = false;
     yield* swordDive(s, boss, p);
     yield D.recover;
   }
   off();
+  caption(s, 'Hurt, he folds into himself and is gone.', 3);
+  yield 0.4;
   // damaged enough: he implodes away
   world.events.emit('teleport', { actorId: boss.id, ...boss.pos });
   if (world.actors.includes(boss)) world.actors.splice(world.actors.indexOf(boss), 1);
