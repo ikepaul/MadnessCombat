@@ -1,5 +1,6 @@
 // Every "feel" number from design/art-direction.md (effects table). Frames are 30 fps frames
 // (the episodes' rate); values not in the table are marked invented.
+import { applyOverrides } from '../dev/overrides';
 
 const F = 1 / 30;
 
@@ -66,3 +67,6 @@ export const FEEL = {
 export type EffectIntensity = 'off' | 'reduced' | 'full';
 
 export const INTENSITY_SCALE: Record<EffectIntensity, number> = { off: 0, reduced: 0.5, full: 1 };
+
+// dev: the F6 tuning panel's saved numbers (src/dev/overrides.ts)
+applyOverrides('FEEL', FEEL);

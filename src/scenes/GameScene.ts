@@ -245,6 +245,8 @@ export class GameScene extends Phaser.Scene {
       spawnCorpses: () => { if (host) this.world.spawnCorpses(20); },
       dropGuns: () => { if (host) this.dropGuns(); },
       raiseAll: () => { if (host) raiseAll(this.world); },
+      // M13 playtest pass: every invented number, live (dev builds only; loaded on first use)
+      toggleTuning: import.meta.env.DEV ? () => void import('../dev/tuningPanel').then((m) => m.toggleTuningPanel()) : undefined,
       cycleEffects: () => cycleEffects(),
       toggleMute: () => {
         SETTINGS.master = SETTINGS.master > 0 ? 0 : 0.8;
