@@ -58,14 +58,19 @@ function clipFor(kind: AttackKind, weapon?: string): string {
   return CLIP[kind] ?? 'idle';
 }
 
+/** Turn to the cursor (a punch, swing or throw goes where you point, a chained one too). */
+export function faceCursor(a: Actor, cmd: Pick<PlayerCommand, 'aim'>): void {
+  if (!cmd.aim) return;
+  const [sx] = project(a.pos.x, a.pos.y + 0.5, a.pos.z);
+  if (Math.abs(cmd.aim[0] - sx) > 4) a.facing = cmd.aim[0] > sx ? 1 : -1;
+}
+
 /** Enter the attack state for an M6 action. */
 export function startAction(world: World, a: Actor, kind: AttackKind, cmd: Pick<PlayerCommand, 'aim' | 'face'>, extra: { hand?: 0 | 1; itemId?: number; targetId?: number; fuse?: number; prop?: number; weapon?: string } = {}): void {
   const weapon = extra.weapon ?? (extra.hand !== undefined ? a.hands[extra.hand]?.item ?? undefined : undefined);
   if (cmd.face) a.facing = cmd.face;
-  else if (cmd.aim && (kind === 'toss' || kind === 'lob')) {
-    const [sx] = project(a.pos.x, a.pos.y + 0.5, a.pos.z);
-    if (Math.abs(cmd.aim[0] - sx) > 4) a.facing = cmd.aim[0] > sx ? 1 : -1;
-  }
+  // swings, stabs and throws turn to the cursor (actions on a target or a prop face that instead)
+  else if (kind !== 'pull' && extra.targetId === undefined && extra.prop === undefined) faceCursor(a, cmd);
   a.state = 'attack';
   a.stateT = 0;
   a.attack = { kind, heavy: false, t: 0, done: false, hand: extra.hand, hits: [], aim: cmd.aim, weapon: weapon ?? undefined, itemId: extra.itemId, targetId: extra.targetId, fuse: extra.fuse, prop: extra.prop };
@@ -96,6 +101,7 @@ export function startMeleeAction(world: World, a: Actor, cmd: PlayerCommand): bo
   const i: 0 | 1 = lmb ? 0 : 1;
   const d = i === 0 ? d0 : d1;
   if (!d) return false;
+  if (!cmd.face) faceCursor(a, cmd);
   if (d.id === 'knife' && !swingTargets(world, a, d, d.reach, []).length) { startAction(world, a, 'toss', cmd, { hand: i }); return true; }
   startAction(world, a, 'swing', cmd, { hand: i });
   return true;

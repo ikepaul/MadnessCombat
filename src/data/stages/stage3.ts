@@ -10,6 +10,8 @@ import { stage3Scripts } from './stage3Script';
 export const OUTSIDE: RoomDef = {
   id: 's3-outside', halfWidth: 3.5, height: 3.8, zFront: 8, zBack: 10.4, outdoor: true, scene: 'street',
   doors: [], props: [], lamps: [], vents: [], boards: [], manhole: { x: 1.2, z: 8.8 },
+  // the vent exit's grille (x 2.3-3.2, at the back wall); no drainpipe here, it read as a pole to climb
+  wallVents: [{ x0: 2.35, x1: 3.15, y0: 0.08, y1: 0.62 }], pipeX: null,
 };
 export const VENT_ROOM: RoomDef = {
   id: 's3-vent', halfWidth: 3.6, height: 3.6, zFront: 8, zBack: 10.4,

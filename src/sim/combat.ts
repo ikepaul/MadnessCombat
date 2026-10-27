@@ -12,7 +12,7 @@ import { tryTakedown } from './stealth';
 import { ceilingBounce, knockbackScale, wallRestitution } from './improbability';
 import { stepRising, zombieDamage, zombieLosesHead } from './zombies';
 import { bossHit } from './boss';
-import { ACTION_KINDS, actionTiming, disarm, dropCooking, holdsLong, lobHeldGrenade, startAction, startMeleeAction, stealTarget, stepAction, stepGrenade } from './melee';
+import { ACTION_KINDS, actionTiming, disarm, dropCooking, faceCursor, holdsLong, lobHeldGrenade, startAction, startMeleeAction, stealTarget, stepAction, stepGrenade } from './melee';
 import { project, unprojectFloor } from '../render/camera';
 import { type Actor, type AttackKind, alive, type Flight } from './actor';
 import { clamp, moveWithCollision, surfaceBelow } from './collision';
@@ -195,11 +195,13 @@ export function setClip(a: Actor, clip: string): void {
 // ---------- attacks ----------
 
 function startAttack(world: World, a: Actor, cmd: PlayerCommand): void {
+  // every punch turns to the cursor first, a chained one too (playtest: a combo couldn't turn round)
+  if (cmd.face) a.facing = cmd.face;
+  else faceCursor(a, cmd);
   let kind: AttackKind = cmd.attack!;
   if (kind === 'heavy' && cmd.aim && aimedUp(a, cmd.aim)) kind = 'uppercut';
   // a punch at a downed body with nobody standing in reach becomes the finisher
   if (kind !== 'uppercut' && a.body.state === 'ground' && !standingInReach(world, a) && downedInReach(world, a)) kind = 'finisher';
-  if (cmd.face) a.facing = cmd.face;
   a.state = 'attack';
   a.stateT = 0;
   a.attack = { kind, heavy: cmd.attack === 'heavy', t: 0, done: false };
