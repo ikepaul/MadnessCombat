@@ -17,6 +17,10 @@ const FRAME_TICKS = 2;
 interface Flash { x: number; y: number; angle: number; size: number; light: boolean; left: number }
 interface Tracer { from: ScreenPoint; to: ScreenPoint; left: number }
 interface Puff { x: number; y: number; r: number; life: number; max: number }
+/** Revamp B5: chips knocked off a wall/floor (fall and fade), sparks off metal (1-2 frames), ricochet streaks. */
+interface Chip { x: number; y: number; vx: number; vy: number; g: number; r: number; life: number; max: number; shade: string }
+interface Spark { x: number; y: number; vx: number; vy: number; life: number; max: number }
+interface Streak { x: number; y: number; dx: number; dy: number; left: number }
 /** A falling casing or magazine (screen space), until it settles on the floor line. */
 interface Debris { kind: 'casing' | 'mag' | 'pin'; x: number; y: number; vx: number; vy: number; spin: number; angle: number; floor: number; s: number; bounced: boolean }
 
@@ -27,10 +31,13 @@ export class GunFx {
   private tracers: Tracer[] = [];
   private puffs: Puff[] = [];
   private debris: Debris[] = [];
+  private chips: Chip[] = [];
+  private sparks: Spark[] = [];
+  private streaks: Streak[] = [];
 
   /** `onSettle` bakes a landed casing or magazine into the decal layer. */
   constructor(world: World, private onSettle: (d: SettledDebris) => void) {
-    world.events.on('roomChanged', () => { this.flashes = []; this.tracers = []; this.puffs = []; this.debris = []; });
+    world.events.on('roomChanged', () => { this.flashes = []; this.tracers = []; this.puffs = []; this.debris = []; this.chips = []; this.sparks = []; this.streaks = []; });
     world.events.on('shot', (e) => {
       const w = WEAPONS[e.weapon], s = scaleAt(e.z);
       const shooter = world.actorById(e.actorId);
@@ -38,7 +45,7 @@ export class GunFx {
       this.flashes.push({ x: e.muzzle[0], y: e.muzzle[1], angle: e.angle, size: s * (w.pellets > 1 ? 1.5 : w.id === 'deagle' ? 1.25 : 1), light: !w.suppressed, left: FRAME_TICKS });
       for (const r of e.rays) {
         this.tracers.push({ from: e.muzzle, to: r.end, left: FRAME_TICKS });
-        if (r.surface && r.surface !== 'flesh' && r.surface !== 'sky') this.puffs.push({ x: r.end[0], y: r.end[1], r: 0.03 * s, life: 0, max: 0.25 });
+        if (r.surface && r.surface !== 'flesh' && r.surface !== 'sky' && r.surface !== 'ward') this.impact(r.end, r.surface, e.angle, s);
       }
       // ejected casing: up and back out of the port, lands near the shooter's feet
       const floor = project(e.x, 0, e.z)[1] + (Math.random() - 0.5) * 0.08 * s;
@@ -60,7 +67,41 @@ export class GunFx {
     world.events.on('tick', () => this.step(world.dt));
   }
 
+  /**
+   * Revamp B5: a bullet meeting the world. Every hit puffs; walls, floors and props throw chips
+   * back toward the shooter; metal (and some props) spark; one wall hit in four ricochets.
+   * Counts and speeds invented.
+   */
+  private impact(at: ScreenPoint, surface: string, angle: number, s: number): void {
+    const [x, y] = at;
+    this.puffs.push({ x, y, r: 0.03 * s, life: 0, max: 0.25 }, { x: x - Math.cos(angle) * 0.03 * s, y: y - 0.02 * s, r: 0.02 * s, life: 0, max: 0.35 });
+    const back = angle + Math.PI;
+    const metal = surface === 'metal' || (surface === 'prop' && Math.random() < 0.5);
+    if (surface !== 'metal') {
+      for (let i = 0; i < 4; i++) {
+        const a = back + (Math.random() - 0.5) * 1.6, v = (0.8 + Math.random() * 1.4) * s;
+        this.chips.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 0.6 * s, g: 9 * s, r: (0.006 + Math.random() * 0.008) * s, life: 0, max: 0.45, shade: Math.random() < 0.5 ? '#6f7075' : '#a3a4a8' });
+      }
+    }
+    if (metal) {
+      for (let i = 0; i < 5; i++) {
+        const a = back + (Math.random() - 0.5) * 2.2, v = (2.5 + Math.random() * 3) * s;
+        this.sparks.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0, max: 0.08 + Math.random() * 0.06 });
+      }
+    }
+    if ((surface === 'wall' || surface === 'prop') && Math.random() < 0.25) {
+      const a = back + (Math.random() - 0.5) * 2, l = (0.4 + Math.random() * 0.4) * s;
+      this.streaks.push({ x, y, dx: Math.cos(a) * l, dy: Math.sin(a) * l, left: FRAME_TICKS });
+    }
+  }
+
   private step(dt: number): void {
+    for (const c of this.chips) { c.life += dt; c.vy += c.g * dt; c.x += c.vx * dt; c.y += c.vy * dt; }
+    this.chips = this.chips.filter((c) => c.life < c.max);
+    for (const k of this.sparks) { k.life += dt; k.x += k.vx * dt; k.y += k.vy * dt; k.vy += 600 * dt; }
+    this.sparks = this.sparks.filter((k) => k.life < k.max);
+    for (const t of this.streaks) t.left--;
+    this.streaks = this.streaks.filter((t) => t.left > 0);
     for (const f of this.flashes) f.left--;
     this.flashes = this.flashes.filter((f) => f.left > 0);
     for (const t of this.tracers) t.left--;
@@ -92,7 +133,23 @@ export class GunFx {
       ctx.fillStyle = '#c9cacd';
       ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
     }
+    for (const c of this.chips) {
+      ctx.globalAlpha = 1 - c.life / c.max;
+      ctx.fillStyle = c.shade;
+      ctx.fillRect(c.x - c.r, c.y - c.r, c.r * 2, c.r * 2);
+    }
     ctx.globalAlpha = 1;
+    ctx.lineCap = 'round';
+    for (const k of this.sparks) {
+      ctx.strokeStyle = `rgba(255,246,220,${1 - k.life / k.max})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(k.x, k.y); ctx.lineTo(k.x - k.vx * 0.02, k.y - k.vy * 0.02); ctx.stroke();
+    }
+    for (const t of this.streaks) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(t.x, t.y); ctx.lineTo(t.x + t.dx, t.y + t.dy); ctx.stroke();
+    }
     // room light flash first (additive), then tracers, then the flash stars on top
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';

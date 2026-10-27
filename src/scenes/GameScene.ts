@@ -48,6 +48,7 @@ import { MusicSystem } from '../audio/music';
 import { BoomboxSource } from '../audio/boombox';
 import { FeelDirector } from '../feel/feel';
 import { FeelFx } from '../render/feelFx';
+import { inkWipe } from '../ui/transition';
 import { cycleEffects, effectLevel, saveSettings, SETTINGS } from '../settings';
 import { LAST_STAGE, PROGRESS, saveCheckpoint, stageFinished } from '../progress';
 import type { UIScene } from './UIScene';
@@ -150,6 +151,7 @@ export class GameScene extends Phaser.Scene {
     this.cannonHits = 0;
     this.deadFor = 0;
     this.cleared = false;
+    this.leaving = false;
     this.stageInfo = undefined;
     this.coop = data.coop;
     this.localPlayer = data.coop === 'guest' ? 1 : 0;
@@ -301,11 +303,26 @@ export class GameScene extends Phaser.Scene {
     this.scene.restart({ ...this.data_, palette: this.paletteId, resume: true });
   }
 
-  /** Leave for the title screen (the pause menu, the end card, after the credits). */
-  toTitle(view?: 'credits'): void {
-    this.scene.stop('ui');
-    this.scene.start('title', { view: view ?? 'main' });
+  /** A stage entered from its start or the next stage's link, not a restart after dying (the stage card shows). */
+  get freshStart(): boolean {
+    return this.data_.resume !== true;
   }
+
+  /** Leave for the title screen (the pause menu, the end card, after the credits), under the ink wipe (revamp F2). */
+  toTitle(view?: 'credits'): void {
+    const go = () => {
+      this.scene.stop('ui');
+      this.scene.start('title', { view: view ?? 'main' });
+    };
+    const ui = this.scene.get('ui');
+    if (this.leaving) return;
+    this.leaving = true;
+    if (ui && this.scene.isActive('ui')) inkWipe(ui, 'out', go);
+    else go();
+  }
+
+  /** Set while the wipe to the title runs (a second Esc mustn't start another). */
+  private leaving = false;
 
   /** M9: a room-graph stage from its start, a checkpoint, or `&room=`. */
   private setupRoomStage(def: StageDef, data: GameSceneData): void {

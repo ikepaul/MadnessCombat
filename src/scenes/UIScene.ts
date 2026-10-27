@@ -1,18 +1,17 @@
 import Phaser from 'phaser';
-import { isMelee, MELEE } from '../data/melee';
 import { rootToWorld } from '../anim/skeleton';
 import { INK } from '../data/palettes';
 import { project } from '../render/camera';
 import { drawDebugGrid, rulerLabels } from '../render/debugOverlay';
 import { type Actor, stateLabel } from '../sim/actor';
 import { BODY, HEAD } from '../sim/hurtbox';
-import { isWeapon, WEAPONS } from '../data/weapons';
 import { SETTINGS } from '../settings';
 import type { GameScene } from './GameScene';
 import { StageHud } from '../render/stageHud';
-import { usableExitAt } from '../sim/stage';
 import { Menu, type MenuItem } from '../ui/menu';
 import { controlsItems, settingsItems } from '../ui/settingsMenu';
+import { InkHud } from '../ui/hud';
+import { inkWipe, takeStageCard } from '../ui/transition';
 
 /** HUD + debug overlay. A separate scene/camera so post FX never touch it. */
 export class UIScene extends Phaser.Scene {
@@ -26,8 +25,6 @@ export class UIScene extends Phaser.Scene {
   private pipRows: { lastHp: number; lost: number; healed: number }[] = [];
   /** Co-op row labels ("P1 · you", "P2"). */
   private pipLabels: Phaser.GameObjects.Text[] = [];
-  /** Ammo for this laptop's player: one line per gun hand (M5). */
-  private ammo!: Phaser.GameObjects.Text;
   private counter!: Phaser.GameObjects.Text;
   private lastKills = 0;
   /** Kill counter pop: frames left of the 1.3 -> 1.0 scale (design/art-direction.md). */
@@ -41,6 +38,8 @@ export class UIScene extends Phaser.Scene {
   private pause?: { bg: Phaser.GameObjects.Rectangle; title: Phaser.GameObjects.Text; menu: Menu };
   /** M9: the ink wipe between rooms and the tracker. */
   private stageHud!: StageHud;
+  /** Revamp: weapons, prompts, crosshair, hurt edges, stage card (src/ui/hud.ts). */
+  private inkHud!: InkHud;
 
   constructor() {
     super('ui');
@@ -60,7 +59,6 @@ export class UIScene extends Phaser.Scene {
     this.info = this.add.text(16, 12, '', box);
     this.labText = this.add.text(16, 1080 - 48, '', { ...box, wordWrap: { width: 1880 } }).setVisible(!!game.lab).setOrigin(0, 1).setY(1080 - 16);
     this.pipRows = [];
-    this.ammo = this.add.text(28, 0, '', { fontFamily: 'Inter', fontSize: '22px', color: '#ffffff', stroke: INK, strokeThickness: 5, fontStyle: 'bold', lineSpacing: 4 }).setOrigin(0, 1);
     this.pipLabels = [0, 1].map(() => this.add.text(0, 0, '', { fontFamily: 'Inter', fontSize: '20px', color: '#ffffff', stroke: INK, strokeThickness: 4, fontStyle: 'bold' }).setOrigin(0, 0.5));
     // world-kill-counter: big number bottom-right, appears at the first kill
     this.counter = this.add.text(1920 - 48, 1080 - 36, '', {
@@ -71,6 +69,10 @@ export class UIScene extends Phaser.Scene {
     this.card = this.buildCard().setVisible(false);
     this.buildScriptCards();
     this.stageHud = new StageHud(this, game.world);
+    // revamp F2: the screen comes in from under the ink, with the stage card on a fresh start
+    const card = takeStageCard() || game.freshStart;
+    this.inkHud = new InkHud(this, game, card);
+    inkWipe(this, 'in');
     // a new room: the last room's caption goes with it
     game.world.events.on('roomEnter', () => { this.scriptCardUntil = 0; });
     game.world.events.on('card', (e) => {
@@ -91,22 +93,6 @@ export class UIScene extends Phaser.Scene {
       fontFamily: 'Inter', fontSize: '30px', color: '#ffffff', backgroundColor: '#000000cc', padding: { x: 18, y: 10 }, align: 'center', wordWrap: { width: 1400 },
     }).setOrigin(0.5, 0).setDepth(90).setVisible(false);
     this.scriptCardUntil = 0;
-    // playtest: standing where E takes an exit (ladder, vent, lift) shows the key over the hero
-    this.usePrompt = this.add.text(0, 0, '', {
-      fontFamily: 'Anton', fontSize: '26px', color: '#ffffff', backgroundColor: '#000000cc', padding: { x: 10, y: 4 },
-    }).setOrigin(0.5, 1).setDepth(80).setVisible(false);
-  }
-
-  private usePrompt!: Phaser.GameObjects.Text;
-
-  private drawUsePrompt(game: GameScene): void {
-    const me = game.world.players[game.localPlayer];
-    const e = me ? usableExitAt(game.world, me) : undefined;
-    this.usePrompt.setVisible(!!e);
-    if (!e || !me) return;
-    const verb = e.kind === 'vent' ? 'go in' : e.kind === 'lift' ? 'ride' : 'climb';
-    const [x, y] = project(me.pos.x, me.pos.y + 1.3, me.pos.z);
-    this.usePrompt.setText(`${SETTINGS.keys.use}  ${verb}`).setPosition(x, y);
   }
 
   /** End-of-room card: plain text on black, like an episode title card (own wording). */
@@ -168,10 +154,9 @@ export class UIScene extends Phaser.Scene {
     const game = this.scene.get('game') as GameScene;
     const p = game.world.player;
     this.drawPips(game, delta / 1000);
-    this.drawAmmo(game);
     this.drawCounter(game);
-    this.drawUsePrompt(game);
     this.stageHud.update();
+    this.inkHud.update(delta / 1000);
     if (game.world.time >= this.scriptCardUntil) { this.titleCard.setVisible(false); this.caption.setVisible(false); }
     if (game.lab) {
       const b = p?.body;
@@ -220,24 +205,6 @@ export class UIScene extends Phaser.Scene {
     }
   }
 
-  /** Hit pips for the player's 3 hits (design/art-direction.md, UI), bottom-left. */
-  /** "LMB  SMG  23 +1" per gun hand (melee weapons by name) and the grenade count, above the life pips. */
-  private drawAmmo(game: GameScene): void {
-    const p = game.world.players[game.localPlayer];
-    const rows = game.world.players.length;
-    const lines = (p?.hands ?? []).map((h, i) => {
-      if (!h) return undefined;
-      const key = i === 0 ? 'LMB' : 'RMB';
-      if (isMelee(h.item)) return `${key}  ${MELEE[h.item].name}`;
-      if (!isWeapon(h.item)) return undefined;
-      const state = h.reload > 0 ? 'reloading' : h.ammo === 0 ? (h.clicked ? 'empty: press to throw' : 'empty') : `${h.ammo}`;
-      return `${key}  ${WEAPONS[h.item].name}  ${state}${h.spare > 0 ? '  +1' : ''}`;
-    }).filter((l): l is string => !!l);
-    if (p?.cook !== undefined) lines.push('G  grenade: cooking, release to throw');
-    else if (p && p.grenades > 0) lines.push(`G  grenade ×${p.grenades}`);
-    this.ammo.setText(lines.join('\n')).setY(1080 - 120 - (rows - 1) * 56 - 30);
-  }
-
   /** One row of life pips per player, bottom-left (P1 lowest). Co-op rows are labelled. */
   private drawPips(game: GameScene, dt: number): void {
     const g = this.pips;
@@ -265,11 +232,20 @@ export class UIScene extends Phaser.Scene {
     const ink = Phaser.Display.Color.HexStringToColor(INK).color;
     for (let i = 0; i < p.maxHp; i++) {
       const lost = i >= p.hp;
-      // the pip just lost pops out; the pip just regained (a kill) pops in
+      // the pip just lost pops out (and shakes); the pip just regained (a kill) pops in
       const pop = lost && i === p.hp ? 1 + s.lost * 1.6 : !lost && i === p.hp - 1 ? 1 + s.healed * 1.4 : 1;
-      const x = x0 + i * 46;
-      g.fillStyle(ink, 1).fillCircle(x, y, 17 * pop);
-      g.fillStyle(lost ? 0x5b5c61 : 0xffffff, 1).fillCircle(x, y, 12 * pop);
+      const shake = lost && i === p.hp ? Math.sin(s.lost * 90) * s.lost * 24 : 0;
+      const x = x0 + i * 52 + shake;
+      // revamp E1: each life is one of our heads; a lost one is the dead face (one wide X), greyed
+      const r = 19 * pop;
+      g.fillStyle(ink, 1).fillEllipse(x, y, (r + 4) * 2 * 0.9, (r + 4) * 2);
+      g.fillStyle(lost ? 0x5b5c61 : 0xe9e9eb, 1).fillEllipse(x, y, r * 2 * 0.9, r * 2);
+      if (!lost) g.fillStyle(0xffffff, 0.7).fillEllipse(x + r * 0.3, y - r * 0.5, r * 0.5, r * 0.28);
+      g.lineStyle(Math.max(2, 3.5 * pop), ink, 1);
+      if (lost) {
+        g.lineBetween(x - r * 0.35, y - r * 0.45, x + r * 0.65, y + 0.25 * r);
+        g.lineBetween(x + r * 0.65, y - r * 0.45, x - r * 0.35, y + 0.25 * r);
+      } else g.lineBetween(x + r * 0.05, y - r * 0.15, x + r * 0.7, y - r * 0.15);
     }
   }
 

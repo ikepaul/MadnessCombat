@@ -1,5 +1,6 @@
 // Screen-space particles and 1-2 frame effects driven by sim events (design/art-direction.md).
 // Advanced on sim ticks, so slow-mo, hit-stop and pause apply to them too.
+import { isMelee, MELEE } from '../data/melee';
 import { BLOOD, INK } from '../data/palettes';
 import type { HitKind } from '../sim/events';
 import type { World } from '../sim/world';
@@ -9,15 +10,20 @@ import type { Ctx } from './canvas/draw';
 
 interface Puff { x: number; y: number; vx: number; vy: number; r: number; grow: number; life: number; max: number; z: number }
 interface Drop { x: number; y: number; vx: number; vy: number; r: number; life: number; max: number; g: number }
-interface Smear { x: number; y: number; fx: number; fy: number; s: number; facing: number; kind: HitKind; left: number }
+/**
+ * Revamp B1: a smear lives a few ticks and shrinks toward its leading edge. `r` = arc radius (H),
+ * `inner` = inner radius as a fraction (blades thin, blunt thick), `len` = streak length for
+ * punches and thrusts.
+ */
+interface Smear { x: number; y: number; fx: number; fy: number; s: number; facing: number; kind: HitKind; left: number; max: number; r: number; inner: number; blade: boolean; thrust: boolean; len: number }
 interface Star { x: number; y: number; s: number; left: number; big: boolean }
 /** M6: explosion flash, smoke and the pieces of gibbed bodies. */
 interface Boom { x: number; y: number; s: number; left: number }
 interface Smoke { x: number; y: number; vx: number; vy: number; r: number; grow: number; life: number; max: number; shade: number }
 interface Chunk { x: number; y: number; vx: number; vy: number; floor: number; r: number; angle: number; spin: number; color: string; life: number; landed: boolean }
 
-/** Ticks at 60 Hz: 1 frame at 30 fps = 2 ticks. */
-const SMEAR_TICKS = 2;
+/** Ticks at 60 Hz: 1 frame at 30 fps = 2 ticks. Revamp B1: smears trail 2-3 frames. invented */
+const SMEAR_TICKS: Partial<Record<HitKind, number>> = { light: 4, heavy: 5, uppercut: 6, finisher: 4, stab: 4, slash: 6, smash: 6 };
 const STAR_TICKS = 3;
 /** The alert "!" stays 0.7 s. */
 const MARK_TICKS = 42;
@@ -108,7 +114,15 @@ export class Vfx {
       if (!a) return;
       const [x, y] = project(a.pos.x, a.pos.y + 0.55, a.pos.z);
       const [fx, fy] = project(e.x, e.y, e.z);
-      this.smears.push({ x, y, fx, fy, s: scaleAt(a.pos.z), facing: e.facing, kind: e.kind, left: SMEAR_TICKS });
+      // per weapon: the arc's radius follows the weapon's length, blades cut a thin bright arc
+      const w = a.attack?.weapon && isMelee(a.attack.weapon) ? MELEE[a.attack.weapon] : undefined;
+      const max = SMEAR_TICKS[e.kind] ?? 4;
+      this.smears.push({
+        x, y, fx, fy, s: scaleAt(a.pos.z), facing: e.facing, kind: e.kind, left: max, max,
+        r: w ? Math.min(0.85, 0.3 + w.length * 0.5) : e.kind === 'uppercut' ? 0.36 : 0.42,
+        inner: w?.edge === 'blade' ? 0.86 : 0.7, blade: w?.edge === 'blade', thrust: a.attack?.kind === 'thrust' || e.kind === 'stab',
+        len: w ? w.reach * 0.7 : e.kind === 'heavy' ? 0.45 : 0.3,
+      });
     });
     world.events.on('hit', (e) => {
       const [x, y] = project(e.x, e.y, e.z);
@@ -375,32 +389,45 @@ export class Vfx {
     }
   }
 
-  /** 1-frame smear along the fist's path: a tapered streak for jabs and crosses, an arc for swings. */
+  /**
+   * Smear along the strike's path (revamp B1): a tapered streak for punches, stabs and thrusts,
+   * an arc for swings and uppercuts. Over its 2-3 frames the tail pulls in toward the leading
+   * edge and fades; blades add a thin bright edge line.
+   */
   private drawSmear(ctx: Ctx, m: Smear): void {
-    if (m.kind === 'light' || m.kind === 'heavy') {
+    const u = m.left / m.max; // 1 on the first tick -> 0
+    if (m.kind === 'light' || m.kind === 'heavy' || m.thrust) {
       // from behind the fist (thin) to the fist (wide), no outline
-      const len = (m.kind === 'heavy' ? 0.45 : 0.3) * m.s, w = (m.kind === 'heavy' ? 0.07 : 0.05) * m.s;
-      const bx = m.fx - m.facing * len, by = m.fy + 0.05 * m.s;
+      const len = m.len * m.s * (0.35 + 0.65 * u), w = (m.kind === 'heavy' ? 0.07 : 0.05) * m.s * (0.6 + 0.4 * u);
+      const bx = m.fx - m.facing * len, by = m.fy + 0.05 * m.s * u;
       ctx.beginPath();
       ctx.moveTo(bx, by);
       ctx.lineTo(m.fx, m.fy - w);
       ctx.lineTo(m.fx, m.fy + w);
       ctx.closePath();
-      ctx.fillStyle = 'rgba(240,240,242,0.6)';
+      ctx.fillStyle = `rgba(240,240,242,${0.65 * u})`;
       ctx.fill();
       return;
     }
-    // arc angles in local space (+x forward, -y up): where the fist came from -> where it went
-    const [a0, a1, r] = m.kind === 'uppercut' ? [1.1, -1.2, 0.36] : [-1.0, 1.1, 0.42];
+    // arc angles in local space (+x forward, -y up): where the strike came from -> where it went
+    const [from, a1] = m.kind === 'uppercut' ? [1.1, -1.2] : [-1.0, 1.1];
+    const a0 = a1 + (from - a1) * (0.25 + 0.75 * u);
     ctx.save();
     ctx.translate(m.x, m.y);
     ctx.scale(m.s * m.facing, m.s);
     ctx.beginPath();
-    ctx.arc(0, 0, r, a0, a1, a1 < a0);
-    ctx.arc(0, 0, r * 0.72, a1, a0, a1 >= a0);
+    ctx.arc(0, 0, m.r, a0, a1, a1 < a0);
+    ctx.arc(0, 0, m.r * m.inner, a1, a0, a1 >= a0);
     ctx.closePath();
-    ctx.fillStyle = 'rgba(240,240,242,0.55)';
+    ctx.fillStyle = `rgba(240,240,242,${0.6 * u})`;
     ctx.fill();
+    if (m.blade) {
+      ctx.beginPath();
+      ctx.arc(0, 0, m.r, a0 + (a1 - a0) * 0.4, a1, a1 < a0);
+      ctx.lineWidth = 0.012;
+      ctx.strokeStyle = `rgba(255,255,255,${0.9 * u})`;
+      ctx.stroke();
+    }
     ctx.restore();
   }
 

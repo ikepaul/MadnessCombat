@@ -25,6 +25,16 @@ export function paintItem(ctx: Ctx, it: Item, pal: Palette, blood: boolean, time
   ctx.fillStyle = `rgba(0,0,0,${0.2 * (1 - air * 0.6)})`;
   ctx.fill();
 
+  // revamp B1: a thrown weapon spinning through the air leaves a faint disc of motion blur
+  const spin = Math.abs(it.spin ?? 0);
+  if (it.kind !== 'head' && it.kind !== 'boombox' && it.pos.y > 0.15 && spin > 6) {
+    const len = isMelee(it.kind) ? MELEE[it.kind].length : isWeapon(it.kind) ? WEAPONS[it.kind].length : 0.2;
+    ctx.beginPath();
+    ctx.arc(x, y, (len / 2) * s, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(235,235,238,${Math.min(0.22, spin / 120)})`;
+    ctx.fill();
+  }
+
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(s, s);

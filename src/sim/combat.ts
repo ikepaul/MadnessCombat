@@ -35,6 +35,9 @@ export function attackTiming(kind: AttackKind, weapon?: string): { startup: numb
   return M[kind as 'light' | 'heavy' | 'uppercut' | 'finisher'];
 }
 
+/** Revamp A6: a hit reaction plays out over this long (s). invented */
+export const REACT_LIFE = 0.6;
+
 /** Timer reached a duration (tolerates float drift from summing 1/60 s ticks). */
 const reached = (t: number, d: number) => t >= d - 1e-6;
 
@@ -44,6 +47,7 @@ const FIST_REACH = M.range - 0.2 - M.fistRadius - 0.01;
 export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number): void {
   a.stateT += dt;
   a.pose.clipT += dt;
+  if (a.pose.react && (a.pose.react.age += dt) > REACT_LIFE) a.pose.react = undefined;
   a.pose.impact = Math.max(0, a.pose.impact - dt);
   a.pose.hurt = Math.max(0, a.pose.hurt - dt);
   a.pose.lean *= Math.exp(-8 * dt);
@@ -204,6 +208,9 @@ export function enter(a: Actor, s: Actor['state']): void {
 
 export function setClip(a: Actor, clip: string): void {
   if (a.pose.clip !== clip) {
+    // the painter blends out of the old clip (render only: hit timing still follows the new clip)
+    a.pose.prevClip = a.pose.clip;
+    a.pose.prevT = a.pose.clipT;
     a.pose.clip = clip;
     a.pose.clipT = 0;
   }
@@ -375,6 +382,7 @@ export function applyHit(
   if ((damage > 0 || corpse) && o.corpse?.phase !== 'frozen') addWound(o, at, part);
   world.events.emit('hit', { actorId: o.id, attackerId: by?.id ?? 0, kind, part, damage, killed, dirX, dirZ, combo, chain: o.chain?.count ?? 0, ...at });
   if (corpse) return;
+  if (damage > 0 && !killed) o.pose.react = reaction(o, kind, part, dirX);
 
   dropCooking(world, o);
   if (o.state === 'attack') o.attack = undefined;
@@ -461,6 +469,27 @@ function chainBonus(world: World, by: Actor | undefined, o: Actor, kind: HitKind
   return n >= 3 || (n === 2 && (kind === 'heavy' || kind === 'uppercut') && prev === 'light');
 }
 
+const HEAD_KINDS: HitKind[] = ['light', 'heavy', 'uppercut', 'head'];
+
+/**
+ * Revamp A6: which way a hit throws the body (drawn by src/anim/layers.ts). Pushed the way he
+ * faces = hit from behind; punches and head shots snap the head; the rest fold the body. `v`
+ * varies the size and side per actor and hit, without the sim's rng.
+ */
+function reaction(o: Actor, kind: HitKind, part: 'head' | 'body', dirX: number): NonNullable<Actor['pose']['react']> {
+  const behind = Math.sign(dirX) === o.facing;
+  const v = ((o.id * 37 + (o.chain?.count ?? 0) * 11 + o.pose.wounds.length * 5) % 10) / 10;
+  return { part: behind ? 'back' : part === 'head' || HEAD_KINDS.includes(kind) ? 'head' : 'body', age: 0, v };
+}
+
+/** Revamp A7: how a kill looks (drawn by src/anim/layers.ts). */
+function deathStyle(kind: HitKind): Actor['pose']['death'] {
+  if (kind === 'bullet' || kind === 'gun' || kind === 'head') return 'drop';
+  if (kind === 'heavy' || kind === 'uppercut' || kind === 'wall' || kind === 'fling' || kind === 'cannon' || kind === 'sweep') return 'fling';
+  if (kind === 'stab' || kind === 'slash' || kind === 'knife' || kind === 'smash' || kind === 'takedown' || kind === 'pin') return 'crumple';
+  return undefined;
+}
+
 function addWound(o: Actor, at: { x: number; y: number }, part: 'head' | 'body'): void {
   if (o.pose.wounds.length >= 6) return;
   const [lx, ly] = part === 'head' ? [0.12, -0.84] : [0.05 + (o.pose.wounds.length % 3) * 0.04, -0.3 - (at.y - o.pos.y) * 0.1];
@@ -533,6 +562,8 @@ export function die(world: World, o: Actor, by: Actor | undefined, kind: HitKind
   o.state = 'dead';
   o.stateT = 0;
   o.hp = 0;
+  o.pose.react = undefined;
+  o.pose.death = deathStyle(kind);
   // a zombie that falls again stays down (enemy-zombie: only fresh corpses rise)
   o.corpse = { phase: 'tumble', t: 0, raisable: o.kind === 'grunt', gibbed: false, slumped: false };
   world.events.emit('kill', { actorId: o.id, byId: by?.id ?? 0, kind, decap, ...o.pos });
@@ -556,6 +587,8 @@ export function die(world: World, o: Actor, by: Actor | undefined, kind: HitKind
     return;
   }
   if (kind !== 'wall') startFlight(o, flight, dirX, dirZ, knockbackScale(world));
+  // revamp A7: a flung kill turns a full somersault on the way down (lands the same way up)
+  if (o.pose.death === 'fling' && o.flight && kind !== 'wall') o.flight.rTo += Math.sign(o.flight.rTo || 1) * Math.PI * 2;
   setClip(o, 'knockback');
 }
 
