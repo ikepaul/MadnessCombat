@@ -110,6 +110,10 @@ export interface RoomDef {
   holes?: Zone[];
   /** Street flavour: a manhole cover at (x, z). */
   manhole?: { x: number; z: number };
+  /** A vent grille low in the back wall (a vent exit's picture in a street scene), x and height in H. */
+  wallVents?: { x0: number; x1: number; y0: number; y1: number }[];
+  /** The street's drainpipe (x on the back wall); null = none (it read as a climbable pole). */
+  pipeX?: number | null;
   /**
    * M10: walkable upper floors with no solid sides (the elevator cab's roof). You stand on one once
    * your feet are at its height; open holes in it (the hatch, a cut slot) drop you through.

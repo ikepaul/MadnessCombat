@@ -63,9 +63,11 @@ export function paintStreet(ctx: Ctx, room: RoomDef, pal: Palette): void {
   // upper-floor windows (small, a few lit)
   windows(ctx, 0, top, SCREEN_W, foot - 1.6 * s, 0.32 * s, 0.42 * s, 0.38 * s, 4, 0.22);
   // a drainpipe and a wall lamp's warm pool on the bricks
-  const [px] = P(-2.2, 0, zb);
-  ctx.fillStyle = dim(pal.propShade, 0.4); ctx.fillRect(px - 6, top, 12, foot - top);
-  ctx.lineWidth = 2; ctx.strokeStyle = INK; ctx.strokeRect(px - 6, top - 2, 12, foot - top + 2);
+  if (room.pipeX !== null) {
+    const [px] = P(room.pipeX ?? -2.2, 0, zb);
+    ctx.fillStyle = dim(pal.propShade, 0.4); ctx.fillRect(px - 6, top, 12, foot - top);
+    ctx.lineWidth = 2; ctx.strokeStyle = INK; ctx.strokeRect(px - 6, top - 2, 12, foot - top + 2);
+  }
   const [lx, ly] = P(0.4, 2.2, zb);
   const g = ctx.createRadialGradient(lx, ly, 0, lx, ly, 3 * s);
   g.addColorStop(0, 'rgba(255,236,190,0.22)'); g.addColorStop(1, 'rgba(255,236,190,0)');
@@ -88,6 +90,28 @@ export function paintStreet(ctx: Ctx, room: RoomDef, pal: Palette): void {
     for (const k of [-0.18, 0, 0.18]) line(ctx, [mx - 0.28 * ms, my + k * 0.4 * ms], [mx + 0.28 * ms, my + k * 0.4 * ms]);
   }
   for (const l of room.ladders ?? []) paintLadder(ctx, l.x, l.z, l.top);
+  for (const v of room.wallVents ?? []) paintWallVent(ctx, v, room.zBack);
+}
+
+/** A vent grille in the back wall, its cover hanging open: the way in (a vent exit). */
+function paintWallVent(ctx: Ctx, v: { x0: number; x1: number; y0: number; y1: number }, zb: number): void {
+  const [x0, y1] = P(v.x0, v.y0, zb), [x1, y0] = P(v.x1, v.y1, zb), s = scaleAt(zb);
+  // the dark duct behind
+  ctx.fillStyle = '#16171a'; ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+  ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(x0, y0, x1 - x0, (y1 - y0) * 0.2);
+  // frame
+  ctx.lineWidth = 0.035 * s; ctx.strokeStyle = '#8d8f95'; ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+  ctx.lineWidth = 2; ctx.strokeStyle = INK; ctx.strokeRect(x0 - 0.018 * s, y0 - 0.018 * s, x1 - x0 + 0.036 * s, y1 - y0 + 0.036 * s);
+  // the grille cover, taken off and leaning against the wall beside the opening
+  const w = (x1 - x0) * 0.75, h = (y1 - y0) * 0.9, lx = x0 - w - 0.06 * s;
+  ctx.save();
+  ctx.translate(lx, y1);
+  ctx.transform(1, 0, -0.18, 1, 0, 0);
+  ctx.fillStyle = '#a9abb0'; ctx.fillRect(0, -h, w, h);
+  ctx.strokeStyle = 'rgba(20,20,22,0.55)'; ctx.lineWidth = 2;
+  for (let k = 1; k < 6; k++) line(ctx, [0.08 * w, -h + (k * h) / 6], [0.92 * w, -h + (k * h) / 6]);
+  ctx.lineWidth = 2; ctx.strokeStyle = INK; ctx.strokeRect(0, -h, w, h);
+  ctx.restore();
 }
 
 /** A flat roof at night: skyline beyond the parapet, tar floor, vents; roof B has the stairwell hut. */
