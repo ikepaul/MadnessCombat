@@ -34,7 +34,7 @@ Sources: ep1 f470 (close foreground), ep2 f1965 (office) and f3000 (corridor), e
 ## Characters
 | Part | Spec |
 |---|---|
-| Face | **Slit**: one ink dash 0.12 H long, 0.02 H thick, at eye level toward the facing side. Dead: two small x's. **Never a cross.** |
+| Face | **Slit**: one ink dash 0.12 H long, 0.02 H thick, at eye level toward the facing side. Dead: **one wide X** over the face, ≈ 0.2 H wide (changed from two small x's 2026-10-27, the user's call). Living faces are **never a cross**. |
 | Head | light grey fill, soft horizontal form shading (darker on the back side), small specular highlight top-front, ink outline |
 | Body | suit colour + one flat shade band on the back side, ink outline |
 | Hands | mitten silhouette (palm + thumb nub), **no inner lines** (lines inside read as faces at small size) |
