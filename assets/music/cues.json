@@ -1,8 +1,24 @@
 {
   "_format": "rooms: room id -> ambience sound id and combat track id (or null). tracks: id -> bpm, beatsPerBar, loopStart/loopEnd (s) and stems for intensity layers 1-3 (files in assets/music/, see design/audio-direction.md delivery spec). Until the user's tracks arrive every room plays its ambience only.",
   "rooms": {
-    "stage1-arena": { "ambience": "ambWind", "combat": null },
-    "test-room": { "ambience": "ambRoom", "combat": null }
+    "stage1-arena": {
+      "ambience": "ambWind",
+      "combat": "madness-combat-v1"
+    },
+    "test-room": {
+      "ambience": "ambRoom",
+      "combat": "madness-combat-v1"
+    }
   },
-  "tracks": {}
+  "tracks": {
+    "madness-combat-v1": {
+      "bpm": 120,
+      "beatsPerBar": 4,
+      "loopStart": 0,
+      "loopEnd": 271.949116,
+      "stems": [
+        "MadnessCombat.V1.wav"
+      ]
+    }
+  }
 }
