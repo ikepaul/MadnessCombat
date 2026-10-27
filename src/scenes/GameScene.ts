@@ -32,6 +32,8 @@ import { WaveDirector } from '../sim/waves';
 import { World } from '../sim/world';
 import { STAGE1, type StageRoomId } from '../data/stages/stage1';
 import { STAGE1_BEATS, type Stage1Beat, stage1From } from '../data/stages/stage1Script';
+import { STAGE2 } from '../data/stages/stage2';
+import { type StageDef, stageRunner } from '../sim/stage';
 import { coopLink, type CoopLink } from '../net/link';
 import { applySnapshot, type Snapshot, SnapshotWriter } from '../net/snapshot';
 import { paintReviveBar, paintReviveCircle } from '../render/canvas/revivePainter';
@@ -55,9 +57,9 @@ export interface GameSceneData {
   palette?: PaletteId;
   /** `?room=test`: the style-frame room with the M0 cast (look check). */
   testRoom?: boolean;
-  /** Stage route `?stage=1&room=arena` (the default: the whole stage from its intro); `&wave=A` starts at that wave. */
-  stage?: 1;
-  room?: StageRoomId;
+  /** Stage route `?stage=1&room=arena` (the default: the whole stage from its intro); `&wave=A` starts at that wave. M9: `?stage=2&room=<id>`. */
+  stage?: 1 | 2;
+  room?: StageRoomId | string;
   wave?: string;
   /** `&beat=riot|grenade|boss|waveB`: start the stage script at that beat (playtesting). */
   beat?: string;
@@ -66,7 +68,17 @@ export interface GameSceneData {
 }
 
 /** Room definitions by id, for the guest (the host's snapshot names the room). */
-const ROOMS_BY_ID = Object.fromEntries([TEST_ROOM, ...Object.values(STAGE1.rooms).map((r) => r.room)].map((r) => [r.id, r]));
+const ROOMS_BY_ID = Object.fromEntries([TEST_ROOM, ...Object.values(STAGE1.rooms).map((r) => r.room), ...Object.values(STAGE2.rooms).map((r) => r.room)].map((r) => [r.id, r]));
+
+/** M9 room-graph stages by number. */
+const ROOM_STAGES: Record<number, StageDef> = { 2: STAGE2 };
+
+/**
+ * M9 checkpoint per room: where the stage was entered last, with each player's loadout and the
+ * body count so far. A death restarts the scene there; the end card's restart clears it.
+ */
+interface Checkpoint { stage: number; room: string; entry: string; kills: number; players: Pick<Actor, 'hands' | 'grenades'>[] }
+let checkpoint: Checkpoint | undefined;
 
 /** Seconds after the player dies before the room restarts (checkpoint per room, PLAN.md M3). */
 const RESTART_DELAY = 2;
@@ -167,7 +179,14 @@ export class GameScene extends Phaser.Scene {
     // casings and magazines that land stay on the floor (baked with the decals)
     this.gunFx = new GunFx(this.world, (d) => this.decals.addDebris(d));
     this.input_ = new PlayerInput(this);
-    this.world.events.on('roomChanged', () => this.bakeRoom());
+    this.world.events.on('roomChanged', () => {
+      this.decals.clear();
+      this.bakeRoom();
+      // M9: each room has its own ambience, reverb and music
+      if (engine) engine.setRoomReverb(this.world.room.outdoor ? 'outdoor' : 'medium');
+      void music?.setRoom(this.world.room.id);
+      if (this.snaps) this.snaps.needFull = true;
+    });
     this.world.events.on('cannonHit', () => this.cannonHits++);
     // world-persistence-decals: settled bodies are baked once; picking one up re-bakes the rest
     this.world.events.on('corpseFrozen', (e) => {
@@ -204,7 +223,7 @@ export class GameScene extends Phaser.Scene {
       },
     });
     // end card: Enter fights the room again
-    this.input.keyboard?.on('keydown-ENTER', () => this.cleared && host && this.restart());
+    this.input.keyboard?.on('keydown-ENTER', () => { if (this.cleared && host) { checkpoint = undefined; this.restart(); } });
     this.scene.launch('ui');
   }
 
@@ -233,9 +252,36 @@ export class GameScene extends Phaser.Scene {
     this.scene.restart({ ...this.data_, palette: this.paletteId });
   }
 
+  /** M9: a room-graph stage from its start, a checkpoint, or `&room=`. */
+  private setupRoomStage(def: StageDef, data: GameSceneData): void {
+    const cp = checkpoint?.stage === def.stage && !data.room ? checkpoint : undefined;
+    const room = data.room && data.room in def.rooms ? data.room : cp?.room ?? def.start.room;
+    const entry = cp?.entry ?? (room === def.start.room ? def.start.entry : Object.keys(def.rooms[room].entries)[0]);
+    this.world = new World(def.rooms[room].room);
+    const coop = data.coop === 'host';
+    this.world.addPlayer(createActor('hero', 0, 9.2, 1));
+    if (coop) this.world.addPlayer(createActor('hero', 0.6, 9.2, 1));
+    this.world.players.forEach((p, i) => {
+      def.loadout(p);
+      const saved = cp?.players[i];
+      if (saved) { p.hands = structuredClone(saved.hands); p.grenades = saved.grenades; }
+    });
+    if (cp) { this.world.kills = cp.kills; this.world.flags.add(`s${def.stage}-title`); }
+    this.world.seq.run(stageRunner(def, room, entry), 'stage');
+    if (!data.palette) this.paletteId = def.palette;
+    this.stageInfo = { stage: def.stage, room, targetBodyCount: def.targetBodyCount };
+    const world = this.world;
+    world.events.on('roomEnter', (e) => {
+      checkpoint = { stage: e.stage, room: e.room, entry: e.entry, kills: world.kills, players: world.players.map((p) => ({ hands: structuredClone(p.hands), grenades: p.grenades })) };
+      if (this.stageInfo) this.stageInfo.room = e.room;
+    });
+  }
+
   /** Stage route: the room, the player(s) in the middle, and the wave script from the chosen wave. */
   private setupStage(data: GameSceneData): void {
-    const roomId = data.room && data.room in STAGE1.rooms ? data.room : 'arena';
+    const graph = data.stage ? ROOM_STAGES[data.stage] : undefined;
+    if (graph) { this.setupRoomStage(graph, data); return; }
+    const roomId = (data.room && data.room in STAGE1.rooms ? data.room : 'arena') as StageRoomId;
     const def = STAGE1.rooms[roomId];
     this.world = new World(def.room);
     const coop = data.coop === 'host';
@@ -276,8 +322,15 @@ export class GameScene extends Phaser.Scene {
         return;
       }
       this.session = s.session;
-      const room = ROOMS_BY_ID[s.roomId];
-      if (room && room.id !== this.world.room.id) this.world.setRoom(room);
+    }
+    // M9: the host moved on to another room: start the puppet over in it
+    const room = ROOMS_BY_ID[s.roomId];
+    if (room && room.id !== this.world.room.id) {
+      if (!s.full) return;
+      this.world.actors.length = 0;
+      this.world.players = [];
+      this.world.items = [];
+      this.world.setRoom(room);
     }
     applySnapshot(this.world, s);
     if (s.full) this.bakeCorpses();

@@ -19,7 +19,7 @@ import type { Cannon } from './cannon';
 import { castRay } from './hitscan';
 import { notHoldable } from './items';
 import { canFlip } from './cover';
-import { checkHeld, lookOut } from './stealth';
+import { alert, checkHeld, lookOut } from './stealth';
 import type { World } from './world';
 
 const AI = TUNING.ai, R = AI.ranged;
@@ -69,6 +69,8 @@ export interface AiState {
   guardSide?: 1 | -1;
   /** M8 wave B: this grunt goes for the boss's cannon and fires it (no cannon: he just fights). */
   role?: 'cannon';
+  /** M9 world-breach: caught off guard by an entry from above, this many seconds left. */
+  surpriseT?: number;
 }
 
 export function newAiState(world: World): AiState {
@@ -179,6 +181,13 @@ export function gruntBrain(world: World): Brain {
     ai.cooldown = Math.max(0, ai.cooldown - dt);
     // being taken down: held still
     if (checkHeld(world, a)) return { ...IDLE_COMMAND };
+    // world-breach: someone just dropped through the ceiling
+    if ((ai.surpriseT ?? 0) > 0) {
+      ai.surpriseT! -= dt;
+      a.pose.lean = -0.15;
+      if (ai.surpriseT! <= 0 && ai.aware === false) alert(world, a);
+      return { ...IDLE_COMMAND, face: a.facing };
+    }
     if (ai.aware === false) return unawareStep(world, a, dt);
     // enemy-squad-leader: the leader is down, the squad charges
     if (ai.leader !== undefined) {
@@ -323,7 +332,7 @@ function rangedStep(world: World, a: Actor, p: Actor, gun: NonNullable<ReturnTyp
 
   // start aiming: cooled down, in range, and not too many others aiming at this player
   const dx = Math.abs(p.pos.x - a.pos.x);
-  const [, k1] = keepRange(w);
+  const [, k1] = keepRange(w, a);
   const aimers = world.actors.filter((o) => o.ai?.aimT !== undefined && o.ai.target === p.id).length;
   if (ai.cooldown <= 0 && shootable(p) && dx <= k1 + 1.5 && aimers < R.maxAimers && a.state === 'free' && a.body.state === 'ground') {
     // the encounter's one grenade, now and then, when no other grunt is near the player
@@ -371,7 +380,9 @@ function flipTarget(world: World, a: Actor, p: Actor): number {
     a.pos.x > t.x0 - 0.1 && a.pos.x < t.x1 + 0.1 && a.pos.z > t.z1 && a.pos.z - t.z1 < 0.45);
 }
 
-function keepRange(w: WeaponDef): readonly [number, number] {
+function keepRange(w: WeaponDef, a?: Actor): readonly [number, number] {
+  // boss-clown: the mini-boss walks in shooting (and that's what makes him stealable)
+  if (a?.variant === 'riot') return R.keepRiot;
   return w.id === 'shotgun' || w.id === 'sawedoff' ? R.keepShotgun : R.keep;
 }
 
@@ -379,7 +390,7 @@ function keepRange(w: WeaponDef): readonly [number, number] {
 function positionFor(world: World, a: Actor, p: Actor, w: WeaponDef, face: 1 | -1): PlayerCommand {
   const ai = a.ai!;
   const room = world.room, inside = room.halfWidth - 0.6;
-  const [k0, k1] = keepRange(w);
+  const [k0, k1] = keepRange(w, a);
   if (ai.keep === undefined || ai.keep < k0 || ai.keep > k1) ai.keep = k0 + world.rng() * (k1 - k0);
   // enemy-elite-bodyguard: stays at the VIP's side instead of chasing
   const vip = ai.guard !== undefined ? world.actorById(ai.guard) : undefined;

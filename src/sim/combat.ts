@@ -295,6 +295,8 @@ const DAMAGE: Record<HitKind, number> = {
   lightning: 2,
   // a cannonball (or the falling cannon) kills grunts and zombies outright
   cannon: 99,
+  // M9: the fling itself only throws; the wall at the end does the damage
+  fling: 1,
 };
 
 /**
@@ -309,6 +311,7 @@ export function applyHit(
   bullet?: { damage: number; pointBlank: boolean },
 ): void {
   if (o.state === 'getUp' || o.state === 'downed') return; // i-frames (invented); downed heroes are out of the fight
+  if (o.invulnerable) return; // M9: the target before his last room, the boss's cameo
   // M8: the living boss has his own damage rule (src/sim/boss.ts)
   if (o.kind === 'boss' && o.state !== 'dead') { bossHit(world, by, o, kind, part, dirX, dirZ, at); return; }
   // held up by the boss for the body slams: nobody else gets a hit in (not a human shield)
@@ -426,6 +429,8 @@ function launch(kind: HitKind, dirX: number, dirZ: number): Pick<Flight, 'vx' | 
   if (kind === 'finisher') return { vx: 0, vz: 0, vy: 0, airtime: 0.01 };
   // a takedown victim slumps forward where he stood
   if (kind === 'takedown') { dist = 0.25; airtime = 0.4; skid = 0.1; }
+  // boss-halo clip 5: flung ~3.6 H across the room in ~0.33 s, flat and fast
+  if (kind === 'fling') { dist = TUNING.boss.fling.distance; airtime = TUNING.boss.fling.airtime; skid = 0.05; }
   if (kind === 'blast') return blastFlight(dirX, dirZ);
   // distance covered in the air at constant speed plus a linearly decelerating skid
   const v = dist / (airtime + skid / 2);

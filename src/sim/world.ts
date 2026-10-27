@@ -10,6 +10,7 @@ import { type Item, type ItemKind, spawnItem, stepItems } from './items';
 import type { RoomDef } from './room';
 import type { WaveDirector } from './waves';
 import { stepProps } from './cover';
+import { blastExit, checkExits, type ExitDef, type ExitState, stepTraversal, type Tracker } from './stage';
 import { Seq } from './sequencer';
 import { isBoss, stepBoss, stepSwept } from './boss';
 import { installAlertRules } from './stealth';
@@ -51,6 +52,16 @@ export class World {
   /** Seeded RNG so the sim stays reproducible in tests. */
   private seed = 0x2f6b1c3d;
 
+  /** M9 room graph (src/sim/stage.ts): the current room's exits, the one taken, the wipe running. */
+  exits: ExitState[] = [];
+  exitTaken?: ExitDef;
+  transition = false;
+  /** One-off story flags (a title card shown once per stage, not again after a checkpoint restart). */
+  readonly flags = new Set<string>();
+  /** Tracker HUD blip for this room (world-objective-radar). */
+  tracker?: Tracker;
+  /** The stage's id for the current room (rooms share ids across stages only by accident). */
+  roomId?: string;
   /** Co-op guest: a puppet of the host's world (never steps; replayed events must not run sim rules). */
   puppet = false;
   /** PLAN.md M7: grenades the enemies may still lob this encounter (one per wave). */
@@ -66,6 +77,7 @@ export class World {
     this.room = ownProps(room);
     this.resetDoors();
     installAlertRules(this);
+    this.events.on('explosion', (e) => { if (!this.puppet) blastExit(this, e); });
     this.events.on('waveStart', () => { this.enemyGrenades = 1; });
     // world-kill-counter: every enemy death counts
     this.events.on('kill', (e) => {
@@ -181,10 +193,12 @@ export class World {
     // scripts first: they react to the last tick and set this tick's scripted commands
     this.seq.step(this.dt);
     assignTokens(this);
+    checkExits(this);
     const gone: Actor[] = [];
     for (const a of this.actors) {
       if (a.corpse?.phase === 'frozen') continue;
-      if (isBoss(a)) { stepBoss(this, a, this.dt); continue; }
+      if (a.traversing) { stepTraversal(this, a, this.dt); continue; }
+      if (isBoss(a)) { stepBoss(this, a, this.dt); if (a.boss.phase === 'gone') gone.push(a); continue; }
       if (a.swept) { if (stepSwept(this, a as Actor & { swept: NonNullable<Actor['swept']> }, this.dt)) gone.push(a); continue; }
       stepActor(this, a, this.commandFor(a), this.dt);
     }

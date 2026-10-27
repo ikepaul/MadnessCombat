@@ -1,0 +1,253 @@
+// Stages as room graphs (PLAN.md M9): a stage is a set of fixed-screen rooms joined by one-way
+// exits of type door, edge (walk off the side of the screen), ladder, vent, breach, lift, fall or
+// climb (research/mechanics/move-climb-vault: climbing is a room transition, not a free system).
+// The stage runner is a sequencer script: it enters a room (players placed at the entry, the
+// room's exits armed, its script started), waits until an exit is taken, plays the traversal and
+// the ink wipe (decided 2026-10-27), and loads the next room. Every room entry is a checkpoint.
+import { STANDING } from '../anim/skeleton';
+import { TUNING } from '../data/tuning';
+import type { PaletteId } from '../data/palettes';
+import { type Actor, alive } from './actor';
+import { enter, setClip } from './combat';
+import type { PlayerCommand } from './command';
+import type { Beat, Seq } from './sequencer';
+import type { RoomDef } from './room';
+import type { World } from './world';
+
+const T = TUNING.stage;
+
+export type ExitKind = 'door' | 'edge' | 'ladder' | 'vent' | 'breach' | 'lift' | 'fall' | 'climb';
+
+/** How an exit is taken: walking into its zone, pressing E in it, or an explosion on it (breach). */
+const HOW: Record<ExitKind, 'walk' | 'use' | 'blast'> = {
+  door: 'walk', edge: 'walk', fall: 'walk', ladder: 'use', vent: 'use', lift: 'use', climb: 'use', breach: 'blast',
+};
+
+export interface ExitDef {
+  id: string;
+  kind: ExitKind;
+  /** Floor zone (H) that takes the exit. */
+  x0: number; x1: number; z0: number; z1: number;
+  /** Next room (null = the end of what's built so far: the stage ends here). */
+  to: string | null;
+  /** Entry id in the next room. */
+  entry: string;
+  /** Shut until the room script opens it (world.openExit). */
+  locked?: boolean;
+}
+
+/** Where players appear in a room, and how they arrive. */
+export interface EntryDef {
+  x: number; z: number; facing: 1 | -1;
+  /** walk: standing at the spot; above: dropping in from the ceiling (vent, breach); vault: over a ledge. */
+  from: 'walk' | 'above' | 'vault';
+  /** Enemies are caught off guard for TUNING.stage.surprise s (vent / breach entries, world-breach). */
+  surprise?: boolean;
+}
+
+/** Blip on the tracker HUD (world-objective-radar): direction to the target, -1..1 each axis, (0, 0) = right below. */
+export type Tracker = [number, number] | ((world: World) => [number, number]);
+
+export interface StageRoom {
+  room: RoomDef;
+  exits: ExitDef[];
+  entries: Record<string, EntryDef>;
+  /** Runs while the players are in the room (enemies, NPCs, opening exits). */
+  script?: (s: Seq, entry: string) => Beat;
+  tracker?: Tracker;
+}
+
+export interface StageDef {
+  stage: number;
+  palette: PaletteId;
+  targetBodyCount: number;
+  start: { room: string; entry: string };
+  rooms: Record<string, StageRoom>;
+  /** What each player starts the stage with. */
+  loadout(p: Actor): void;
+}
+
+/** An exit armed in the current room. */
+export interface ExitState { def: ExitDef; open: boolean }
+
+const inZone = (e: ExitDef, x: number, z: number) => x >= e.x0 && x <= e.x1 && z >= e.z0 && z <= e.z1;
+
+/**
+ * Exits for this tick (World.step, before the actors): a player walking into a walk-in exit, or
+ * pressing E in a use exit, takes it. E is used up so it doesn't also pick something up.
+ */
+export function checkExits(world: World): void {
+  if (world.exitTaken || world.transition) return;
+  for (const x of world.exits) {
+    if (!x.open || HOW[x.def.kind] === 'blast') continue;
+    for (const p of world.activePlayers) {
+      if (!inZone(x.def, p.pos.x, p.pos.z) || p.state !== 'free' || p.holding) continue;
+      const cmd: PlayerCommand | undefined = world.commands[p.playerIndex!];
+      if (HOW[x.def.kind] === 'use' && !cmd?.pickup) continue;
+      if (HOW[x.def.kind] === 'use') world.commands[p.playerIndex!] = { ...cmd!, pickup: false };
+      take(world, x.def, p);
+      return;
+    }
+  }
+}
+
+/** world-breach: an explosion on an open breach tile blows the hole and takes the exit. */
+export function blastExit(world: World, at: { x: number; z: number }): void {
+  if (world.exitTaken || world.transition) return;
+  for (const x of world.exits) if (x.open && x.def.kind === 'breach' && inZone(x.def, at.x, at.z)) { take(world, x.def); return; }
+}
+
+function take(world: World, e: ExitDef, by?: Actor): void {
+  world.exitTaken = e;
+  world.events.emit('exitTaken', { exit: e.id, kind: e.kind, byId: by?.id ?? 0 });
+}
+
+/** Open (or shut) an exit of the current room. */
+export function openExit(world: World, id: string, open = true): void {
+  const x = world.exits.find((e) => e.def.id === id);
+  if (!x || x.open === open) return;
+  x.open = open;
+  if (open) world.events.emit('exitOpen', { exit: id, kind: x.def.kind });
+}
+
+/** Load a room: clear the last one's cast and items, place the players, arm the exits (a checkpoint). */
+export function enterRoom(world: World, def: StageDef, roomId: string, entryId: string): void {
+  const r = def.rooms[roomId];
+  if (!r) throw new Error(`unknown room ${roomId}`);
+  const entry = r.entries[entryId] ?? Object.values(r.entries)[0];
+  world.setRoom(r.room);
+  world.actors.splice(0, world.actors.length, ...world.players);
+  world.items = [];
+  world.cannons = [];
+  world.balls = [];
+  world.tokens.clear();
+  world.tokenFreeAt = [];
+  world.director = undefined;
+  world.scripted.clear();
+  world.inputLocked = false;
+  world.exits = r.exits.map((e) => ({ def: e, open: !e.locked }));
+  world.exitTaken = undefined;
+  world.tracker = r.tracker;
+  world.roomId = roomId;
+  world.players.forEach((p, i) => placeAtEntry(p, entry, i));
+  world.events.emit('roomEnter', { stage: def.stage, room: roomId, entry: entryId });
+}
+
+/** Players stand at the entry (co-op: player 2 just behind), dropping in or vaulting if it says so. */
+function placeAtEntry(p: Actor, e: EntryDef, i: number): void {
+  // a downed co-op player gets back up for the new room with one life
+  if (p.state === 'downed' || !alive(p)) { p.hp = Math.max(1, p.hp); p.corpse = undefined; p.pose.dead = false; }
+  p.flight = undefined;
+  p.holding = undefined;
+  p.traversing = undefined;
+  enter(p, 'free');
+  p.pose.root = { ...STANDING };
+  setClip(p, 'idle');
+  p.facing = e.facing;
+  p.pos = { x: e.x - e.facing * i * 0.55, y: 0, z: e.z + i * 0.3 };
+  p.body.vel = { x: 0, y: 0, z: 0 };
+  p.body.groundY = 0;
+  p.pose.groundY = 0;
+  if (e.from === 'above') {
+    // dropped through a vent or a blasted hole: falls from just under the ceiling
+    p.pos.y = T.dropHeight;
+    p.body.state = 'air';
+    p.body.stateTime = 0;
+  } else if (e.from === 'vault') {
+    p.traversing = { kind: 'vault', t: 0 };
+    p.pos.x = e.x - e.facing * (T.vaultDistance + i * 0.55);
+    p.pos.y = T.vaultHeight;
+    setClip(p, 'vault');
+  }
+}
+
+/** Advance traversal animations (vault entry, ladder climb out): the actor is moved, not stepped. */
+export function stepTraversal(world: World, a: Actor, dt: number): void {
+  const tr = a.traversing!;
+  tr.t += dt;
+  a.stateT += dt;
+  a.pose.clipT += dt;
+  switch (tr.kind) {
+    case 'vault': {
+      // move-climb-vault: a ~1 s dive over the parapet, landing on the roof
+      const u = Math.min(1, tr.t / T.vaultTime);
+      a.pos.x += (a.facing * T.vaultDistance / T.vaultTime) * dt;
+      a.pos.y = T.vaultHeight * (1 - u) + Math.sin(u * Math.PI) * 0.25;
+      if (u >= 1) { a.pos.y = 0; a.traversing = undefined; setClip(a, 'idle'); world.events.emit('land', { actorId: a.id, ...a.pos, fallSpeed: 2 }); }
+      break;
+    }
+    case 'climb':
+      // move-climb-vault: ladder 1.1 H/s, gun still in hand
+      a.pos.y += T.climbSpeed * dt;
+      break;
+    case 'crawl':
+      a.pos.y += T.climbSpeed * 1.5 * dt;
+      break;
+    case 'out':
+      a.pos.x += a.facing * TUNING.move.walkSpeed * dt;
+      a.pose.walkPhase = (a.pose.walkPhase ?? 0) + dt * 9;
+      break;
+    case 'drop':
+      a.pos.y -= 4 * dt;
+      break;
+  }
+}
+
+/** The players leave through `e`: the traversal, then the wipe covers the screen. */
+function* traverse(s: Seq, e: ExitDef): Beat {
+  const world = s.world;
+  s.lockInput(true);
+  const zx = (e.x0 + e.x1) / 2, zz = (e.z0 + e.z1) / 2;
+  const kind: NonNullable<Actor['traversing']>['kind'] = e.kind === 'ladder' || e.kind === 'climb' ? 'climb' : e.kind === 'vent' ? 'crawl' : e.kind === 'breach' || e.kind === 'fall' ? 'drop' : 'out';
+  for (const p of world.activePlayers) {
+    if (p.state !== 'free') continue;
+    if (kind !== 'out') { p.pos.x = zx; p.pos.z = zz; }
+    else p.facing = (zx >= p.pos.x || e.x1 >= world.room.halfWidth ? 1 : -1) as 1 | -1;
+    if (e.x1 >= world.room.halfWidth + 0.5) p.facing = 1;
+    if (e.x0 <= -world.room.halfWidth - 0.5) p.facing = -1;
+    p.traversing = { kind, t: 0 };
+    setClip(p, kind === 'climb' || kind === 'crawl' ? 'climb' : 'idle');
+  }
+  if (kind !== 'drop') yield T.traverse;
+  world.events.emit('roomTransition', { phase: 'out', kind: e.kind });
+  world.transition = true;
+  yield T.wipe;
+}
+
+/**
+ * The stage, room by room, from `roomId` (a checkpoint). Ends with the body-count card when an
+ * exit leads nowhere (the last room built).
+ */
+export function stageRunner(def: StageDef, roomId = def.start.room, entryId = def.start.entry) {
+  return function* stage(s: Seq): Beat {
+    const world = s.world;
+    let room = roomId, entry = entryId;
+    for (;;) {
+      s.cancelAll('stage');
+      enterRoom(world, def, room, entry);
+      const r = def.rooms[room];
+      // the wipe uncovers the new room
+      if (world.transition) { world.transition = false; world.events.emit('roomTransition', { phase: 'in', kind: 'door' }); }
+      const at = entry;
+      if (r.script) s.run((q) => r.script!(q, at), `room:${room}`);
+      // vent / breach entries catch the room off guard
+      if (r.entries[entry]?.from === 'above' && r.entries[entry]?.surprise) {
+        yield;
+        for (const a of world.actors) if (a.ai) a.ai.surpriseT = T.surprise;
+      }
+      yield () => !!world.exitTaken;
+      const e = world.exitTaken!;
+      yield* traverse(s, e);
+      for (const p of world.players) p.traversing = undefined;
+      if (!e.to) {
+        world.transition = false;
+        world.events.emit('roomTransition', { phase: 'in', kind: e.kind });
+        s.cancelAll('stage');
+        s.clear();
+        return;
+      }
+      room = e.to;
+      entry = e.entry;
+    }
+  };
+}
