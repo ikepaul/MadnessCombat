@@ -10,7 +10,7 @@ import { IDLE_COMMAND, type PlayerCommand } from '../src/sim/command';
 import type { GameEvents } from '../src/sim/events';
 import { pickupPlan } from '../src/sim/guns';
 import type { ItemKind } from '../src/sim/items';
-import { disarm, tossHeld } from '../src/sim/melee';
+import { disarm, lobTarget, tossHeld } from '../src/sim/melee';
 import type { RoomDef } from '../src/sim/room';
 import { World } from '../src/sim/world';
 
@@ -320,5 +320,24 @@ describe('M17 throws find depth', () => {
     tick(world, { press: [true, false], aim: project(g.pos.x, 0.79, g.pos.z) });
     tick(world, {}, 30);
     expect(hits.some((e) => e.actorId === g.id && e.kind === 'gun')).toBe(true);
+  });
+});
+
+describe('M17 grenade landing marker', () => {
+  it('lobTarget is where the grenade lands (incl. beyond range)', () => {
+    for (const [tx, tz] of [[0.5, 9.0], [1.5, 10.2], [-1, 8.4], [6, 9.5]] as const) {
+      const { world, hero } = setup(-1);
+      hero.grenades = 1;
+      const aim = project(tx, 0, tz);
+      tick(world, { grenade: true, aim }, 3);
+      // what the marker shows while cooking (facing already follows the cursor)
+      const want = lobTarget(world, hero, aim);
+      tick(world, { grenade: false, aim }, 1);
+      // the first touchdown
+      const g = () => world.items.find((i) => i.kind === 'grenade');
+      for (let n = 0; n < 120 && !(g() && g()!.pos.y <= 0.001); n++) tick(world, { aim });
+      const it = g()!;
+      expect(Math.hypot(it.pos.x - want.x, it.pos.z - want.z)).toBeLessThan(0.05);
+    }
   });
 });

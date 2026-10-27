@@ -23,6 +23,9 @@ import { paintBall, paintCannon } from '../render/canvas/cannonPainter';
 import { paintCharacter } from '../render/canvas/characterPainter';
 import { paintBoss } from '../render/canvas/bossPainter';
 import { paintItem } from '../render/canvas/itemPainter';
+import { paintGrenadeMarker } from '../render/canvas/markerPainter';
+import { GRENADE } from '../data/melee';
+import { lobTarget } from '../sim/melee';
 import { pickupPlan } from '../sim/guns';
 import { paintDoor, paintProp, paintRoom } from '../render/canvas/roomPainter';
 import { paintLockShadow, paintLockWall, paintTank } from '../render/canvas/sceneryPainter';
@@ -305,6 +308,14 @@ export class GameScene extends Phaser.Scene {
     return out;
   }
 
+  /** M17: seconds left on the grenade the hero is about to lob, if any. */
+  private grenadeFuse(a: Actor): number | undefined {
+    if (a.cook !== undefined) return GRENADE.fuse - a.cook;
+    if (a.attack?.kind === 'lob' && !a.attack.done) return (a.attack.fuse ?? GRENADE.fuse) - a.attack.t;
+    const h = a.holding?.kind === 'item' ? this.world.items.find((i) => i.id === a.holding!.id) : undefined;
+    return h?.kind === 'grenade' && h.live ? h.fuse : undefined;
+  }
+
   private dropGuns(): void {
     for (const p of this.world.players) {
       const kind = WEAPON_IDS[Math.floor(Math.random() * WEAPON_IDS.length)];
@@ -549,6 +560,12 @@ export class GameScene extends Phaser.Scene {
     const me = this.world.players[this.localPlayer];
     const target = me && !this.world.inputLocked ? pickupPlan(this.world, me)?.item.id : undefined;
     for (const it of this.world.items) list.push({ z: it.pos.z, draw: () => paintItem(ctx, it, pal, blood, this.world.time, it.id === target) });
+    // M17: where the local hero's grenade will land (cooking, winding up the lob, holding a live one)
+    const nade = me ? this.grenadeFuse(me) : undefined;
+    if (me && nade !== undefined) {
+      const p = this.input.activePointer, at = lobTarget(this.world, me, [p.x, p.y]);
+      list.push({ z: at.z + 0.5, draw: () => paintGrenadeMarker(ctx, at.x, at.z, nade, this.world.time) });
+    }
     for (const p of this.world.room.props) list.push({ z: p.z0, draw: () => paintProp(ctx, p, pal) });
     for (const c of this.world.cannons) list.push({ z: c.z, draw: () => paintCannon(ctx, c) });
     for (const b of this.world.balls) list.push({ z: b.z - 0.01, draw: () => paintBall(ctx, b) });
