@@ -27,3 +27,9 @@ Clips (local only): `clip-1` ep2 baton brawl in the office · `clip-2` ep3 axe +
 
 ## Invented / not shown
 - All exact swing timings (the 3 fps sheets only show ~0.3–0.5 s per swing).
+
+## Episode 4 additions (2026-10-27)
+Seen in: ep4 1:26–1:52, 2:10–3:00. Confidence: high.
+- Swords are the main melee weapon of ep4 (several kinds per the wiki: straight swords, a curved ornate sword, a broadsword). The hero carries one through the whole club fight next to a gun (sword + gun in two hands).
+- Blades **deflect bullets**: see `melee-blade-deflect`.
+- Game: one hand sword + one hand pistol/SMG works like the existing mixed hands (LMB = front hand); swords get the RMB guard.

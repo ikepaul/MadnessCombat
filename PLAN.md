@@ -4,7 +4,7 @@ How we get from the research catalogue (`research/`) and the art/audio direction
 
 Decisions live in `research/design-decisions.md` (gameplay), `design/art-direction.md` (visuals) and `design/audio-direction.md` (sound and the music brief). Don't re-open them inside a milestone; ask the user if one turns out not to work.
 
-**Order is linear.** It starts in the final art style from day one (the style frame is ported in M0). Unarmed fighting is playable at M3, a dedicated feel & audio milestone follows at M4, guns come at M5–M7, the first complete stage at M8, then stages 2 and 3.
+**Order is linear.** It starts in the final art style from day one (the style frame is ported in M0). Unarmed fighting is playable at M3, a dedicated feel & audio milestone follows at M4, guns come at M5–M7, the first complete stage at M8, then stages 2 and 3. Stage 4 (episode 4, added 2026-10-27) comes after the shell: its new mechanics first (M14), then its rooms (M15–M16).
 
 | # | Milestone | Playable result | Size |
 |---|---|---|---|
@@ -24,6 +24,9 @@ Decisions live in `research/design-decisions.md` (gameplay), `design/art-directi
 | M11 | Stage 3 (first half) | Stage 3 rooms 1–6 incl. improbability mode | XL (split in two if needed) |
 | M12 | **Stage 3 complete** | Desert, vending room, final room, last stand | L |
 | M13 | Game shell & final polish | Title, stage select, settings (incl. effect intensity), checkpoints, final art/audio pass | M |
+| M14 | Stage 4 mechanics (added 2026-10-27) | The agent, fire-mode switch, stairs, sword guard/parry, armed zombies, crowds, acting from the ground, in labs and a test room | L |
+| M15 | Stage 4 (first half) | Car-ram arrival, poster/door/office/vending rooms, the stairwell | L |
+| M16 | **Stage 4 complete** | The club: crowd fight, DJ, boss arrival + mass raise, duel, detonator ending; shell knows four stages | L |
 
 Not covered by a milestone: **the music itself** (the user composes it from the brief in `design/audio-direction.md`; milestones only build the hooks and integrate tracks when delivered) and gamepad support (decide in M13).
 
@@ -417,6 +420,67 @@ Build:
 - [ ] Bugfix and playtest pass on all invented numbers in `tuning.ts` and `feel.ts`.
 
 Acceptance: a full playthrough of all three stages from the title screen · 60 fps in the heaviest rooms on the dev machine with full effects.
+
+## M14: Stage 4 mechanics (L)
+**Goal:** every new mechanic of episode 4 working in labs and a test room, before any stage 4 room is built.
+**Read first:** `research/episodes/ep4-log.md`, `research/stages.md` (Stage 4), `enemy-agent`, `gun-fire-mode`, `move-stairs`, `melee-blade-deflect`, `world-crowd-dancefloor`, `world-vehicle-ram`, the "Episode 4 additions" in `enemy-zombie`, `boss-halo`, `boss-clown`, `move-knockdown-getup`, `world-destructible`, `world-last-stand`, `enemy-behaviours`, `melee-weapons`. Ask the user the stage 4 questions in `research/design-decisions.md` ("Still open") first.
+
+Build:
+- [ ] **Research follow-up**: download episode 4 with the README command (`--playlist-items 1-4`, ask the user first), cut its clips (`make_clips.py`), re-measure the ±0.3 s values in `measurements.md` ("Episode 4") from 30 fps frames.
+- [ ] **Design pass first** (style-frame character sheets, own designs): the agent, the armed zombie, the DJ (our clown's stage-4 look, not an iron mask), the halo boss's stage-4 variant (if any), dancers (grunt variant), the car, the club stage and speakers, palette 4.
+- [ ] **Agent** (`kind: 'agent'`): 12 hp, no stun from light punches, blocks the first light of a chain, melee at close range / heavy pistol beyond 3 H with the 0.4 s telegraph, blunt weapons ×2, drops the **heavy pistol** (new weapon: slow fire, every hit staggers). All invented.
+- [ ] **Fire-mode switch** on rifles (`modes` in `weapons.ts`): picked-up rifles start in semi (tighter spread), the key the user picks cycles semi/auto, first switch per stage shows the selector close-up (own drawing).
+- [ ] **Stairs** (`RoomDef.stairs`): floor height ramps inside its band, corpses slide to the bottom before freezing, a room taller than the screen with a vertical camera pan (`project()` offset).
+- [ ] **Sword guard & parry**: RMB with a sword-class weapon guards (70° front cone, 1 in 4 bullets leak, 40% walk), a press within 0.15 s before a hit parries (bullet goes back along its ray, blade attacker staggered = combo chain hit). Gun block (F within 0.2 s of a blade hit while holding a gun) only if it tests well.
+- [ ] **Armed zombies**: a raised corpse that held a gun keeps it (0.6 s telegraph). The boss can bring a pre-made armed zombie (`SpawnOpts`).
+- [ ] **Acting from the ground**: while knocked down or prone, LMB with a blade is a low slash at foot height; guns fire as from prone.
+- [ ] **Crowd**: `idle: 'dance'` grunts with a shared alarm trigger, attack tokens 2–3 plus body-blocking pressure and harmless shoves; `idle: 'cower'` (never fights). Animation level of detail for far actors.
+- [ ] **Props & doors**: `toppled` props (thrown body ≥ 4 H/s knocks the vending machine flat, it becomes low cover); scripted door smash (slab flies, crushes on its path).
+- [ ] Mass raise cap raised to 19 for stage 4 (profile it).
+
+Look & sound:
+- [ ] Agent: clean formal silhouette, heavy-pistol boom (own recording/synth), a dry "block" thud. Fire selector click. Sword guard: sparks + ricochet whine per deflected round, parry flash. Stairs: step foley, a body-tumble rattle. Crowd: dance-floor murmur and a muffled bass ambience bed (the music itself is the user's). Toppled machine crash, door smash.
+- [ ] Every new mechanic gets its replica lab (below), compared against the ep4 clips once they're cut.
+
+Acceptance: an agent survives two headshots and dies to the third · a picked-up rifle starts in semi and the switch changes its fire rate · a corpse on the stairs ends at the bottom · guarding a 10-round burst leaks 2–3 rounds and a timed parry hits the shooter · a crowd of 35 alerts at once and never has more than 3 attackers swinging · 35 dancers + 19 zombies hold 60 fps in the test room.
+Labs: `enemy-agent`, `gun-fire-mode`, `move-stairs`, `melee-blade-deflect`, `world-crowd-dancefloor`, `world-vehicle-ram` (the car only), `enemy-zombie` (armed).
+
+## M15: Stage 4, first half (L)
+**Goal:** from the car to the bottom of the stairwell.
+**Read first:** `research/stages.md` (Stage 4 rooms 1–6), `research/episodes/ep4-log.md` (0:30–2:01), the M14 notes.
+
+Build:
+- [ ] Stage 4 as a room graph (`src/data/stages/stage4.ts`, `stage4Script.ts`), route `/?stage=4&room=alley|posters|doors|office|vending|stairs`, palette 4, kill counter on, gore like stage 3.
+- [ ] **Alley**: scripted car ram (sequencer drives the car prop in, crush against the wall, 2 kills), get out, E at the car door = SMG + pistol (once), the building door is the exit.
+- [ ] **Poster room**: 2 unaware guards at the right door.
+- [ ] **Door room**: door waves from the right doorway (≈ 8 SMG/pistol grunts), the SMG runs dry, an AK on the pile → first fire-mode switch.
+- [ ] **Office**: door waves (≈ 6), then the **agent** from the back door behind the player; a baton on the floor.
+- [ ] **Vending room**: blade waves from both doors (≈ 12), a sword carrier (the stage's sword), the vending machine to knock flat, the grunt who grabs a dropped SMG.
+- [ ] **Stairwell**: the staircase room, grunts coming up (≈ 5), exit at the bottom door.
+
+Look & sound:
+- [ ] Night alley scenery (own design: wall, door, moon glow, headlights), car painter, room props (posters with our own art, desk, computer, vending machine, copier), stairwell with the vertical pan.
+- [ ] Engine + crash for the ram, car door, stage 4 music cues wired (arrival, building combat).
+
+Acceptance: rooms chain in order from the alley · the car ram kills exactly the two smokers · the agent only appears after the office's door waves · the stairwell's bodies end at the bottom · the half completes with a scripted bot.
+Labs: `world-vehicle-ram`, `move-stairs` (the real stairwell).
+
+## M16: Stage 4 complete (L)
+**Goal:** the club, the boss's arrival, the duel and the ending; the game shell knows four stages.
+**Read first:** `research/stages.md` (Stage 4 rooms 7–9), `research/episodes/ep4-log.md` (2:01–3:18), `world-crowd-dancefloor`, `boss-clown` and `boss-halo` (episode 4 additions), `melee-blade-deflect`, `world-last-stand`.
+
+Build:
+- [ ] **Club, crowd**: ≈ 35 dancers facing the stage, the **DJ** (our clown, non-combatant, hits only knock him down, he gets up and triggers the alarm), the crowd fight (sword + SMG), the cowering grunt by the right door. Phase ends when the DJ is cornered.
+- [ ] **Club, boss**: the right door is smashed in (crushes the cowering grunt), the halo boss + an armed zombie agent, **mass raise** (cap 19), pistol + sword vs. the horde.
+- [ ] **Finale**: ammo runs out (scripted: no guns left on the floor), the zombie agent's burst vs. the sword guard → the hero is downed → kill him from the ground → blade clash with the boss (sword + heavy pistol act in `boss.ts`) → downed again → **detonator** (hold E 1 s; the user's call on the details), both die, the DJ dances alone, end card + body count vs. 80.
+- [ ] Shell: stage select and "Continue" know stage 4, the stage 3 end card chains to stage 4, credits after stage 4, co-op `&stage=4`.
+
+Look & sound:
+- [ ] Club lighting (dark room, coloured stage light within the palette rules), speakers, the dancers' loop, the door-smash burst, the raise flicker across the floor, detonator blast (big, white, then red wash), the DJ's outro dance.
+- [ ] Club ambience bed and the stage 4 combat/boss/ending cues (hooks only; music by the user).
+
+Acceptance: the crowd alerts together when the DJ is first hit · never more than 3 grunts swinging at once · the raise only raises intact corpses, at most 19 · the ending fires whether or not the boss's hp is low · the stage completes with a scripted bot · all four stages play in sequence from the title screen at 60 fps.
+Labs: `boss-clown` (DJ), `boss-halo` (ep4 duel), `world-last-stand` (detonator), `world-crowd-dancefloor` (the real club).
 
 ---
 

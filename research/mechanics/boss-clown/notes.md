@@ -17,3 +17,10 @@ Clips (local only): `clip-1` ep2 arrives with an M16 and a squad, gets disarmed 
 - Stage 3, fight 1: **flying gunner** pattern: long MG burst (use a human shield or cover), reload = flies off screen, re-enters from a random door behind the player with a shove (telegraph: door opening sound). Survives (scripted).
 - Stage 3, fight 2: melee lunge. Counter = long weapon pin (`melee-environment-weapon`).
 - Stage 3, fight 3: zombie phase. Bullets barely hurt, the counter is the **disarm-grab on his sign**, then a finisher.
+
+## Episode 4 additions (2026-10-27)
+Seen in: ep4 2:04–2:29 and 3:06–3:14 (the DJ). Confidence: high.
+- Third role: **non-combatant DJ** on a stage, wearing an iron mask (own design required: the mask is on the do-not-copy list).
+- A long-range headshot knocks him down; he **gets back up unhurt** and sends the crowd at the hero (he commands, never attacks).
+- The hero ends the crowd fight with the blade at his mask, but the boss's arrival interrupts it; he survives the episode and dances at the end.
+- Game: `variant: 'dj'`, immune (hits only knock him down, 1.5 s, invented), triggers the crowd alarm when first hit, ends the stage alive (scripted outro).

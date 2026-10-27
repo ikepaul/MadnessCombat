@@ -77,4 +77,14 @@ Every number measured from the episodes, in one place. **H** = body height (≈ 
 | Quantity | Value | Note |
 |---|---|---|
 | Improbability knockback | ≈ 9 H/s (≈ 2.3× normal), bounces off walls and ceiling, ≈ 5.5 H path in 0.67 s | [improbability](mechanics/world-improbability-mode/notes.md) |
-| Body counts (wiki) | ep1 32, ep2 86, ep3 91 (on-screen counter ends at 90) | [kill counter](mechanics/world-kill-counter/notes.md) |
+| Body counts (wiki) | ep1 32, ep2 86, ep3 91 (on-screen counter ends at 90), ep4 80 | [kill counter](mechanics/world-kill-counter/notes.md) |
+
+## Episode 4 (from browser contact sheets, ±0.3 s: re-measure from clips)
+| Quantity | Value | Note |
+|---|---|---|
+| Car length | ≈ 2.5 H | [vehicle ram](mechanics/world-vehicle-ram/notes.md) |
+| Agent: head wounds before dropping | ≥ 2, fight ≈ 6 s | [agent](mechanics/enemy-agent/notes.md) |
+| Staircase | ≈ 2 H drop over ≈ 3 H, ≈ 40° | [stairs](mechanics/move-stairs/notes.md) |
+| Club crowd | ≈ 35 dancers, fight ≈ 18 s, 5–8 within 2 H of the hero | [crowd](mechanics/world-crowd-dancefloor/notes.md) |
+| Mass raise | ≈ 19 corpses standing ≈ 1 s after the flash | [halo boss](mechanics/boss-halo/notes.md) |
+| Sword deflecting a burst | ≈ 2.4 s before a round gets through | [blade deflect](mechanics/melee-blade-deflect/notes.md) |
