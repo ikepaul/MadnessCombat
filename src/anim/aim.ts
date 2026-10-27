@@ -4,9 +4,22 @@
 // Local space: +x toward the facing side, -y up, origin between the feet; screen = project().
 import type { WeaponDef } from '../data/weapons';
 import type { ScreenPoint } from '../render/camera';
+import { type Root, rootToWorld } from './skeleton';
 
 /** Shoulders of the front (hand 0) and back (hand 1) hand. */
 export const SHOULDERS: [ScreenPoint, ScreenPoint] = [[0.03, -0.5], [-0.05, -0.52]];
+
+/** Prone aim range (local angle, negative = up): no aiming behind or into the floor. invented */
+export const PRONE_ARC: [number, number] = [-1.1, 0.25];
+/** Prone: how far past the lying shoulder the arms reach out (local, H). invented */
+export const PRONE_REACH: [number, number] = [0.32, 0.05];
+
+/** A shoulder where the lying pose puts it (local, -y up). */
+export function proneShoulder(root: Root, hand: 0 | 1): ScreenPoint {
+  const [x, y] = rootToWorld(root, 1, SHOULDERS[hand][0], SHOULDERS[hand][1]);
+  // the arms reach out past the head (the head is right where the shoulders turn to)
+  return [x + PRONE_REACH[0], -y + PRONE_REACH[1]];
+}
 
 export interface Rig {
   /** Aim angle in local space (0 = straight ahead, negative = up, beyond +-pi/2 = behind). */
@@ -26,10 +39,12 @@ export interface Rig {
  * The front hand always aims to the facing side (facing follows the cursor); the back hand may
  * aim behind the body (split aim: one gun each way, gun-dual-wield).
  */
-export function aimRig(foot: ScreenPoint, s: number, facing: 1 | -1, hand: 0 | 1, target: ScreenPoint, w: WeaponDef, kick = 0): Rig {
-  const [sx, sy] = SHOULDERS[hand];
+export function aimRig(foot: ScreenPoint, s: number, facing: 1 | -1, hand: 0 | 1, target: ScreenPoint, w: WeaponDef, kick = 0, prone?: Root): Rig {
+  const [sx, sy] = prone ? proneShoulder(prone, hand) : SHOULDERS[hand];
   const lx = ((target[0] - foot[0]) / s) * facing, ly = (target[1] - foot[1]) / s;
-  const angle = Math.atan2(ly - sy, hand === 0 ? Math.max(0.05, lx - sx) : lx - sx);
+  let angle = Math.atan2(ly - sy, hand === 0 || prone ? Math.max(0.05, lx - sx) : lx - sx);
+  // lying on the belly (playtest 2026-10-27): both guns point ahead, from a little down to well up
+  if (prone) angle = Math.max(PRONE_ARC[0], Math.min(PRONE_ARC[1], angle));
   const flip = Math.cos(angle) < 0;
   const c = Math.cos(angle), n = Math.sin(angle), r = w.reach - kick;
   const hx = sx + c * r, hy = sy + n * r;

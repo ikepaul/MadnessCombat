@@ -116,7 +116,12 @@ export function stepLocomotion(world: World, a: Actor, cmd: PlayerCommand, dt: n
       if (cmd.dive || cmd.jump) {
         enter('standingUp');
         world.events.emit('standUp', { actorId: a.id, ...a.pos });
+        break;
       }
+      // crawling on the belly (playtest 2026-10-27): slow, any direction, the guns keep aiming
+      b.vel = { x: ix * PRONE.crawlSpeed, y: 0, z: iz * PRONE.crawlSpeed * MOVE.depthFactor };
+      walkHorizontal(world, a, dt);
+      if (len > 0.1) advanceWalkCycle(world, a, Math.hypot(b.vel.x, b.vel.z) * dt * 2);
       break;
     case 'standingUp':
       if (b.stateTime >= (a.kind === 'hero' ? PRONE.heroUpTime : PRONE.upTime)) { b.sweep = false; enter('ground'); }
@@ -248,7 +253,7 @@ function syncLocomotionPose(a: Actor, moving: boolean): void {
   b.height = 1 - (1 - down) * p.prone;
   p.tuck = b.state === 'air' ? 0.6 + 0.4 * (1 - clamp(Math.abs(b.vel.y) / JUMP_V0, 0, 1)) : 0;
   p.squash = b.squashLeft / TUNING.jump.landSquash;
-  p.walkPhase = b.state === 'ground' && moving ? b.cycle : undefined;
+  p.walkPhase = (b.state === 'ground' || b.state === 'prone') && moving ? b.cycle : undefined;
   p.groundY = b.groundY;
   // prone falls forward onto the face, a sweep goes in feet first on the back; a flying kick leans back
   const root = b.kick ? aboutFeet(-TUNING.flyKick.lean, 1) : aboutFeet((b.sweep ? -1 : 1) * (Math.PI / 2) * p.prone, 1 - 0.08 * p.prone);

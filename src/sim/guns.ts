@@ -52,8 +52,14 @@ export function splitTarget(world: World, a: Actor): Actor | undefined {
   return best;
 }
 
-/** Can aim and fire: standing or in the air, not lying, prone or knocked about. */
+/** Lying on the belly after a dive, in control (crawling too): the guns aim from down there. */
+export function shootsProne(a: Actor): boolean {
+  return a.state === 'free' && a.body.state === 'prone' && !a.pose.dead;
+}
+
+/** Can aim and fire: standing, in the air, or prone (playtest 2026-10-27); not knocked about. */
 function canShoot(a: Actor): boolean {
+  if (shootsProne(a)) return true;
   return (a.state === 'free' || a.state === 'attack') && flatness(a.pose.root) < 0.5 && a.body.state !== 'diving';
 }
 
@@ -122,7 +128,7 @@ function startReload(world: World, a: Actor, dual: boolean): void {
 function fire(world: World, a: Actor, i: 0 | 1, h: Hand, w: WeaponDef, dual: boolean): void {
   const foot = project(a.pos.x, a.pos.y, a.pos.z), s = scaleAt(a.pos.z);
   const target = (i === 0 ? a.pose.aim : a.pose.aimB) ?? project(a.pos.x + a.facing * 3, a.pos.y + 0.55, a.pos.z);
-  const rig = aimRig(foot, s, a.facing, i, target, w, a.pose.kick?.[i] ?? 0);
+  const rig = aimRig(foot, s, a.facing, i, target, w, a.pose.kick?.[i] ?? 0, shootsProne(a) ? a.pose.root : undefined);
   h.ammo--;
   h.cooldown = w.interval;
   h.clicked = false;

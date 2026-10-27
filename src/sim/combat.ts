@@ -118,8 +118,20 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
         setClip(a, 'lying');
       }
       break;
-    case 'downed':
-      break; // revived by a teammate (stepRevives)
+    case 'downed': {
+      // revived by a teammate (stepRevives); meanwhile you can drag yourself along (playtest 2026-10-27)
+      let ix = cmd.moveX, iz = cmd.moveZ;
+      const len = Math.hypot(ix, iz);
+      if (len > 1) { ix /= len; iz /= len; }
+      if (len > 0.1) {
+        const v = TUNING.prone.downedCrawlSpeed;
+        const p = moveWithCollision(world.room, a.pos.x, a.pos.z, ix * v * dt, iz * v * TUNING.move.depthFactor * dt, a.pos.y);
+        a.pos.x = p.x;
+        a.pos.z = p.z;
+        a.pose.walkPhase = (a.pose.walkPhase ?? 0) + dt * 6;
+      } else a.pose.walkPhase = undefined;
+      break;
+    }
     case 'down':
       // M10: knocked out for good (interrogation) or dazed with stars for a while
       if (a.koed) break;

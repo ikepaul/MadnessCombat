@@ -60,6 +60,9 @@ export const TUNING = {
     diveDistance: 1.0,
     /** The hero gets up quicker than the measured 0.4 s (playtest 2026-10-27, "snappy"). invented */
     heroUpTime: 0.28,
+    /** Crawling on the belly (playtest 2026-10-27), and dragging yourself while downed in co-op (H/s). invented */
+    crawlSpeed: 0.55,
+    downedCrawlSpeed: 0.3,
   },
 
   /** Hit points. research/design-decisions.md: grunts die from 1 good hit, the player survives ~3. */

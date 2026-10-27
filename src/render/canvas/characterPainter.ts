@@ -15,6 +15,7 @@ import { project, type ScreenPoint, scaleAt } from '../camera';
 import { burst, type Ctx, mulberry32 } from './draw';
 import { paintVendingBody } from './sceneryPainter';
 import { paintGrenade, paintGun, paintMelee } from './weaponPainter';
+import { shootsProne } from '../../sim/guns';
 import { isMelee } from '../../data/melee';
 
 /** Where a long gun's support hand grips the barrel (hand space). */
@@ -121,9 +122,12 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
   const gunF = gunDef(pose.held), gunB = gunDef(pose.heldB);
   const target: ScreenPoint | undefined = pose.aim ?? (pose.aimAt ? project(pose.aimAt.x, pose.aimAt.y, pose.aimAt.z) : undefined);
   // an idle smoker isn't aiming (his gun hangs in the back hand)
-  const canAim = !opts.skeleton && !pose.dead && flat < 0.5 && target !== undefined && !smoking(a);
-  const rigF = canAim && gunF ? aimRig([fx, fy], s, a.facing, 0, target!, gunF, pose.kick?.[0]) : undefined;
-  const rigB = canAim && gunB ? aimRig([fx, fy], s, a.facing, 1, pose.aimB ?? target!, gunB, pose.kick?.[1]) : undefined;
+  // playtest 2026-10-27: on the belly the guns still aim (from the prone shoulders, forward only)
+  const prone = !opts.skeleton && shootsProne(a);
+  const canAim = !opts.skeleton && !pose.dead && (flat < 0.5 || prone) && target !== undefined && !smoking(a);
+  const proneRoot = prone ? root : undefined;
+  const rigF = canAim && gunF ? aimRig([fx, fy], s, a.facing, 0, target!, gunF, pose.kick?.[0], proneRoot) : undefined;
+  const rigB = canAim && gunB ? aimRig([fx, fy], s, a.facing, 1, pose.aimB ?? target!, gunB, pose.kick?.[1], proneRoot) : undefined;
   const aim = rigF?.angle ?? rigB?.angle;
   // a long gun held alone takes both hands: the back hand grips the barrel
   const support = rigF && gunF && !gunF.oneHanded && !pose.heldB;
@@ -136,7 +140,7 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
     if (!pose.lostHands?.[which]) { hand(ctx, xf, col.hand); return; }
     if (opts.blood) { burst(ctx, xf[0] - 0.02, xf[1], 0.04, BLOOD, 6); burst(ctx, xf[0] - 0.05, xf[1] + 0.03, 0.02, BLOOD_DARK, 5); }
   };
-  if (rigB && gunB) gunInHand(ctx, rigB, gunB, col.hand, true);
+  if (rigB && gunB) { if (!prone) gunInHand(ctx, rigB, gunB, col.hand, true); }
   else if (!backInFront && !support) {
     // an idle smoker lets his gun hang in the back hand; the front hand has the cigarette
     if (smokeSwap) {
@@ -220,8 +224,8 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
 
   // front hand + held item
   if (rigF && gunF) {
-    gunInHand(ctx, rigF, gunF, col.hand, false);
-    if (support) {
+    if (!prone) gunInHand(ctx, rigF, gunF, col.hand, false);
+    if (support && !prone) {
       const c = Math.cos(rigF.angle), n = Math.sin(rigF.angle);
       hand(ctx, [rigF.hand[0] + FOREGRIP[0] * c - FOREGRIP[1] * n, rigF.hand[1] + FOREGRIP[0] * n + FOREGRIP[1] * c, rigF.angle], col.hand);
     }
@@ -249,6 +253,18 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
     handOr('F', sk.handF);
   }
   ctx.restore();
+  // prone guns: drawn outside the lying body's rotation, where the rig (and the hitscan) put them
+  if (prone && (rigF || rigB)) {
+    ctx.save();
+    ctx.translate(fx, fy);
+    ctx.scale(s, s);
+    ctx.scale(a.facing, 1);
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    if (rigB && gunB) gunInHand(ctx, rigB, gunB, col.hand, true);
+    if (rigF && gunF) gunInHand(ctx, rigF, gunF, col.hand, false);
+    ctx.restore();
+  }
   // PLAN.md M7: the enemy aim telegraph, a dashed red line from the muzzle to the aim point
   if (pose.telegraph !== undefined && rigF && target && !pose.dead) telegraphLine(ctx, rigF.muzzle, target, pose.telegraph, s, time);
 }
