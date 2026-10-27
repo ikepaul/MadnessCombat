@@ -96,6 +96,8 @@ export interface Pose {
   hurt: number;
   /** A cooked grenade in the front hand (M6). */
   grenade?: boolean;
+  /** M18 split render (the wishbone, M19's blade rage): keep only one side of the line nx*x + ny*y = d (actor-local H), `keep` = which side. */
+  cut?: { nx: number; ny: number; d: number; keep: 1 | -1 };
   /** M10: stars over the head (dazed / knocked out). */
   dazed?: boolean;
   /** M10: hands up. */
@@ -163,7 +165,7 @@ export type ActorState = 'free' | 'attack' | 'stun' | 'knockback' | 'down' | 'ge
  * weapon (pins), `toss` a held weapon (knife, axe, ...), `lob` a cooked grenade, `pull` a stuck
  * blade / the planted sign, `steal` an enemy's weapon.
  */
-export type AttackKind = 'light' | 'heavy' | 'uppercut' | 'finisher' | 'throw' | 'swing' | 'thrust' | 'toss' | 'lob' | 'pull' | 'steal' | 'flip' | 'takedown';
+export type AttackKind = 'light' | 'heavy' | 'uppercut' | 'finisher' | 'throw' | 'swing' | 'thrust' | 'toss' | 'lob' | 'pull' | 'steal' | 'flip' | 'takedown' | 'wishbone';
 
 export interface Attack {
   kind: AttackKind;
@@ -270,6 +272,8 @@ export interface Actor {
   chain?: { by: number; count: number; t: number; last: string; /** M18: hits from both players in it. */ team?: boolean };
   /** M18 double-team: the last damaging hit a player landed on this one. */
   lastHeroHit?: { by: number; t: number };
+  /** M18 wishbone: the second player pulling on a grunt the first one holds. */
+  grabbedBy2?: number;
   /** M18 hold & hit: the holder's partner's hits on him while held; `tender` = hit enough to die on any impact when thrown. */
   heldHits?: number;
   tender?: boolean;

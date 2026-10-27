@@ -505,6 +505,8 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.world.friendlyThrow = SETTINGS.friendlyFire;
+    // M18: the wishbone tears only where the stage shows blood
+    this.world.blood = this.blood;
     // keep an edge latched until a tick actually consumes it
     this.world.command = mergeEdges(this.world.command, this.input_.read());
     const steps = this.clock.advance(delta / 1000, () => {

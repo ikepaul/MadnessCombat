@@ -1,7 +1,7 @@
 // Combat state machine (PLAN.md M2): punches, hit reactions, knockdown and get-up, grabs and
 // throws, the low sweep, the finisher, death and corpses. Numbers from TUNING, which cites
 // research/mechanics/melee-* and move-knockdown-getup.
-import { afterKill, gibCorpse, goreKill } from './gore';
+import { afterKill, extreme, gibCorpse, goreKill } from './gore';
 import { aboutFeet, lyingAt, rootToWorld, STANDING } from '../anim/skeleton';
 import { GRAVITY, TUNING } from '../data/tuning';
 import { DISARM, GRENADE, GUARD, GUN_BLOCK, isMelee, LOW_SLASH, MELEE, SHIELD, TOPPLE } from '../data/melee';
@@ -15,7 +15,7 @@ import { stepRising, zombieDamage, zombieLosesHead } from './zombies';
 import { bossHit } from './boss';
 import { ACTION_KINDS, actionTiming, disarm, dropCooking, faceCursor, holdsLong, lobHeldGrenade, startAction, startMeleeAction, stealTarget, stepAction, stepGrenade } from './melee';
 import { project, type ScreenPoint, scaleAt, unprojectFloor } from '../render/camera';
-import { type Actor, type AttackKind, alive, type Flight, meleeBand } from './actor';
+import { type Actor, type AttackKind, alive, createActor, type Flight, meleeBand } from './actor';
 import { clamp, moveWithCollision, stairHeight, stairsAt, surfaceBelow } from './collision';
 import type { PlayerCommand } from './command';
 import { type HitKind, MELEE_KINDS } from './events';
@@ -35,6 +35,7 @@ const PUNCH_CLIP: Partial<Record<AttackKind, string>> = {
 /** Startup / active / recovery of each attack (s). `weapon` = the melee weapon of a swing. */
 export function attackTiming(kind: AttackKind, weapon?: string): { startup: number; active: number; recovery: number } {
   if (kind === 'throw') return { startup: G.windup, active: 0, recovery: G.recovery };
+  if (kind === 'wishbone') { const W2 = TUNING.coop.wishbone; return { startup: W2.brace + W2.pull, active: 0, recovery: W2.recover }; }
   if (ACTION_KINDS.includes(kind)) return actionTiming(kind, weapon);
   return M[kind as 'light' | 'heavy' | 'uppercut' | 'finisher'];
 }
@@ -117,7 +118,7 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
       // in the air the jump carries on; on the ground keep walking through a swing
       // (finishers, item throws, pulls and steals are planted)
       if (a.body.state === 'air') stepAirborneAction(world, a, cmd, dt);
-      else if (k !== 'finisher' && k !== 'toss' && k !== 'lob' && k !== 'pull' && k !== 'steal' && k !== 'flip' && k !== 'takedown') stepAttackMove(world, a, cmd, dt);
+      else if (k !== 'finisher' && k !== 'toss' && k !== 'lob' && k !== 'pull' && k !== 'steal' && k !== 'flip' && k !== 'takedown' && k !== 'wishbone') stepAttackMove(world, a, cmd, dt);
       else a.pose.walkPhase = undefined;
       stepAttack(world, a);
       break;
@@ -427,7 +428,8 @@ function stepAttack(world: World, a: Actor): void {
   atk.t += world.dt;
   const tm = attackTiming(atk.kind, atk.weapon);
   snapStep(world, a, tm.startup);
-  if (ACTION_KINDS.includes(atk.kind)) stepAction(world, a);
+  if (atk.kind === 'wishbone') stepWishbone(world, a);
+  else if (ACTION_KINDS.includes(atk.kind)) stepAction(world, a);
   else if (atk.kind === 'throw') {
     if (!atk.done && reached(atk.t, tm.startup)) { atk.done = true; releaseThrow(world, a); }
   } else if (reached(atk.t, tm.startup) && !reached(atk.t, tm.startup + tm.active)) {
@@ -1213,6 +1215,84 @@ function heldHit(world: World, by: Actor, o: Actor, kind: HitKind, dirX: number,
   world.events.emit('fatality', { actorId: o.id, kind: 'held', ...o.pos });
 }
 
+// ---------- M18 wishbone (design/coop-moves.md 3.4) ----------
+
+/** F next to a living grunt your partner holds: both of you brace and pull (planted, 0.75 s). */
+function startWishbone(world: World, a: Actor): boolean {
+  const holder = world.activePlayers.find((p) => p !== a && p.holding?.kind === 'actor');
+  const o = holder ? world.actorById(holder.holding!.id) : undefined;
+  if (!holder || !o || !alive(o) || o.kind === 'hero' || holder.state !== 'free' || a.hands[0]) return false;
+  const G2 = TUNING.grab;
+  if (Math.abs(o.pos.x - a.pos.x) > G2.assistRadius || Math.abs(o.pos.z - a.pos.z) > G2.assistDepth) return false;
+  o.grabbedBy2 = a.id;
+  for (const h of [holder, a]) {
+    if (Math.abs(o.pos.x - h.pos.x) > 0.02) h.facing = o.pos.x > h.pos.x ? 1 : -1;
+    h.state = 'attack';
+    h.stateT = 0;
+    // `itemId` 1 marks the one who pulled second: his timeline does the tearing
+    h.attack = { kind: 'wishbone', heavy: true, t: 0, done: false, targetId: o.id, itemId: h === a ? 1 : 0 };
+    h.body.vel = { x: 0, y: 0, z: 0 };
+    setClip(h, 'carry');
+  }
+  world.events.emit('coopMove', { kind: 'wishbone', phase: 'start', byId: a.id, partnerId: holder.id, targetId: o.id, actorId: o.id, ...o.pos });
+  return true;
+}
+
+/** Brace, pull (the heroes lean back and slide apart), then the snap. */
+function stepWishbone(world: World, a: Actor): void {
+  const atk = a.attack!, W2 = TUNING.coop.wishbone, o = world.actorById(atk.targetId!);
+  const other = world.activePlayers.find((p) => p !== a);
+  // broken off: the victim gone, or the other one knocked out of it
+  if (!o || !alive(o) || o.grabbedBy2 === undefined || other?.attack?.kind !== 'wishbone') {
+    if (o && o.grabbedBy2 !== undefined && other?.attack?.kind !== 'wishbone') o.grabbedBy2 = undefined;
+    if (!atk.done) { atk.done = true; atk.t = W2.brace + W2.pull; }
+    return;
+  }
+  a.pose.lean = -0.25;
+  if (atk.t > W2.brace && atk.t <= W2.brace + W2.pull) {
+    const away = -Math.sign(o.pos.x - a.pos.x) || -a.facing;
+    const p = moveWithCollision(world.room, a.pos.x, a.pos.z, away * (0.15 / W2.pull) * world.dt, 0, a.pos.y);
+    a.pos.x = p.x;
+  }
+  if (atk.itemId === 1 && !atk.done && reached(atk.t, W2.brace + W2.pull)) { atk.done = true; tearApart(world, a, other!, o); }
+}
+
+/** The snap: a team kill credited to both. Blood: split in two halves; stage 1: the head pops up. */
+function tearApart(world: World, a: Actor, holder: Actor, o: Actor): void {
+  const W2 = TUNING.coop.wishbone;
+  o.grabbedBy2 = undefined;
+  o.grabbedBy = undefined;
+  holder.holding = undefined;
+  const dir = Math.sign(holder.pos.x - o.pos.x) || 1;
+  die(world, o, a, 'heavy', dir, 0, !world.blood, 'heavy', { team: true, alsoId: holder.id });
+  creditKill(world, holder.id);
+  world.events.emit('fatality', { actorId: o.id, kind: 'wishbone', ...o.pos });
+  world.events.emit('coopMove', { kind: 'wishbone', phase: 'end', byId: a.id, partnerId: holder.id, targetId: o.id, actorId: o.id, ...o.pos });
+  if (!world.blood) {
+    // stage 1: no tearing, the head shoots straight up
+    const head = [...world.items].reverse().find((it) => it.kind === 'head' && it.state === 'air');
+    if (head) { head.vel = { x: 0, y: 4.5, z: 0 }; head.spin = 18; }
+    return;
+  }
+  // two halves, each flying toward the hero who held it (local +x = his facing)
+  const half = (c: Actor, keep: 1 | -1, side: number) => {
+    c.pose.cut = { nx: 1, ny: 0, d: 0, keep };
+    c.pose.death = undefined;
+    c.pose.root = { ...STANDING };
+    c.corpse = { phase: 'tumble', t: 0, raisable: false, gibbed: false, slumped: false };
+    c.flight = { vx: side * W2.halfSpeed, vz: 0, vy: 1.5, r: 0, r0: 0, rTo: side * c.facing > 0 ? -Math.PI / 2 : Math.PI / 2, spin: 0, phase: 'air', t: 0, airtime: 0.3, hit: [] };
+  };
+  const twin = createActor(o.kind, o.pos.x, o.pos.z, o.facing, { dead: true });
+  twin.pos.y = o.pos.y;
+  twin.pose = structuredClone(o.pose);
+  twin.variant = o.variant;
+  world.actors.push(twin);
+  // the side of the body facing a hero goes with him: local +x points along the victim's facing
+  half(o, (o.facing === dir ? 1 : -1) as 1 | -1, dir);
+  half(twin, (o.facing === dir ? -1 : 1) as 1 | -1, -dir);
+  if (extreme(world)) { a.pose.stain = Math.min(1, (a.pose.stain ?? 0) + 0.3); holder.pose.stain = Math.min(1, (holder.pose.stain ?? 0) + 0.3); }
+}
+
 // ---------- co-op revive ----------
 
 /**
@@ -1290,6 +1370,8 @@ function tryGrab(world: World, a: Actor): void {
     world.events.emit('grab', { actorId: a.id, itemId: it.id, ...it.pos });
     return;
   }
+  // M18 wishbone: F on a grunt your partner holds (or both grabbing at once) tears him apart
+  if (startWishbone(world, a)) return;
   let best: { score: number; act?: Actor; itemId?: number } | undefined;
   const consider = (score: number, act?: Actor, itemId?: number) => {
     if (!best || score < best.score) best = { score, act, itemId };

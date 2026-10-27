@@ -219,3 +219,55 @@ describe('M18 hold & hit', () => {
     expect(g.state).toBe('dead');
   });
 });
+
+describe('M18 wishbone', () => {
+  function held() {
+    const { world, p1, p2 } = coop(-0.9, 1.5);
+    const g = grunt(world, -0.45);
+    tick(world, 1, { grab: true });
+    tick(world, 2);
+    p2.pos.x = g.pos.x + 0.5;
+    return { world, p1, p2, g };
+  }
+
+  it("P2's F on the grunt P1 holds tears him in two 0.45 s later, credited to both (blood)", () => {
+    const { world, p1, p2, g } = held();
+    const kills = record(world, 'kill'), fat = record(world, 'fatality');
+    const before = world.actors.length;
+    tick(world, 1, {}, { grab: true });
+    expect(p2.attack?.kind).toBe('wishbone');
+    expect(p1.attack?.kind).toBe('wishbone');
+    tick(world, 28);
+    expect(g.state).toBe('dead');
+    expect(kills[0]).toMatchObject({ team: true, byId: p2.id, alsoId: p1.id });
+    expect(fat.some((f) => f.kind === 'wishbone')).toBe(true);
+    expect(world.actors.length).toBe(before + 1);
+    expect(g.pose.cut).toBeDefined();
+    tick(world, 30);
+    expect(p1.state).toBe('free');
+    expect(p2.state).toBe('free');
+  });
+
+  it('without blood (stage 1) the head pops straight up instead', () => {
+    const { world, p2, g } = held();
+    world.blood = false;
+    const before = world.actors.length;
+    tick(world, 1, {}, { grab: true });
+    tick(world, 28);
+    expect(g.pose.headless).toBe(true);
+    expect(world.actors.length).toBe(before);
+    const headItem = world.items.find((i) => i.kind === 'head')!;
+    expect(Math.abs(headItem.vel.x)).toBeLessThan(0.01);
+    expect(p2).toBeDefined();
+  });
+
+  it('hitting P2 during the pull cancels it; P1 still holds him', () => {
+    const { world, p1, p2, g } = held();
+    tick(world, 1, {}, { grab: true });
+    tick(world, 15);
+    world.hitActor(undefined, p2, 'light', 1, 0, p2.pos);
+    tick(world, 30);
+    expect(g.state).not.toBe('dead');
+    expect(p1.holding?.id).toBe(g.id);
+  });
+});

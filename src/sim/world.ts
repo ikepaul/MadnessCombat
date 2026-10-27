@@ -67,6 +67,8 @@ export class World {
   physics: 'normal' | 'improbable' = 'normal';
   /** Thrown weapons hitting a co-op ally (the friendly-fire setting): full damage, a knockdown only, or nothing. */
   friendlyThrow: 'damage' | 'knockdown' | 'through' = 'damage';
+  /** M18: this stage shows blood (GameScene sets it; stage 1 doesn't): the wishbone tears only where there's blood. */
+  blood = true;
   /** Stage 3 is gorier (src/sim/gore.ts). */
   gore: GoreLevel = 'normal';
   collapse?: Collapse;
@@ -295,6 +297,13 @@ export class World {
       o.pose.groundY = a.pose.groundY;
       o.pose.root = alive(o) ? { ...STANDING, r: 0.1 } : { ...STANDING, r: 0.35 };
       o.pose.clip = 'grabbed';
+      // M18 wishbone: stretched between the two, shaking
+      const wb = a.attack?.kind === 'wishbone' && o.grabbedBy2 !== undefined ? a.attack.t : undefined;
+      if (wb !== undefined) {
+        const W2 = TUNING.coop.wishbone, u = Math.max(0, Math.min(1, (wb - W2.brace) / W2.pull));
+        o.pose.root = { ...o.pose.root, sx: 1 + 0.25 * u };
+        o.pos.x += Math.sin(this.tick * 3.1) * 0.01 * u;
+      }
     }
   }
 
