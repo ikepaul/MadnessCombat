@@ -63,6 +63,12 @@ Specs: `../design/qol-pass.md` (M17), `../design/coop-moves.md` (M18), `../desig
 - **Rage meter (M19)**: one bar per player, filled only by kills whose type isn't one of your last 2 (10% a new kind, +5% per varied kill in a row up to 25%); it never drains, is saved with the checkpoint and resets per stage. Full: white/ink look, **only the eye slit turns red** (the one exception to red = blood and telegraphs). **Tab** fires a solo rage fatality picked by what you hold (fists, gun, blade, club): a super of 1.5–3.5 s in which the world stops for everyone else and the heroes are invulnerable. This is a deliberate exception to "fatalities ≤ 0.8 s, never take control away" (M10b), which still holds for contextual fatalities.
 - **Team rage (M20)**: both bars full; Tab within ~3 H of your partner sends a request instead of your solo move, their Tab accepts (4 s window), your second Tab withdraws it and fires your solo move. Kill pacing mixed per move: fist, blade, club and ping-pong moves strike everyone and they all die together at the end; the gun moves kill as the barrel passes.
 
+## Decided for stage 4 (2026-10-27, with the user)
+- **Ending**: you have to **win** the duel. When the boss's health runs out he grabs the hero as he falls ("takes you with him"); the hero sets off his grenade and the blast kills both, then the end card. Losing the duel is an ordinary death (the room restarts), so there's no reason to lose on purpose. Replaces the detonator-while-downed proposal.
+- **The DJ (our clown) is a mini-boss fight**: after the crowd he fights and can be killed (not the episode's untouchable non-combatant). His fight is designed in M16; his look in the M14 design pass.
+- **Fire-mode key**: **B**, its own rebindable key; R stays reload only.
+- **Sword guard**: **hold RMB** with a sword-class weapon (sword, katana, scimitar); long weapons keep RMB = thrust.
+- The show's on-screen gag text is not copied; by default there is none (no answer yet on an own gag).
+
 ## Still open (to ask later)
-- Stage 4 (before M14): the **ending**: the show's mutual kill with a detonator (proposal: hold E while downed in the final duel; not detonating restarts the room), or a different finish? Does the DJ (our clown) stay a non-combatant who survives? Fire-mode key: R with a full magazine, or its own key? Sword guard on RMB (thrust stays on long weapons only)? The show's on-screen gag HUD text is not copied: our own gag, or none?
 - Pistol-whip (gun-butt hit at contact range): its own key (F with a gun in hand) or automatic? Not in the M10b slice.

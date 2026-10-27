@@ -79,12 +79,16 @@ Every number measured from the episodes, in one place. **H** = body height (≈ 
 | Improbability knockback | ≈ 9 H/s (≈ 2.3× normal), bounces off walls and ceiling, ≈ 5.5 H path in 0.67 s | [improbability](mechanics/world-improbability-mode/notes.md) |
 | Body counts (wiki) | ep1 32, ep2 86, ep3 91 (on-screen counter ends at 90), ep4 80 | [kill counter](mechanics/world-kill-counter/notes.md) |
 
-## Episode 4 (from browser contact sheets, ±0.3 s: re-measure from clips)
+## Episode 4 (re-measured 2026-10-27 from the local clips, 30 fps, 1484×1080)
 | Quantity | Value | Note |
 |---|---|---|
-| Car length | ≈ 2.5 H | [vehicle ram](mechanics/world-vehicle-ram/notes.md) |
-| Agent: head wounds before dropping | ≥ 2, fight ≈ 6 s | [agent](mechanics/enemy-agent/notes.md) |
-| Staircase | ≈ 2 H drop over ≈ 3 H, ≈ 40° | [stairs](mechanics/move-stairs/notes.md) |
+| Car length | ≈ 1.7 H (against the smokers' height) | [vehicle ram](mechanics/world-vehicle-ram/notes.md) |
+| Headlights on the smokers before the ram | ≈ 1.1 s (f1140 → f1179) | [vehicle ram](mechanics/world-vehicle-ram/notes.md) |
+| Agent: entrance → dead | ≈ 5.6 s (f2232 → f2400): shooting from behind the desk ≈ 2.3 s, then melee ≈ 3 s | [agent](mechanics/enemy-agent/notes.md) |
+| Agent: head wounds before dropping | ≥ 2 (f2352, f2376) | [agent](mechanics/enemy-agent/notes.md) |
+| Fire-mode close-up | ≈ 2.3 s (f1779 → ~f1848); the lever flips in ≈ 0.1 s (f1830 → f1833) | [fire mode](mechanics/gun-fire-mode/notes.md) |
+| Body tumbling down the stairs | ≈ 1 H in ≈ 0.25 s (f3426 → f3432) ≈ 4 H/s | [stairs](mechanics/move-stairs/notes.md) |
+| Staircase | ≈ 2 H drop over ≈ 3 H, ≈ 40° (wide shot, not re-measured) | [stairs](mechanics/move-stairs/notes.md) |
 | Club crowd | ≈ 35 dancers, fight ≈ 18 s, 5–8 within 2 H of the hero | [crowd](mechanics/world-crowd-dancefloor/notes.md) |
 | Mass raise | ≈ 19 corpses standing ≈ 1 s after the flash | [halo boss](mechanics/boss-halo/notes.md) |
-| Sword deflecting a burst | ≈ 2.4 s before a round gets through | [blade deflect](mechanics/melee-blade-deflect/notes.md) |
+| Sword deflecting a burst | ≈ 0.3 s: guard up f5040, rounds f5052-f5061, two glance off (f5055, f5058), the next hits (f5061): ≈ 1 in 3 gets through | [blade deflect](mechanics/melee-blade-deflect/notes.md) |

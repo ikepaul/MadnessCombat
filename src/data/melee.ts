@@ -7,6 +7,8 @@ export type MeleeId = 'knife' | 'baton' | 'sword' | 'scimitar' | 'axe' | 'bat' |
 
 export interface MeleeDef {
   id: MeleeId;
+  /** M14 melee-blade-deflect: held on RMB as a guard that turns bullets and blades. */
+  guard?: boolean;
   name: string;
   /** Centre-to-centre reach of a swing (H). melee-weapons: 0.6-1.0 H; the street sign 1.5 H. */
   reach: number;
@@ -32,13 +34,41 @@ export interface MeleeDef {
 
 const F = 1 / 30;
 
+/**
+ * M14 melee-blade-deflect (ep4 2:45, the sword turning a burst until one round gets through):
+ * walk speed while guarding, every Nth blow from the front still gets through (measured: two
+ * rounds glance off, the third hits, ep4 f5052-f5061), and a guard raised this soon before a hit
+ * parries it (the bullet goes back at the shooter, a blade attacker is stunned). Walk and parry
+ * window invented.
+ */
+export const GUARD = { walk: 0.4, leakEvery: 3, parryWindow: 0.15 } as const;
+
+/**
+ * M14 gun block (ep4 1:46, an SMG turning a sword aside): F pressed this soon before a blade or
+ * club lands, with a gun in hand, turns it and stuns the attacker at contact range. invented
+ */
+export const GUN_BLOCK = { window: 0.2 } as const;
+
+/**
+ * M14 acting from the ground (ep4 2:57: downed, the hero splits the head of the one standing over
+ * him): LMB with a blade while prone or knocked down slashes at foot height, this often (s), at
+ * the nearest standing enemy within the blade's reach. invented
+ */
+export const LOW_SLASH = { every: 0.5 } as const;
+
+/**
+ * M14 world-destructible: a vending machine knocked over lies this long along the floor (H, its
+ * height) and this high (its depth), low cover from then on. Measured from the style frame drawing.
+ */
+export const TOPPLE = { length: 1.5, top: 0.6 } as const;
+
 export const MELEE: Record<MeleeId, MeleeDef> = {
   // throw-knives: stab at <= 0.6 H; one-hit kill. Timing = the light jab (invented split)
   knife: { id: 'knife', name: 'Knife', reach: 0.6, startup: 3 * F, active: 3 * F, recovery: 5 * F, damage: 4, edge: 'blade', multiHit: false, twoHanded: false, sticks: true, length: 0.22, depthBand: 0.2 },
   // melee-weapons: baton = fast short melee (invented timing)
   baton: { id: 'baton', name: 'Baton', reach: 0.7, startup: 4 * F, active: 3 * F, recovery: 6 * F, damage: 4, edge: 'blunt', multiHit: false, twoHanded: false, sticks: false, length: 0.42, depthBand: 0.2 },
-  sword: { id: 'sword', name: 'Sword', reach: 0.95, startup: 5 * F, active: 3 * F, recovery: 7 * F, damage: 4, edge: 'blade', multiHit: false, twoHanded: false, sticks: false, length: 0.62, depthBand: 0.22 },
-  scimitar: { id: 'scimitar', name: 'Scimitar', reach: 0.9, startup: 5 * F, active: 3 * F, recovery: 7 * F, damage: 4, edge: 'blade', multiHit: false, twoHanded: false, sticks: false, length: 0.58, depthBand: 0.22 },
+  sword: { id: 'sword', guard: true, name: 'Sword', reach: 0.95, startup: 5 * F, active: 3 * F, recovery: 7 * F, damage: 4, edge: 'blade', multiHit: false, twoHanded: false, sticks: false, length: 0.62, depthBand: 0.22 },
+  scimitar: { id: 'scimitar', guard: true, name: 'Scimitar', reach: 0.9, startup: 5 * F, active: 3 * F, recovery: 7 * F, damage: 4, edge: 'blade', multiHit: false, twoHanded: false, sticks: false, length: 0.58, depthBand: 0.22 },
   // melee-weapons: axe = slow heavy, throwable, lodges
   axe: { id: 'axe', name: 'Axe', reach: 0.85, startup: 7 * F, active: 3 * F, recovery: 9 * F, damage: 4, edge: 'blade', multiHit: false, twoHanded: false, sticks: true, length: 0.55, depthBand: 0.22 },
   bat: { id: 'bat', name: 'Bat', reach: 0.9, startup: 6 * F, active: 3 * F, recovery: 8 * F, damage: 4, edge: 'blunt', multiHit: false, twoHanded: false, sticks: false, length: 0.6, depthBand: 0.22 },

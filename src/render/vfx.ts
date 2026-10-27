@@ -50,6 +50,8 @@ export class Vfx {
   /** M8: lightning bolts (screen points) and ward ricochet sparks, ticks left. */
   private bolts: { from: ScreenPoint; to: ScreenPoint; s: number; seed: number; left: number }[] = [];
   private sparks: { x: number; y: number; s: number; facing: number; seed: number; left: number }[] = [];
+  /** M14: parry streaks from the sword back to the shooter, ticks left. */
+  private parries: { from: ScreenPoint; to: ScreenPoint; left: number }[] = [];
   /** Telekinesis ripples (seconds since the push). */
   private ripples: { x: number; y: number; s: number; dir: number; t: number }[] = [];
 
@@ -70,7 +72,7 @@ export class Vfx {
     // M9: a new room starts without the last one's smoke and sparks
     world.events.on('roomChanged', () => {
       this.puffs = []; this.drops = []; this.smears = []; this.stars = []; this.blasts = []; this.booms = [];
-      this.smoke = []; this.chunks = []; this.fountains = []; this.rings = []; this.popped = []; this.marks = []; this.bolts = []; this.sparks = []; this.ripples = []; this.bubbles = [];
+      this.smoke = []; this.chunks = []; this.fountains = []; this.rings = []; this.popped = []; this.marks = []; this.bolts = []; this.sparks = []; this.ripples = []; this.bubbles = []; this.parries = [];
     });
     // M10: sparks off the cables, dust as the cab hits the bottom
     world.events.on('cableHit', (e) => {
@@ -85,10 +87,25 @@ export class Vfx {
       this.booms.push({ x, y, s: s * 0.6, left: 2 });
     });
     world.events.on('wallBlast', (e) => { for (let k = 0; k < 3; k++) this.dust(e.x, e.y - 0.5 + k * 0.4, e.z, 12); });
+    // M14: a door smashed in: a big white burst at the doorway and dust; dust again where the slab lands
+    world.events.on('doorSmash', (e) => {
+      const [x, y] = project(e.x, e.y, e.z), s = scaleAt(e.z);
+      this.booms.push({ x, y, s: s * 0.8, left: 3 });
+      for (let k = 0; k < 3; k++) this.dust(e.x, k * 0.6, e.z, 10);
+    });
+    world.events.on('slabLand', (e) => this.dust(e.x, 0, e.z, 12));
     world.events.on('vendingSmash', (e) => {
       const [x, y] = project(e.x, e.y + 0.9, e.z), s = scaleAt(e.z);
       this.stars.push({ x, y, s, left: STAR_TICKS, big: true });
       this.dust(e.x, e.y + 0.6, e.z, 8);
+    });
+    // M14: a blow turned aside: sparks off a sword guard (deflect), a bright star and a streak back at the shooter (parry), a small star for the agent's block
+    world.events.on('block', (e) => {
+      const [x, y] = project(e.x, e.y, e.z), a = world.actorById(e.actorId), s = scaleAt(e.z);
+      if (e.how === 'deflect') this.sparks.push({ x, y, s, facing: a?.facing ?? 1, seed: Math.floor(Math.random() * 1e9), left: 4 });
+      else this.stars.push({ x, y, s, left: STAR_TICKS + (e.how === 'parry' ? 3 : 0), big: e.how === 'parry' });
+      const by = e.how === 'parry' ? world.actorById(e.byId) : undefined;
+      if (by) this.parries.push({ from: [x, y], to: project(by.pos.x, by.pos.y + 0.6, by.pos.z), left: 4 });
     });
     world.events.on('stab', (e) => { const [x, y] = project(e.x, e.y + 0.6, e.z); this.stars.push({ x, y, s: scaleAt(e.z), left: STAR_TICKS + 2, big: true }); });
     world.events.on('speech', (e) => {
@@ -337,6 +354,8 @@ export class Vfx {
     this.drops = this.drops.filter((d) => d.life < d.max);
     for (const b of this.blasts) b.left--;
     this.blasts = this.blasts.filter((b) => b.left > 0);
+    for (const p of this.parries) p.left--;
+    this.parries = this.parries.filter((p) => p.left > 0);
     for (const m of this.smears) m.left--;
     this.smears = this.smears.filter((m) => m.left > 0);
     for (const st of this.stars) st.left--;
@@ -416,6 +435,13 @@ export class Vfx {
     for (const b of this.booms) this.drawBoom(ctx, b);
     for (const b of this.bolts) this.drawBolt(ctx, b);
     for (const sp of this.sparks) this.drawSparks(ctx, sp);
+    ctx.lineCap = 'round';
+    for (const p of this.parries) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 10;
+      ctx.beginPath(); ctx.moveTo(p.from[0], p.from[1]); ctx.lineTo(p.to[0], p.to[1]); ctx.stroke();
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(p.from[0], p.from[1]); ctx.lineTo(p.to[0], p.to[1]); ctx.stroke();
+    }
     for (const r of this.ripples) this.drawRipple(ctx, r);
     for (const m of this.marks) this.drawMark(ctx, m);
     this.drawTrails(ctx);

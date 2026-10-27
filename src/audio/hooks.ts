@@ -24,7 +24,9 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
   /** M10b: a kill at chain hit 3+ ticks higher still. */
   let lastHitChain = 0;
 
-  world.events.on('footstep', (e) => play(world.room.outdoor ? 'stepDirt' : 'stepConcrete', at(e.x, e.y, e.z, { gain: e.actorId === world.player?.id ? 1 : 0.6 })));
+  // M14: a step up off the floor on a staircase sounds hollow
+  world.events.on('footstep', (e) => play(world.room.outdoor ? 'stepDirt' : e.y > 0.05 && world.room.stairs?.length ? 'stairStep' : 'stepConcrete', at(e.x, e.y, e.z, { gain: e.actorId === world.player?.id ? 1 : 0.6 })));
+  world.events.on('stairSlide', (e) => play('stairSlide', at(e.x, e.y, e.z)));
   world.events.on('land', (e) => play('land', at(e.x, e.y, e.z, { gain: Math.min(1, 0.5 + e.fallSpeed / 10) })));
   world.events.on('dive', (e) => play('dive', at(e.x, e.y, e.z)));
   world.events.on('standUp', (e) => play('cloth', at(e.x, e.y, e.z)));
@@ -82,6 +84,14 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
     }
   });
   world.events.on('dryFire', (e) => play('dryFire', at(e.x, e.y + 0.5, e.z)));
+  // M14: the agent's block (a dry knock), a round deflected off a sword guard, a parry's ring
+  world.events.on('block', (e) => {
+    if (e.how === 'deflect') play('ricochet', at(e.x, e.y, e.z));
+    else if (e.how === 'parry') { play('parry', at(e.x, e.y, e.z)); play('clang', at(e.x, e.y, e.z)); }
+    else play('block', at(e.x, e.y, e.z));
+  });
+  // M14 gun-fire-mode: the selector's click
+  world.events.on('fireMode', (e) => play('selector', at(e.x, e.y + 0.5, e.z)));
   world.events.on('reload', (e) => {
     const p = at(e.x, e.y + 0.5, e.z);
     if (e.phase === 'start') play('magOut', p);
@@ -162,6 +172,11 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
   world.events.on('swordDive', (e) => play(e.phase === 'windup' ? 'crackle' : e.phase === 'dive' ? 'whooshHeavy' : 'slash', at(e.x, e.y + 0.6, e.z)));
   world.events.on('teleport', (e) => play('implode', at(e.x, e.y + 0.7, e.z)));
   world.events.on('wallBlast', (e) => { play('explosion', at(e.x, e.y, e.z, { gain: 0.8 })); play('wall', at(e.x, e.y, e.z)); });
+  // M14: the door bursting in (wood + a heavy hit), the slab slapping down
+  world.events.on('doorSmash', (e) => { play('hitWood', at(e.x, e.y, e.z)); play('impactHeavy', at(e.x, e.y, e.z)); });
+  world.events.on('slabLand', (e) => play('hitWood', at(e.x, e.y, e.z)));
+  // M14: the machine going over: a heavy crash after the glass
+  world.events.on('propToppled', (e) => play('impactHeavy', at(e.x, e.y + 0.3, e.z, { delay: 0.12 })));
   world.events.on('vendingSmash', (e) => { play('glass', at(e.x, e.y + 0.8, e.z)); play('hitMetal', at(e.x, e.y + 0.5, e.z, { delay: 0.15 })); });
   world.events.on('stab', (e) => { play('knifeFlesh', at(e.x, e.y + 0.6, e.z)); play('stinger', {}); });
   world.events.on('bloodFlood', (e) => play('pullOut', at(e.x, 0.1, e.z, { rate: 0.6, gain: 0.6 })));
@@ -181,7 +196,11 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
     else if (e.phase === 'away') { if (burner !== undefined) engine.stop(burner, 0.6); burner = undefined; }
     else play('door', at(e.x, 1, e.z));
   });
-  world.events.on('shove', (e) => { play('whooshHeavy', at(e.x, e.y + 0.6, e.z)); play('impactHeavy', at(e.x, e.y + 0.6, e.z)); });
+  world.events.on('shove', (e) => {
+    // M14: a crowd grunt's shove is only a scuffle of cloth
+    if (e.soft) { play('cloth', at(e.x, e.y + 0.6, e.z)); return; }
+    play('whooshHeavy', at(e.x, e.y + 0.6, e.z)); play('impactHeavy', at(e.x, e.y + 0.6, e.z));
+  });
   world.events.on('collapse', (e) => {
     if (e.phase === 'crack') { play('crack', { gain: 1 }); play('rumble', {}); }
     else { play('rumble', { gain: 1.2 }); play('explosion', { gain: 0.6, rate: 0.6 }); engine.duck(0.5); }

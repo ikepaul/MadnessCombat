@@ -43,7 +43,7 @@ export interface ActorSnap {
   variant?: Actor['variant'];
   /** M8: the boombox NPC's boombox. */
   carry?: Actor['carry'];
-  unaware?: 'stand' | 'smoke' | 'chat' | 'patrol';
+  unaware?: 'stand' | 'smoke' | 'chat' | 'patrol' | 'dance' | 'cower';
   /** M11: hovering (the jetpack: its flames), falling into the void, stuck in the ceiling. */
   hover?: number;
   fallingAway?: number;

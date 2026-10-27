@@ -106,6 +106,9 @@ function dropKill(world: World, actorId: number): void {
 export function alert(world: World, o: Actor, by?: 'sight' | 'sound'): void {
   if (!o.ai || o.ai.aware !== false || !alive(o)) return;
   o.ai.aware = true;
+  o.pose.dancing = undefined;
+  // M14 world-crowd-dancefloor: one alarm for the whole crowd
+  if (o.ai.crowd) for (const n of world.actors) if (n !== o && n.ai?.crowd === o.ai.crowd) alert(world, n);
   o.ai.cooldown = Math.max(o.ai.cooldown, 0.4);
   // head snap toward the noise
   o.pose.lean = -0.25;
@@ -130,6 +133,11 @@ function quietKill(world: World, byId: number, kind: string): boolean {
 export function installAlertRules(world: World): void {
   world.events.on('shot', (e) => { if (!e.suppressed && !world.puppet) alertAll(world); });
   world.events.on('explosion', () => { if (!world.puppet) alertAll(world); });
+  // M14: getting hit wakes you up (and a crowd member's alarm wakes the crowd)
+  world.events.on('hit', (e) => {
+    const o = world.puppet ? undefined : world.actorById(e.actorId);
+    if (o?.ai && o.state !== 'dead') alert(world, o, 'sound');
+  });
   world.events.on('kill', (e) => {
     if (world.puppet || quietKill(world, e.byId, e.kind)) return;
     for (const o of world.actors) if (Math.hypot(o.pos.x - e.x, o.pos.z - e.z) <= S.hearDeath) alert(world, o, 'sound');

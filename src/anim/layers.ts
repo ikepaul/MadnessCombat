@@ -98,6 +98,8 @@ export function buildSkeleton(a: Actor, time: number): Layered {
   for (const k in sk) s[k as keyof Skeleton] = [...sk[k as keyof Skeleton]] as Skeleton[keyof Skeleton];
   applyReaction(a, s);
   applyDeath(a, s);
+  // M14 melee-blade-deflect: the sword held up and across in front of the body, both hands near the hilt
+  if (p.guard && !p.dead) { s.handF = [0.24, -0.52, 0]; s.handB = [0.12, -0.47, 0]; s.item = [s.item[0], s.item[1], -1.9]; }
 
   // the flying kick (playtest 2026-10-27): front foot thrust out level with the hips, back foot
   // tucked, fists up by the face (the root leans the whole body back)

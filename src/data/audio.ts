@@ -94,6 +94,13 @@ export const SOUNDS = {
   rumble: def('rumble', 'world', 0.8, { variants: 1, limit: 1, reverb: 0.4 }),
   wardHum: def('wardHum', 'weapons', 0.6, { variants: 2, limit: 2, reverb: 0.3 }),
   ricochet: def('ricochet', 'impacts', 0.55, { variants: 4, limit: 3, reverb: 0.2 }),
+  // M14 (generated): the rifle's selector flipping, the agent's forearm block, a parry's bright ring,
+  // a hollow step on stairs, a body sliding down them
+  selector: def('slideRack', 'weapons', 0.45, { variants: 2, limit: 1, reverb: 0 }),
+  block: def('thump', 'impacts', 0.75, { variants: 3, reverb: 0.1 }),
+  parry: def('ping', 'impacts', 0.8, { variants: 2, limit: 2, reverb: 0.3 }),
+  stairStep: def('thunk', 'foley', 0.4, { variants: 4, limit: 3, reverb: 0.15 }),
+  stairSlide: def('bodyFall', 'foley', 0.6, { variants: 2, limit: 2, reverb: 0.2 }),
   cannonBoom: def('cannonBoom', 'weapons', 1, { variants: 3, limit: 2, reverb: 0.5 }),
   fallWhistle: def('fallWhistle', 'world', 0.6, { variants: 1, limit: 1, reverb: 0.2 }),
   heavyLand: def('heavyLand', 'impacts', 1, { variants: 2, limit: 1, reverb: 0.5 }),

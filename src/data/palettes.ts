@@ -14,7 +14,7 @@ export interface Palette {
   hand: string; shoe: string; prop: string; propShade: string; door: string;
 }
 
-export type PaletteId = 'neutral' | 'cool' | 'warm';
+export type PaletteId = 'neutral' | 'cool' | 'warm' | 'night';
 
 export const PALETTES: Record<PaletteId, Palette> = {
   neutral: {
@@ -32,14 +32,20 @@ export const PALETTES: Record<PaletteId, Palette> = {
     suit: '#938d84', suitShade: '#756f67', hero: '#3d3934', heroShade: '#2b2824', skin: '#d6d1ca', skinHi: '#f4f0ea',
     hand: '#e8e4dd', shoe: '#4f4a44', prop: '#c9c3b9', propShade: '#908a81', door: '#dcd7cf',
   },
+  // M14 (style frame stage 4 sheet, signed off): night / club, the darkest set, a faint violet cast
+  night: {
+    ceil: '#4a4a52', back: '#64646d', sideL: '#5a5a63', sideR: '#55555e', floor: '#4f4f58', board: '#7a7a84',
+    suit: '#7a7a83', suitShade: '#5f5f68', hero: '#2a2a30', heroShade: '#1b1b20', skin: '#c9c8cf', skinHi: '#ebeaf0',
+    hand: '#dddce2', shoe: '#3d3d44', prop: '#7c7c86', propShade: '#55555e', door: '#8e8e98',
+  },
 };
 
 /** Stage -> palette (decided: stage 1 neutral, stage 2 cool, stage 3 warm). */
-export const STAGE_PALETTE: Record<1 | 2 | 3, PaletteId> = { 1: 'neutral', 2: 'cool', 3: 'warm' };
+export const STAGE_PALETTE: Record<1 | 2 | 3 | 4, PaletteId> = { 1: 'neutral', 2: 'cool', 3: 'warm', 4: 'night' };
 
 /** Blood per stage (PLAN.md M2): off for stage 1, as in episode 1; on from stage 2. */
-export const STAGE_BLOOD: Record<1 | 2 | 3, boolean> = { 1: false, 2: true, 3: true };
+export const STAGE_BLOOD: Record<1 | 2 | 3 | 4, boolean> = { 1: false, 2: true, 3: true, 4: true };
 
-export function paletteStage(id: PaletteId): 1 | 2 | 3 {
-  return id === 'neutral' ? 1 : id === 'cool' ? 2 : 3;
+export function paletteStage(id: PaletteId): 1 | 2 | 3 | 4 {
+  return id === 'neutral' ? 1 : id === 'cool' ? 2 : id === 'warm' ? 3 : 4;
 }

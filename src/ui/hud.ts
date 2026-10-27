@@ -22,6 +22,9 @@ const RED = 0xc70f1b;
 /** Icon textures: px per H, and the canvas size. */
 const ICON_W = 220, ICON_H = 90;
 
+/** Stages whose selector close-up has been shown (once per stage per session). */
+const selectorShown = new Set<number>();
+
 export class InkHud {
   private icons: Phaser.GameObjects.Image[] = [];
   private panel: Phaser.GameObjects.Graphics;
@@ -38,6 +41,8 @@ export class InkHud {
   private lowT = 0;
   private heart?: number;
   private card?: { root: Phaser.GameObjects.Container; t: number };
+  /** M14 gun-fire-mode: the selector close-up (the first switch of a stage), seconds shown and the new setting. */
+  private selector?: { g: Phaser.GameObjects.Graphics; text: Phaser.GameObjects.Text; t: number; semi: boolean };
 
   constructor(private scene: Phaser.Scene, private game: GameScene, stageCard: boolean) {
     makeTextures(scene);
@@ -67,6 +72,17 @@ export class InkHud {
       this.edgeT[left ? 0 : 1] = 1;
     });
     if (stageCard && game.stageInfo && !game.lab) this.showCard(game.stageInfo.stage);
+    // M14: the first selector flip of a stage shows the close-up (our own markings)
+    game.world.events.on('fireMode', (e) => {
+      if (e.actorId !== this.me?.id) return;
+      const key = game.stageInfo?.stage ?? 0;
+      if (selectorShown.has(key) && !game.lab) return;
+      selectorShown.add(key);
+      this.selector?.g.destroy(); this.selector?.text.destroy();
+      const g = scene.add.graphics().setDepth(43);
+      const text = scene.add.text(0, 0, '', { fontFamily: 'Anton', fontSize: '28px', color: '#ffffff' }).setOrigin(0.5, 0).setDepth(44);
+      this.selector = { g, text, t: 0, semi: e.semi };
+    });
   }
 
   private get me(): Actor | undefined {
@@ -80,6 +96,36 @@ export class InkHud {
     this.drawPrompt(me, dt);
     this.drawHurt(me, dt);
     this.drawCard(dt);
+    this.drawSelector(dt);
+  }
+
+  /**
+   * The selector close-up: a lever swinging between one dot (single shot) and three dots (full
+   * auto) on an ink plate above the weapons, 1 s, then gone. Own drawing, own markings.
+   */
+  private drawSelector(dt: number): void {
+    const sel = this.selector;
+    if (!sel) return;
+    sel.t += dt;
+    const g = sel.g;
+    g.clear();
+    const cx = 330, cy = H - 360, a = Math.min(1, sel.t / 0.15);
+    const fade = Math.max(0, Math.min(1, (1.1 - sel.t) / 0.2));
+    g.setAlpha(fade); sel.text.setAlpha(fade);
+    g.fillStyle(INK_HEX, 0.92).fillRoundedRect(cx - 120, cy - 70, 240, 150, 16);
+    g.lineStyle(4, 0x5b5c61, 1).strokeRoundedRect(cx - 120, cy - 70, 240, 150, 16);
+    // marks: one dot left (single), three dots right (auto)
+    g.fillStyle(0xffffff, 1).fillCircle(cx - 60, cy - 30, 7);
+    for (const dx of [-14, 0, 14]) g.fillCircle(cx + 60 + dx, cy - 30, 6);
+    // the lever swings from the old mark to the new one
+    const from = sel.semi ? 0.6 : -0.6, to = sel.semi ? -0.6 : 0.6;
+    const ang = from + (to - from) * (1 - (1 - a) * (1 - a));
+    const lx = cx + Math.sin(ang) * 70, ly = cy + 30 - Math.cos(ang) * 70;
+    g.lineStyle(14, 0x8e8f94, 1).lineBetween(cx, cy + 30, lx, ly);
+    g.fillStyle(0x8e8f94, 1).fillCircle(cx, cy + 30, 16);
+    g.fillStyle(INK_HEX, 1).fillCircle(cx, cy + 30, 6);
+    sel.text.setText(sel.semi ? 'SINGLE' : 'AUTO').setPosition(cx, cy + 48);
+    if (sel.t > 1.1) { g.destroy(); sel.text.destroy(); this.selector = undefined; }
   }
 
   // ---------- E1: weapons ----------
@@ -114,7 +160,7 @@ export class InkHud {
         return;
       }
       if (h.ammo === 0) { label.setText(h.clicked ? 'EMPTY · THROW' : 'EMPTY').setColor('#ff5a50'); return; }
-      const spare = h.spare > 0 ? '  +1' : '';
+      const spare = (h.spare > 0 ? '  +1' : '') + (w.modes ? (h.semi ? '  SEMI' : '  AUTO') : '');
       if (w.mag <= 12) {
         // a tick per round: white = loaded, hollow = spent
         for (let k = 0; k < w.mag; k++) {

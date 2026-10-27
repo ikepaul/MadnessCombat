@@ -38,6 +38,8 @@ export interface GameEvents {
   };
   /** Trigger pulled on an empty gun (the next press throws it). */
   dryFire: At & { hand: 0 | 1; weapon: WeaponId };
+  /** M14 gun-fire-mode: the selector flipped (semi = single shot). */
+  fireMode: At & { hand: 0 | 1; weapon: WeaponId; semi: boolean };
   /** Reload started (magazine out) or finished (magazine in). */
   reload: At & { hand: 0 | 1; phase: 'start' | 'end'; weapon: WeaponId };
   /** A weapon picked up off the floor. */
@@ -94,6 +96,8 @@ export interface GameEvents {
   popUp: At & { itemId: number };
   /** M10b: a contextual kill (kill-cam, pitched-up tick). */
   fatality: At & { actorId: number; kind: 'punt' | 'backshot'; itemId?: number };
+  /** M14: a blow turned aside: the agent blocking a jab, a sword guard taking a bullet or a blade. */
+  block: At & { byId: number; how?: 'block' | 'deflect' | 'parry' };
   /** Playtest 2026-10-27, extreme gore: a hand comes off a corpse. */
   dismember: At & { actorId: number; hand: 'F' | 'B'; dirX: number };
   /** A held body took a hit meant for its holder (combat-human-shield); `broke` = it fell apart. */
@@ -179,7 +183,8 @@ export interface GameEvents {
   cameraTurn: { x: number; y: number; z: number };
   /** The jetpack mini-boss: rising out of the void, flying off, back through the door. */
   jetpack: At & { phase: 'up' | 'away' | 'back' };
-  shove: At & { targetId: number };
+  /** A shove: the jetpack mini-boss's push (stage 3), or M14 a crowd grunt's harmless one (soft). */
+  shove: At & { targetId: number; soft?: boolean };
   /** The vending machine at the back comes alive. */
   bruteWake: { x: number; y: number; z: number };
   // M12: the desert box, the duel, the last stand
@@ -192,6 +197,13 @@ export interface GameEvents {
   wallBlast: { x: number; y: number; z: number };
   /** Thrown into the vending machine: glass and cans everywhere. */
   vendingSmash: At;
+  /** M14: a vending machine knocked flat by a thrown body (now low cover). */
+  propToppled: At;
+  /** M14 move-stairs: a body starts sliding down a staircase. */
+  stairSlide: At;
+  /** M14: a door smashed in (the slab flies), and the slab landing flat. */
+  doorSmash: At & { door: number };
+  slabLand: { x: number; y: number; z: number };
   stab: At & { targetId: number };
   lastStand: { phase: 'start' | 'end' };
   /** The target ran out of the room (boss-target). */

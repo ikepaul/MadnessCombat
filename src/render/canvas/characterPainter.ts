@@ -42,11 +42,13 @@ export function actorColors(kind: ActorKind, pal: Palette, variant?: Actor['vari
   const z = (c: string, zc: string) => (zombie ? (green >= 1 ? zc : mix(c, zc, green)) : c);
   // style frame M7 sheet: the bodyguard's suit sits between a grunt's and the hero's
   const guard = variant === 'bodyguard';
+  // style frame M14 sheet: the agent's charcoal jacket (darker than a bodyguard's, lighter than the hero's)
+  const agent = variant === 'agent';
   // M8 NPCs: white tee (boombox NPC), dark tracksuit (dancer)
   const npc = isNpc(variant) ? NPC_SUIT[variant] : isStage2Cast(variant) ? STAGE2_SUIT[variant] : undefined;
   return {
-    suit: hero ? pal.hero : guard ? BODYGUARD_SUIT : npc ? npc[0] : pal.suit,
-    suitShade: hero ? pal.heroShade : guard ? BODYGUARD_SHADE : npc ? npc[1] : pal.suitShade,
+    suit: hero ? pal.hero : guard ? BODYGUARD_SUIT : agent ? AGENT_SUIT : npc ? npc[0] : pal.suit,
+    suitShade: hero ? pal.heroShade : guard ? BODYGUARD_SHADE : agent ? AGENT_SHADE : npc ? npc[1] : pal.suitShade,
     skin: z(pal.skin, ZOMBIE),
     skinHi: z(pal.skinHi, ZOMBIE_HI),
     hand: z(pal.hand, ZOMBIE),
@@ -55,6 +57,7 @@ export function actorColors(kind: ActorKind, pal: Palette, variant?: Actor['vari
 }
 
 const BODYGUARD_SUIT = '#5c5e66', BODYGUARD_SHADE = '#4a4c53';
+const AGENT_SUIT = '#4b4e57', AGENT_SHADE = '#3a3d45';
 
 const isNpc = (v: Actor['variant']): v is NpcVariant => v === 'boombox' || v === 'dancer';
 
@@ -194,6 +197,17 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
     ctx.beginPath(); ctx.moveTo(0.055, -0.565); ctx.lineTo(0.085, -0.565); ctx.lineTo(0.075, -0.45); ctx.lineTo(0.065, -0.45); ctx.closePath();
     ctx.fillStyle = '#2a2b2f'; ctx.fill();
   }
+  if (a.variant === 'agent') {
+    // style frame M14 sheet, agent A (signed off): buttoned high-collar jacket, a red pin, a front seam
+    ctx.beginPath(); ctx.roundRect(-0.02, -0.6, 0.2, 0.06, 0.015); ctx.fillStyle = '#2c2e34'; ctx.fill(); ctx.lineWidth = 0.008; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.beginPath(); ctx.arc(0.13, -0.57, 0.014, 0, Math.PI * 2); ctx.fillStyle = BLOOD; ctx.fill();
+    ctx.save(); bodyPath(ctx); ctx.clip();
+    ctx.strokeStyle = 'rgba(20,20,22,0.55)'; ctx.lineWidth = 0.008;
+    ctx.beginPath(); ctx.moveTo(0.1, -0.54); ctx.lineTo(0.1, -0.02); ctx.stroke();
+    ctx.fillStyle = '#2c2e34';
+    for (const by of [-0.42, -0.3, -0.18]) { ctx.beginPath(); ctx.arc(0.125, by, 0.011, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+  }
   if (isNpc(a.variant)) paintNpcBody(ctx, a.variant, bodyPath);
   else if (isStage2Cast(a.variant)) paintStage2Body(ctx, a.variant, bodyPath);
   if (a.playerIndex === 1) {
@@ -214,7 +228,7 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
     // tilt toward the aim, at most 0.25 rad
     ctx.rotate(sk.head[2] + (aim !== undefined ? Math.max(-0.25, Math.min(0.25, aim * 0.18)) : 0));
     paintHead(ctx, col.skin, col.skinHi, pose.dead);
-    if (a.variant === 'leader' || a.variant === 'bodyguard' || a.variant === 'welder') paintHeadGear(ctx, a.variant);
+    if (a.variant === 'leader' || a.variant === 'bodyguard' || a.variant === 'welder' || a.variant === 'agent') paintHeadGear(ctx, a.variant);
     // M10: knocked silly or out cold: stars round the head
     if (pose.dazed) dazedStars(ctx, time);
     else if (isNpc(a.variant)) paintNpcHead(ctx, a.variant);
@@ -434,10 +448,18 @@ function telegraphLine(ctx: Ctx, from: ScreenPoint, to: ScreenPoint, u: number, 
 }
 
 /** M7 head gear (style frame sheet, own designs), head space: squad leader shades, bodyguard earpiece. */
-export function paintHeadGear(ctx: Ctx, kind: 'leader' | 'bodyguard' | 'welder'): void {
+export function paintHeadGear(ctx: Ctx, kind: 'leader' | 'bodyguard' | 'welder' | 'agent'): void {
   ctx.save();
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  if (kind === 'welder') {
+  if (kind === 'agent') {
+    // style frame M14 sheet, agent A (signed off): a short dark crop and a coiled earpiece wire
+    ctx.beginPath(); ctx.ellipse(-0.02, -0.13, 0.2, 0.11, 0, Math.PI * 0.98, Math.PI * 1.98); ctx.closePath();
+    ctx.fillStyle = '#26272c'; ctx.fill(); ctx.lineWidth = 0.012; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.beginPath(); ctx.arc(-0.06, 0.0, 0.022, 0, Math.PI * 2); ctx.fillStyle = '#d9d9dc'; ctx.fill(); ctx.lineWidth = 0.008; ctx.stroke();
+    ctx.strokeStyle = '#d9d9dc'; ctx.lineWidth = 0.006; ctx.beginPath();
+    for (let k = 0; k <= 12; k++) ctx.lineTo(-0.065 + Math.sin(k * 1.6) * 0.012, 0.02 + k * 0.016);
+    ctx.stroke();
+  } else if (kind === 'welder') {
     // style frame M7 sheet: the welder's mask (used in M10's elevator)
     ctx.strokeStyle = '#3a3b40'; ctx.lineWidth = 0.03;
     ctx.beginPath(); ctx.moveTo(-0.01, -0.12); ctx.lineTo(-0.19, -0.04); ctx.stroke();

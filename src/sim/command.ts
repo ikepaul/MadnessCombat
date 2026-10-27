@@ -30,6 +30,8 @@ export interface PlayerCommand {
   pickup?: boolean;
   reload?: boolean;
   throwGun?: boolean;
+  /** Pressed this tick (edge, M14 gun-fire-mode): B switches a rifle between single shot and full auto. */
+  fireMode?: boolean;
   /** Shift held: split aim, the back hand locks onto the nearest enemy on the other side. */
   split?: boolean;
   /** G held: pull a grenade's pin and cook it; releasing G lobs it toward the cursor (M6). */
@@ -42,7 +44,7 @@ export const IDLE_COMMAND: PlayerCommand = { moveX: 0, moveZ: 0, jump: false, di
 
 /** Edge fields, cleared once a tick consumed them. */
 export function clearEdges(c: PlayerCommand): PlayerCommand {
-  return { ...c, jump: false, dive: false, attack: null, grab: false, press: [false, false], pickup: false, reload: false, throwGun: false };
+  return { ...c, jump: false, dive: false, attack: null, grab: false, press: [false, false], pickup: false, reload: false, throwGun: false, fireMode: false };
 }
 
 /** Keep edges latched between frames until a tick runs. */
@@ -58,6 +60,7 @@ export function mergeEdges(pending: PlayerCommand, next: PlayerCommand): PlayerC
     pickup: !!(pending.pickup || next.pickup),
     reload: !!(pending.reload || next.reload),
     throwGun: !!(pending.throwGun || next.throwGun),
+    fireMode: !!(pending.fireMode || next.fireMode),
   };
 }
 

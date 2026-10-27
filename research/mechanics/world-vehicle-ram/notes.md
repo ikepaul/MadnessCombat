@@ -12,10 +12,12 @@ Clips (local only): `clip-1` night alley, headlights, two bodies crushed between
 ## Measured
 | Value | Measured | How |
 |---|---|---|
-| Cut from the ram to the wide shot of the result | ≈ 0.4 s (39.2 → 39.6 s) | contact sheet |
-| Car length | ≈ 2.5 H | wide shot at 39.6 s |
+| Headlights on the smokers (they turn to look) | ≈ 1.1 s (f1140 → f1173) | frames-1-d (re-measured from the clip) |
+| Impact | f1179, one frame after the cut to the wide shot | frames-1-d |
+| Car length | ≈ 1.7 H against the smokers' height | wide shot f1179 |
 
 ## Game translation
+- The headlights are the telegraph: the light sweeps over the targets for ≈ 1.1 s before the hit.
 - **Stage intro set piece**, not a drivable vehicle: a sequencer script (`world.seq`) drives the car prop in from the screen edge; anything between it and the wall is crushed (reuse the arena-lock wall-crush rule: instant kill, gore by stage). The two kills count.
 - The car is then a solid prop and a **loadout container**: E at the open door gives the stage's starting weapons (once).
 - Optional (invented): the car works as cover; it never moves again.

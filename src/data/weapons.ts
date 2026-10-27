@@ -12,6 +12,8 @@ export interface WeaponDef {
   oneHanded: boolean;
   /** Full auto while the button is held; otherwise one shot per press. */
   auto: boolean;
+  /** M14 gun-fire-mode: has a selector (single shot / full auto); a player's pick-up starts on single shot. */
+  modes?: boolean;
   /** Seconds between shots. */
   interval: number;
   mag: number;
@@ -67,7 +69,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   },
   rifle: {
     // gun-auto-rifle: 0.1 s (the SMG's measured rate), 30 rounds, less spread than the SMG (invented)
-    id: 'rifle', name: 'Rifle', oneHanded: false, auto: true, interval: 0.1, mag: 30, reload: 1.0, pellets: 1, spread: 1.2,
+    id: 'rifle', name: 'Rifle', oneHanded: false, auto: true, modes: true, interval: 0.1, mag: 30, reload: 1.0, pellets: 1, spread: 1.2,
     damageHead: 4, damageBody: 2, ...LONG_GEOM, muzzle: [0.5, -0.06], eject: [0.12, -0.1],
     firingWalk: 1, suppressed: false, shake: 1.5, recoil: 0.035,
   },
@@ -96,6 +98,8 @@ export const GUNS = {
   maxSpare: 1,
   /** gun-dual-wield: long guns can be dual-wielded, with more spread (x this). invented */
   dualLongSpread: 2.5,
+  /** M14 gun-fire-mode: single shot tightens a rifle's spread to this share. invented */
+  semiSpread: 0.7,
   /** gun-empty-throw: thrown guns fly straight (screen space) at this speed (H/s). invented */
   throwSpeed: 14,
   /**

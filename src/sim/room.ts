@@ -7,6 +7,8 @@ export interface DoorDef {
   z1: number;
   height: number;
   open: boolean;
+  /** M14: smashed in (the doorway stays open; the slab lies in the room). */
+  smashed?: boolean;
 }
 
 export interface TableDef {
@@ -64,9 +66,25 @@ export interface VendingDef {
   x0: number; x1: number; z0: number; z1: number;
   top: number;
   smashed?: boolean;
+  /**
+   * M14 world-destructible (ep4 1:25): a fast thrown body knocks this one flat instead of only
+   * smashing the glass; `fallen` = which way it fell and where it stood (x) for the painter.
+   */
+  toppleable?: boolean;
+  fallen?: { dir: 1 | -1; standX: number };
 }
 
-export type PropDef = TableDef | PoleDef | CannonPropDef | CrateDef | TankDef | VendingDef;
+/** M14 world-destructible: a door slab knocked off its frame: flying in upright (`fly`), then flat on the floor. */
+export interface SlabDef {
+  kind: 'slab';
+  x0: number; x1: number; z0: number; z1: number;
+  top: number;
+  fly?: { dir: 1 | -1; t: number; length: number };
+  /** Who smashed it (credited with the crushes). */
+  byId?: number;
+}
+
+export type PropDef = TableDef | PoleDef | CannonPropDef | CrateDef | TankDef | VendingDef | SlabDef;
 
 /** A floor area (H). */
 export interface Zone { x0: number; x1: number; z0: number; z1: number }
@@ -75,6 +93,12 @@ export interface Zone { x0: number; x1: number; z0: number; z1: number }
 export interface Deck extends Zone { y: number; holes: Zone[] }
 
 export const inZone = (z: Zone, x: number, zz: number) => x >= z.x0 && x <= z.x1 && zz >= z.z0 && zz <= z.z1;
+
+/**
+ * M14 move-stairs: a staircase across the zone; the floor ramps from y0 at x0 to y1 at x1 (H).
+ * Walking actors follow it up and down; bodies that die on it slide to the low end.
+ */
+export interface Stairs extends Zone { y0: number; y1: number }
 
 export interface LampDef {
   x: number;
@@ -119,6 +143,8 @@ export interface RoomDef {
    * your feet are at its height; open holes in it (the hatch, a cut slot) drop you through.
    */
   decks?: Deck[];
+  /** M14 move-stairs: ramps between floor levels (a staircase). */
+  stairs?: Stairs[];
   /** M11 world-arena-collapse: the floor beyond x on `side` has fallen away. */
   void?: { side: -1 | 1; x: number };
   /** M12 world-arena-lock: the walls that have come down so far (the painter draws them). */

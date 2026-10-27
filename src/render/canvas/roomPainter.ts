@@ -1,7 +1,7 @@
 // Static room layer: walls, ceiling, floor, depth shading, baseboards, doors, decor and the
 // key light. Ported from design/style-frame; baked once per room/palette change.
 import { INK, type Palette } from '../../data/palettes';
-import { type DoorDef, type PoleDef, type PropDef, ROOM_DRAW_NEAR_Z, type RoomDef, type TableDef } from '../../sim/room';
+import { type DoorDef, type PoleDef, type PropDef, ROOM_DRAW_NEAR_Z, type RoomDef, type SlabDef, type Stairs, type TableDef } from '../../sim/room';
 import { project as P, SCREEN_H, SCREEN_W, scaleAt } from '../camera';
 import { type Ctx, line, linear, mulberry32, poly, shade } from './draw';
 import { paintCeilingHole, paintCrate, paintDesert, paintElevator, paintLadder, paintRoof, paintSecurityCamera, paintStreet, paintTank, paintToyStreet, paintVendingProp, paintVoid, paintWallHole } from './sceneryPainter';
@@ -56,6 +56,8 @@ export function paintRoom(ctx: Ctx, room: RoomDef, pal: Palette, elevator?: { of
   ctx.strokeStyle = 'rgba(20,20,22,0.55)';
   line(ctx, [bx0, bbTop], [bx1, bbTop]);
   for (const sx of [-hw, hw]) line(ctx, P(sx, bb, zn), P(sx, bb, zb));
+  // M14 move-stairs
+  for (const st of room.stairs ?? []) paintStairs(ctx, st, pal);
 
   for (const v of room.vents) {
     poly(ctx, [P(v.x0, h, v.z0), P(v.x1, h, v.z0), P(v.x1, h, v.z1), P(v.x0, h, v.z1)]);
@@ -153,8 +155,10 @@ export function paintDoor(ctx: Ctx, room: RoomDef, d: DoorDef, open: number, pal
   const side = d.wall === 'left' ? -1 : 1, x = side * room.halfWidth;
   const frame = [P(x, 0, d.z0), P(x, d.height, d.z0), P(x, d.height, d.z1), P(x, 0, d.z1)];
   poly(ctx, frame);
-  ctx.fillStyle = open > 0 ? '#111113' : pal.door; ctx.fill();
+  ctx.fillStyle = open > 0 || d.smashed ? '#111113' : pal.door; ctx.fill();
   ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.stroke();
+  // M14: smashed in: an empty, splintered frame
+  if (d.smashed) return;
   if (open <= 0) {
     const k = P(x, 0.95, d.z1 - 0.12);
     ctx.beginPath(); ctx.arc(k[0], k[1], 6, 0, Math.PI * 2); ctx.fillStyle = INK; ctx.fill();
@@ -169,12 +173,43 @@ export function paintDoor(ctx: Ctx, room: RoomDef, d: DoorDef, open: number, pal
   ctx.stroke();
 }
 
+/** M14: a smashed door's slab: an upright panel while it flies, then a flat panel on the floor. */
+function paintSlab(ctx: Ctx, p: SlabDef, pal: Palette): void {
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = INK;
+  const x = (p.x0 + p.x1) / 2;
+  if (p.fly) poly(ctx, [P(x, 0, p.z0), P(x, p.top, p.z0), P(x, p.top, p.z1), P(x, 0, p.z1)]);
+  else poly(ctx, [P(p.x0, p.top, p.z0), P(p.x1, p.top, p.z0), P(p.x1, p.top, p.z1), P(p.x0, p.top, p.z1)]);
+  ctx.fillStyle = pal.door; ctx.fill(); ctx.stroke();
+}
+
+/**
+ * M14 move-stairs: a staircase as ~0.2 H steps between its two heights: each step a lit tread
+ * (top, across the depth band) over a darker riser (front face), with a solid side block under it.
+ */
+function paintStairs(ctx: Ctx, st: Stairs, pal: Palette): void {
+  const n = Math.max(2, Math.round(Math.abs(st.y1 - st.y0) / 0.2));
+  const up = st.y1 > st.y0 ? 1 : -1;
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = INK;
+  for (let i = 0; i < n; i++) {
+    // step i spans x a..b at height y (the higher end of each step)
+    const a = st.x0 + ((st.x1 - st.x0) * i) / n, b = st.x0 + ((st.x1 - st.x0) * (i + 1)) / n;
+    const y = up > 0 ? st.y0 + ((st.y1 - st.y0) * (i + 1)) / n : st.y0 + ((st.y1 - st.y0) * i) / n;
+    poly(ctx, [P(a, 0, st.z0), P(b, 0, st.z0), P(b, y, st.z0), P(a, y, st.z0)]);
+    ctx.fillStyle = pal.propShade; ctx.fill(); ctx.stroke();
+    poly(ctx, [P(a, y, st.z0), P(b, y, st.z0), P(b, y, st.z1), P(a, y, st.z1)]);
+    ctx.fillStyle = pal.prop; ctx.fill(); ctx.stroke();
+  }
+}
+
 export function paintProp(ctx: Ctx, p: PropDef, pal: Palette): void {
   if (p.kind === 'table') paintTable(ctx, p, pal);
   else if (p.kind === 'pole') paintPole(ctx, p, pal);
   else if (p.kind === 'crate') paintCrate(ctx, p, pal);
   else if (p.kind === 'tank') paintTank(ctx, (p.x0 + p.x1) / 2, (p.z0 + p.z1) / 2, p.facing);
-  else if (p.kind === 'vending') paintVendingProp(ctx, (p.x0 + p.x1) / 2, (p.z0 + p.z1) / 2 + 0.1, !!p.smashed);
+  else if (p.kind === 'slab') paintSlab(ctx, p, pal);
+  else if (p.kind === 'vending') paintVendingProp(ctx, p.fallen?.standX ?? (p.x0 + p.x1) / 2, (p.z0 + p.z1) / 2 + 0.1, !!p.smashed, p.fallen?.dir);
   // the cannon's footprint: drawn with the cannon itself (src/render/canvas/cannonPainter.ts)
 }
 

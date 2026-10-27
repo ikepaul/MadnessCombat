@@ -4,6 +4,7 @@
 // Only the halo boss raises them in the stages (M10+); labs and the debug key raise them here.
 import { aboutFeet, rootToWorld, STANDING } from '../anim/skeleton';
 import { isMelee } from '../data/melee';
+import { isWeapon } from '../data/weapons';
 import { TUNING } from '../data/tuning';
 import { type Actor, newHand } from './actor';
 import { gruntBrain, newAiState } from './ai';
@@ -63,7 +64,9 @@ export function stepRising(world: World, a: Actor): void {
   a.ai = newAiState(world);
   a.brain = gruntBrain(world);
   // ep3: the zombie clown fights with the street sign it had: a melee weapon at hand is taken up
-  const it = world.items.find((i) => i.state === 'floor' && isMelee(i.kind) && Math.hypot(i.pos.x - a.pos.x, i.pos.z - a.pos.z) < Z.weaponReach);
+  // M14: where a room allows it (the club, flag 'armedZombies') a gun at hand is taken up too (ep4's raised agent)
+  const armed = world.flags.has('armedZombies');
+  const it = world.items.find((i) => i.state === 'floor' && (isMelee(i.kind) || (armed && isWeapon(i.kind))) && Math.hypot(i.pos.x - a.pos.x, i.pos.z - a.pos.z) < Z.weaponReach);
   if (it && !a.hands[0]) {
     world.items = world.items.filter((x) => x !== it);
     a.hands[0] = newHand(it.kind as Parameters<typeof newHand>[0]);
