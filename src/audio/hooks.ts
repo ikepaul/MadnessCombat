@@ -125,6 +125,21 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
   world.events.on('wallBounce', (e) => play('thump', at(e.x, e.y + 0.5, e.z, { rate: 0.85 })));
   world.events.on('popUp', (e) => play('whooshLight', at(e.x, e.y, e.z, { rate: 1.3 })));
   world.events.on('hit', (e) => { if (e.kind === 'gun' && e.part === 'head') play('hitMetal', at(e.x, e.y, e.z)); });
+  // M18 co-op moves (design/coop-moves.md): a team chain pings, the double-team tings, bats crack,
+  // a body bouncing off a partner thumps, the wishbone strains and tears, lifts and tosses whoosh
+  world.events.on('coopMove', (e) => {
+    const p = at(e.x, e.y + 0.5, e.z);
+    if (e.kind === 'chain') play('tick', { rate: 2.0, gain: 0.7 });
+    else if (e.kind === 'double') { play('tick', { rate: 2.6 }); play('clang', { ...p, rate: 1.6, gain: 0.5 }); }
+    else if (e.kind === 'bat') { play('crack', p); play('whooshHeavy', { ...p, delay: 0.03 }); }
+    else if (e.kind === 'pingpong') { play('thump', p); play('cloth', { ...p, gain: 0.7 }); }
+    else if (e.kind === 'wishbone') { if (e.phase === 'start') { play('wireStrain', p); play('voxEffort', p); } else { play('slash', { ...p, rate: 0.7 }); play('impactHeavy', p); } }
+    else if (e.kind === 'pass') play('whooshLight', { ...p, gain: 0.6 });
+    else if (e.kind === 'lift') play(e.phase === 'start' ? 'voxEffort' : 'land', p);
+    else if (e.kind === 'toss') { play('whooshThrow', { ...p, rate: 0.8 }); play('voxEffort', p); }
+    else if (e.kind === 'spin') play(e.phase === 'hit' ? 'impactHeavy' : 'whooshHeavy', p);
+    else if (e.kind === 'held' && e.phase === 'end') play('voxEffort', p);
+  });
   world.events.on('fatality', (e) => {
     if (e.kind === 'punt') play('whooshThrow', at(e.x, e.y, e.z, { rate: 1.2 }));
     play('tick', { rate: 1.7 });

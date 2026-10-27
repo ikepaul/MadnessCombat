@@ -18,6 +18,7 @@ import { blastExit, checkExits, type ExitDef, type ExitState, skyLanding, stepTr
 import { Seq } from './sequencer';
 import { isBoss, stepBoss, stepSwept } from './boss';
 import { installAlertRules } from './stealth';
+import { stepSpin } from './coop';
 
 /** Props can change in play (a kicked-over table), so each World gets its own copies. */
 function ownProps(room: RoomDef): RoomDef {
@@ -67,6 +68,8 @@ export class World {
   physics: 'normal' | 'improbable' = 'normal';
   /** Thrown weapons hitting a co-op ally (the friendly-fire setting): full damage, a knockdown only, or nothing. */
   friendlyThrow: 'damage' | 'knockdown' | 'through' = 'damage';
+  /** M18: this stage shows blood (GameScene sets it; stage 1 doesn't): the wishbone tears only where there's blood. */
+  blood = true;
   /** Stage 3 is gorier (src/sim/gore.ts). */
   gore: GoreLevel = 'normal';
   collapse?: Collapse;
@@ -287,13 +290,30 @@ export class World {
       }
       const o = this.actorById(h.id);
       if (!o) { a.holding = undefined; continue; }
+      // M18: a partner carried overhead lies on the raised hands; swung, he goes round by the ankles
+      if (o.carried === 'spin' && a.spin) { stepSpin(this, a, o, this.dt); continue; }
+      if (o.carried) {
+        o.pos = { x: a.pos.x - a.facing * 0.5, y: a.pos.y + 1.0, z: a.pos.z - 0.01 };
+        o.facing = a.facing;
+        o.pose.root = { r: Math.PI / 2, tx: 0.5, ty: 0.3, sx: 1, sy: 1 };
+        o.pose.groundY = a.pose.groundY;
+        continue;
+      }
       // held by the collar: the body's top sits at the hands
       // just behind the holder in depth, so the holding hands draw over the body
       o.pos = { x: a.pos.x + a.facing * (0.42 - 0.5 * back), y: a.pos.y + 0.12 + 0.3 * back, z: a.pos.z + 0.005 };
-      o.facing = (-a.facing) as 1 | -1;
+      // M18 restrain: a living grunt a hero holds faces away from him (toward the partner and the guns)
+      o.facing = (alive(o) && a.playerIndex !== undefined ? a.facing : -a.facing) as 1 | -1;
       o.pose.groundY = a.pose.groundY;
       o.pose.root = alive(o) ? { ...STANDING, r: 0.1 } : { ...STANDING, r: 0.35 };
       o.pose.clip = 'grabbed';
+      // M18 wishbone: stretched between the two, shaking
+      const wb = a.attack?.kind === 'wishbone' && o.grabbedBy2 !== undefined ? a.attack.t : undefined;
+      if (wb !== undefined) {
+        const W2 = TUNING.coop.wishbone, u = Math.max(0, Math.min(1, (wb - W2.brace) / W2.pull));
+        o.pose.root = { ...o.pose.root, sx: 1 + 0.25 * u };
+        o.pos.x += Math.sin(this.tick * 3.1) * 0.01 * u;
+      }
     }
   }
 

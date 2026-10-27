@@ -609,6 +609,25 @@ export const TUNING = {
     reviveRadius: 0.75,
     /** Lives after a revive. invented */
     reviveHp: 1,
+    /** M18 co-op moves (design/coop-moves.md). All invented. */
+    /** The cursor counts as on your partner within this of his hurtbox (H, at his depth). */
+    aimSlack: 0.3,
+    /** Hold & hit: the partner's 3rd light hit kills a held grunt; a held grunt hit this often dies on any impact when thrown. */
+    held: { killHits: 3, tenderHits: 2 },
+    /** Ping-pong: a body flying into a partner within this (H) bounces off him this elastic, at most `maxPings` times; the partner's heavy bats it at `batSpeed` (H/s). */
+    pingPong: { reachX: 0.35, band: 0.3, restitution: 0.65, maxPings: 4, batSpeed: 6 },
+    /** Wishbone: both grab within `window` (s); brace, pull, recover (s); the halves fly apart at `halfSpeed` (H/s). */
+    wishbone: { window: 0.5, brace: 0.2, pull: 0.25, recover: 0.3, halfSpeed: 2.2 },
+    /** Weapon pass: speed (H/s), arc apex (H), lead on the partner's motion (share), homing (H/s^2), range (H). */
+    pass: { speed: 7, apex: 0.35, lead: 1, homing: 1.0, range: 6 },
+    /** Body bat: the batted body leaves at this share of its speed, at least `minSpeed` (H/s); fist slack (H); spin x. */
+    bat: { speedScale: 1.5, minSpeed: 8, slack: 0.15, spinScale: 2 },
+    /** Double-team: both players hit the same enemy within this (s); tough ones take +toughBonus instead of dying. */
+    double: { window: 0.25, toughBonus: 2 },
+    /** Hero toss: the lift (s), carry speed share, throw speed (H/s), launch height and vy (H, H/s), share of gravity in flight (flat, at kick height), longest flight (s), landing recovery (s), hit radius (H). */
+    toss: { lift: 0.25, carrySpeed: 0.6, speed: 9, launchY: 0.45, vy: 0.6, gravity: 0.25, maxFlight: 0.9, recover: 0.2, hitRadius: 0.4 },
+    /** Carry-spin: orbit radius (H), seconds per turn, carrier walk share, max time (s), fire only past this |cos|, the sweep band (H) and arc (rad), sweep and release speeds (H/s). */
+    spin: { radius: 0.75, period: 1.2, walk: 0.6, maxTime: 4, fireCos: 0.38, sweepIn: 0.45, sweepOut: 1.1, sweepArc: 0.3, sweepSpeed: 5, release: 9 },
   },
 
   /** Soft push-apart between standing actors. invented */

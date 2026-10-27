@@ -151,8 +151,10 @@ function airStep(world: World, a: Actor, wantX: number, wantZ: number, dt: numbe
   }
   const prevY = a.pos.y;
   // exact constant-gravity step, so airtime/apex match the measured values at any tick rate
-  a.pos.y += b.vel.y * dt - 0.5 * GRAVITY * dt * dt;
-  b.vel.y -= GRAVITY * dt;
+  // M18 hero toss: the tossed partner flies flat, like a missile (a share of gravity)
+  const g = a.tossT !== undefined ? GRAVITY * TUNING.coop.toss.gravity : GRAVITY;
+  a.pos.y += b.vel.y * dt - 0.5 * g * dt * dt;
+  b.vel.y -= g * dt;
   walkHorizontal(world, a, dt);
   const ground = surfaceBelow(world.room, a.pos.x, a.pos.z, Math.max(prevY, a.pos.y));
   b.groundY = ground;

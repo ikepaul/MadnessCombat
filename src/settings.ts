@@ -33,11 +33,13 @@ export interface Settings {
   blood: 'stage' | 'off';
   /** Co-op: a thrown weapon hitting your ally does full damage, only knocks them down, or flies through (playtest 2026-10-27). */
   friendlyFire: FriendlyFire;
+  /** M18: the key glyphs that teach the co-op moves (lift, pass, tear, spin...). */
+  coopHints: boolean;
   keys: Record<Action, string>;
 }
 
 const KEY = 'madness-like.settings';
-const DEFAULTS: Settings = { master: 0.8, music: 0.7, sfx: 0.9, effects: 'full', reducedMotion: false, blood: 'stage', friendlyFire: 'damage', keys: { ...DEFAULT_KEYS } };
+const DEFAULTS: Settings = { master: 0.8, music: 0.7, sfx: 0.9, effects: 'full', reducedMotion: false, blood: 'stage', friendlyFire: 'damage', coopHints: true, keys: { ...DEFAULT_KEYS } };
 
 function load(): Settings {
   try {

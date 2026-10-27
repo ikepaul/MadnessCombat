@@ -65,6 +65,11 @@ export class FeelDirector {
     });
     world.events.on('juggle', (e) => { if (e.phase === 'launch' || e.phase === 'bounce') this.sink.shake(FEEL.shake.heavyHit, FEEL.shake.decayMin); });
     world.events.on('wallBounce', () => this.sink.shake(FEEL.shake.lightHit, FEEL.shake.decayMin));
+    // M18: bats and spin sweeps land hard; a ping-pong bounce is a light thump
+    world.events.on('coopMove', (e) => {
+      if (e.kind === 'bat' || (e.kind === 'spin' && e.phase === 'hit')) { this.stop(FEEL.hitStop.heavy); this.sink.shake(FEEL.shake.heavyHit * 1.5, FEEL.shake.decayMin); }
+      else if (e.kind === 'pingpong') this.sink.shake(FEEL.shake.lightHit * 2, FEEL.shake.decayMin);
+    });
     // shake per weapon (design/art-direction.md: pistol 2 px, SMG 1, shotgun 6)
     world.events.on('shot', (e) => this.sink.shake(WEAPONS[e.weapon].shake, FEEL.shake.decayMin));
     // throw-grenade: explosion shake 14 px, chromatic, a short freeze

@@ -17,6 +17,7 @@ import '../labs/throwLabs';
 import '../labs/movementLabs';
 import '../labs/comboLabs';
 import '../labs/qolLabs';
+import '../labs/coopLabs';
 import '../labs/stage4Labs';
 import { getLab, type Lab } from '../labs/registry';
 import { CanvasLayer } from '../render/canvasLayer';
@@ -28,6 +29,7 @@ import { paintGrenadeMarker } from '../render/canvas/markerPainter';
 import { GRENADE } from '../data/melee';
 import { lobTarget } from '../sim/melee';
 import { pickupPlan } from '../sim/guns';
+import { type BotState, newBotState, partnerCommand } from '../dev/partnerBot';
 import { paintDoor, paintProp, paintRoom } from '../render/canvas/roomPainter';
 import { paintLockShadow, paintLockWall, paintTank } from '../render/canvas/sceneryPainter';
 import { TUNING } from '../data/tuning';
@@ -84,6 +86,8 @@ export interface GameSceneData {
   beat?: string;
   /** Co-op (PLAN.md M4b): this laptop hosts the game, or joins as player 2. */
   coop?: 'host' | 'guest';
+  /** M18 `?coop=bot`: player 2 is the partner bot on this laptop. */
+  bot?: boolean;
 }
 
 /** Room definitions by id, for the guest (the host's snapshot names the room). */
@@ -137,6 +141,8 @@ export class GameScene extends Phaser.Scene {
   cleared = false;
   /** Which player this laptop controls (0 = single player / host, 1 = co-op guest). */
   localPlayer = 0;
+  /** M18: the partner bot's memory (drives player 2 when no laptop does). */
+  bot: BotState = newBotState();
   coop?: 'host' | 'guest';
   private link?: CoopLink;
   private snaps?: SnapshotWriter;
@@ -169,6 +175,8 @@ export class GameScene extends Phaser.Scene {
     this.session = undefined;
 
     this.lab = data.lab ? getLab(data.lab) : undefined;
+    this.bot = newBotState();
+    this.bot.task = this.lab?.partnerTask;
     if (data.coop === 'guest') this.setupGuest();
     else if (this.lab) {
       this.world = new World(TEST_ROOM);
@@ -270,6 +278,8 @@ export class GameScene extends Phaser.Scene {
       else if (this.stageInfo?.stage === LAST_STAGE && !this.data_.coop) this.toTitle('credits');
       else this.scene.restart({ ...this.data_, resume: false });
     });
+    // M18 co-op labs: N hands the partner bot its half of the move
+    this.input.keyboard?.on('keydown-N', () => { if (this.lab?.partnerTask) this.bot.cued = true; });
     this.input.keyboard?.on('keydown-R', () => { if (this.cleared && host) this.scene.restart({ ...this.data_, resume: false }); });
     // M13: Esc pauses (the pause menu), or leaves the end card for the title screen
     this.input.keyboard?.on('keydown-ESC', (e: KeyboardEvent) => {
@@ -370,7 +380,7 @@ export class GameScene extends Phaser.Scene {
     const entry = cp?.entry ?? (room === def.start.room ? def.start.entry : Object.keys(def.rooms[room].entries)[0]);
     this.world = new World(def.rooms[room].room);
     this.world.gore = def.gore ?? 'normal';
-    const coop = data.coop === 'host';
+    const coop = data.coop === 'host' || !!data.bot;
     this.world.addPlayer(createActor('hero', 0, 9.2, 1));
     if (coop) this.world.addPlayer(createActor('hero', 0.6, 9.2, 1));
     this.world.players.forEach((p, i) => {
@@ -396,7 +406,7 @@ export class GameScene extends Phaser.Scene {
     const roomId = (data.room && data.room in STAGE1.rooms ? data.room : 'arena') as StageRoomId;
     const def = STAGE1.rooms[roomId];
     this.world = new World(def.room);
-    const coop = data.coop === 'host';
+    const coop = data.coop === 'host' || !!data.bot;
     this.world.addPlayer(createActor('hero', coop ? -0.6 : 0, 9.2, 1));
     if (coop) this.world.addPlayer(createActor('hero', 0.6, 9.2, -1));
     // `?wave=A` jumps straight to that wave of the room; otherwise the whole stage runs from its intro (M8)
@@ -496,9 +506,14 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.world.friendlyThrow = SETTINGS.friendlyFire;
+    // M18: the wishbone tears only where the stage shows blood
+    this.world.blood = this.blood;
     // keep an edge latched until a tick actually consumes it
     this.world.command = mergeEdges(this.world.command, this.input_.read());
     const steps = this.clock.advance(delta / 1000, () => {
+      // M18: no laptop for player 2 here (`?coop=bot`, the co-op labs): the partner bot plays him
+      const p2 = this.world.players[1];
+      if (p2 && !this.link) this.world.commands[1] = partnerCommand(this.world, p2, this.bot);
       this.world.step();
       this.lab?.step?.(this.world);
     });

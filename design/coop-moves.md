@@ -1,6 +1,6 @@
 # Co-op moves (M18)
 
-Status: **planned** (2026-10-27, with the user). Milestone **M18** in `PLAN.md`. The rage meter and the rage fatalities (solo and team) are in `design/rage.md` (M19, M20).
+Status: **built** (2026-10-28, branch `m18-coop-moves`; deviations in the M18 "Done" note in `PLAN.md`). Planned 2026-10-27 with the user. Milestone **M18** in `PLAN.md`. The rage meter and the rage fatalities (solo and team) are in `design/rage.md` (M19, M20).
 
 The episodes have one hero, so there is nothing to measure: every number here is **invented** and goes into `TUNING.coop` (`src/data/tuning.ts`) marked `// invented`, tunable in the F6 panel. As always we take mechanics only, never names or designs. The move names below are ours.
 

@@ -519,25 +519,29 @@ Done (2026-10-28, branch `m17-qol`): tests in `tests/qol.test.ts`. Deviations fr
 Rules (decided): co-op only; aim at your partner to target them (lift with F, pass with Q), otherwise F and Q act as always; co-op moves never hurt the partner; their kills are **team kills** (`kill.team`, the fatality feel, the `team` rage type for both players in M19); stage 1 stays bloodless.
 
 Build (numbers in `TUNING.coop`, all invented):
-- [ ] **Hold & hit**: the partner's hits on a grunt you hold replace the human-shield rule: the 3rd hit or any heavier blow kills (team kill, `fatality` kind `held`); a held grunt hit twice dies on any impact when thrown. Live grabs use a new **restrain** hold (victim faces away from the holder).
-- [ ] **Shared chains**: either player's hits on one enemy keep one chain (juggle hand-offs).
-- [ ] **Ping-pong**: a body knocked or thrown into your partner bounces off them airborne; the partner's heavy bats it, and it dies on the next wall or partner.
-- [ ] **Wishbone**: F on a grunt your partner holds (or both grab within 0.5 s) tears him apart in 0.75 s (stage 2+ split in two, stage 1 the head pops). New split render (`Pose.cut`), reused by M19.
-- [ ] **Weapon pass**: Q with the cursor on your partner lobs the item to their hands (over enemies, lead + homing); auto-caught into a free hand (M17), else at their feet.
-- [ ] **Body bat**: a heavy or a swing at a body your partner threw sends it on at 1.5× (≥ 8 H/s) toward your cursor, piercing; wall = kill.
-- [ ] **Double-team**: both players' damaging hits on one enemy within 0.25 s = instant kill (decap / head burst); tough ones +2 instead.
-- [ ] **Hero toss**: F with the cursor on your partner lifts them overhead (the carrier needs empty hands, walks at 0.6×, the carried one is invulnerable and can Space off); F or LMB throws them as a multi-hit flying-kick missile with i-frames; they land on their feet.
-- [ ] **Carry-spin** (the user's idea): while carried, F → the carrier swings them round himself by the ankles on the floor plane (0.75 H, 1.2 s a turn). An armed partner aims and fires normally but only out to the side they're on; unarmed, their body floors enemies in the circle (kills on walls). Carrier F throws them out along the swing, their Space hops off, 4 s max.
-- [ ] Glyph hints for each move (setting `coopHints`), the Controls page's co-op list, `kill.team` / `alsoId`, the `coopMove` event, new `fatality` kinds.
-- [ ] **Partner bot** (`src/dev/partnerBot.ts`): `?coop=bot` puts an AI partner in any stage, and the co-op labs use it (N = its half of the move), so one person can test.
-- [ ] Co-op net: `ActorSnap.grabbedBy`, `carried`; swing angle in the pose; everything else from replayed events.
+- [x] **Hold & hit**: the partner's hits on a grunt you hold replace the human-shield rule: the 3rd hit or any heavier blow kills (team kill, `fatality` kind `held`); a held grunt hit twice dies on any impact when thrown. Live grabs use a new **restrain** hold (victim faces away from the holder).
+- [x] **Shared chains**: either player's hits on one enemy keep one chain (juggle hand-offs).
+- [x] **Ping-pong**: a body knocked or thrown into your partner bounces off them airborne; the partner's heavy bats it, and it dies on the next wall or partner.
+- [x] **Wishbone**: F on a grunt your partner holds (or both grab within 0.5 s) tears him apart in 0.75 s (stage 2+ split in two, stage 1 the head pops). New split render (`Pose.cut`), reused by M19.
+- [x] **Weapon pass**: Q with the cursor on your partner lobs the item to their hands (over enemies, lead + homing); auto-caught into a free hand (M17), else at their feet.
+- [x] **Body bat**: a heavy or a swing at a body your partner threw sends it on at 1.5× (≥ 8 H/s) toward your cursor, piercing; wall = kill.
+- [x] **Double-team**: both players' damaging hits on one enemy within 0.25 s = instant kill (decap / head burst); tough ones +2 instead.
+- [x] **Hero toss**: F with the cursor on your partner lifts them overhead (the carrier needs empty hands, walks at 0.6×, the carried one is invulnerable and can Space off); F or LMB throws them as a multi-hit flying-kick missile with i-frames; they land on their feet.
+- [x] **Carry-spin** (the user's idea): while carried, F → the carrier swings them round himself by the ankles on the floor plane (0.75 H, 1.2 s a turn). An armed partner aims and fires normally but only out to the side they're on; unarmed, their body floors enemies in the circle (kills on walls). Carrier F throws them out along the swing, their Space hops off, 4 s max.
+- [x] Glyph hints for each move (setting `coopHints`), `kill.team` / `alsoId`, the `coopMove` event, new `fatality` kinds.
+- [ ] The Controls page's co-op moves list.
+- [x] **Partner bot** (`src/dev/partnerBot.ts`): `?coop=bot` puts an AI partner in any stage, and the co-op labs use it (N = its half of the move), so one person can test.
+- [x] Co-op net: `ActorSnap.grabbedBy`, `carried`; swing angle in the pose; everything else from replayed events.
 
 Look & sound:
-- [ ] Poses (A2 rules): `restrainHold`, `restrained`, `wishboneBrace/Pull/Recover`, `passToss`, `brace`, `liftUp`, `carryOverhead`, `carriedFlat`, `hopOff`, `tossWind`, `giantSwing`, `swungFly`.
-- [ ] VFX: double impact star, split render + cut edge, cloth-tear smear, white flash frames, speed lines and ink ghosts, the spin's floor arc, landing dust rings. SFX: team ping, bump, bat crack, strain + tear / pop, soft pass whoosh, double ting, lift effort, toss whoosh, swing loop panned by angle.
+- [ ] Poses (A2 rules, not authored yet; the moves use existing clips and root transforms): `restrainHold`, `restrained`, `wishboneBrace/Pull/Recover`, `passToss`, `brace`, `liftUp`, `carryOverhead`, `carriedFlat`, `hopOff`, `tossWind`, `giantSwing`, `swungFly`.
+- [x] Split render + cut edge; SFX (synth placeholders mixed from existing ids): team ping, double ting, bat crack, bump, strain + tear, soft pass whoosh, lift/toss effort, swing whoosh; screen shake for bats, spin hits and bounces.
+- [ ] VFX still to do: double impact star, cloth-tear smear, white flash frames, speed lines and ink ghosts, the spin's floor arc, landing dust rings; a pitched swing loop panned by angle. Original SFX list: team ping, bump, bat crack, strain + tear / pop, soft pass whoosh, double ting, lift effort, toss whoosh, swing loop panned by angle.
 
 Acceptance: every test listed per move in `design/coop-moves.md` · co-op moves never damage the partner (a full stage-1 wave with two bots spamming them: no partner damage from a co-op move) · the guest sees all nine via replayed events · two competent bots still clear co-op wave A and the balance bot alone is unchanged · 60 fps in the stage 2 office with two players spinning and tossing.
 Labs: `coop-hold-hit`, `coop-chain`, `coop-ping-pong`, `coop-wishbone`, `coop-pass`, `coop-bat`, `coop-double`, `coop-toss`, `coop-spin`.
+
+Done (2026-10-28, branch `m18-coop-moves`): all nine moves and the partner bot, tests in `tests/coopMoves.test.ts` (20), the code in `src/sim/coop.ts` (pass, lift, toss, spin), `src/sim/combat.ts` (chains, double-team, ping-pong, bat, hold & hit, wishbone) and `src/dev/partnerBot.ts`. Deviations, decided while building: the toss flies flat at hip height with a quarter of gravity (`coop.toss.launchY / vy / gravity`; the planned 3 H/s lob sailed over every head); the swung partner reuses the prone aim rig (`PRONE_ARC`) instead of a new `SPIN_ARC`; a ping-pong bounce yields to the partner's heavy or swing already under way (so the bat wins); hitting the *holder* during a wishbone drops the grunt (planned: he stays with the other); the sim learns whether the stage shows blood from `world.blood` (the scene sets it); in labs the bot waits for N. Not checked yet: the 60 fps check with two players spinning and tossing, and a two-laptop playtest. Balance bots unchanged from M17 (they don't use co-op moves).
 
 ## M19: Rage meter & solo rage fatalities (L)
 **Goal:** varied kills fill a rage bar; a full bar shows on the hero; Tab fires a super that kills up to six enemies in a choreographed, top-quality animation picked by what you hold.

@@ -30,6 +30,7 @@ export function settingsItems(onControls: () => void, onBack: () => void): MenuI
     { label: () => `Reduced motion   ${SETTINGS.reducedMotion ? 'on' : 'off'}`, action: () => { SETTINGS.reducedMotion = !SETTINGS.reducedMotion; apply(); }, adjust: () => { SETTINGS.reducedMotion = !SETTINGS.reducedMotion; apply(); } },
     { label: () => `Blood   ${SETTINGS.blood === 'stage' ? 'as each stage has it' : 'off'}`, action: () => { SETTINGS.blood = SETTINGS.blood === 'stage' ? 'off' : 'stage'; apply(); }, adjust: () => { SETTINGS.blood = SETTINGS.blood === 'stage' ? 'off' : 'stage'; apply(); } },
     { label: () => `Thrown weapons hit your ally   ◀ ${FRIENDLY_FIRE_LABELS[SETTINGS.friendlyFire]} ▶`, action: () => cycleFriendly(1), adjust: (d) => cycleFriendly(d) },
+    { label: () => `Co-op move hints   ◀ ${SETTINGS.coopHints ? 'on' : 'off'} ▶`, action: () => { SETTINGS.coopHints = !SETTINGS.coopHints; apply(); }, adjust: () => { SETTINGS.coopHints = !SETTINGS.coopHints; apply(); } },
     { label: 'Controls', action: onControls },
     { label: () => 'Reset progress', action: () => resetProgress() },
     { label: 'Back', action: onBack },

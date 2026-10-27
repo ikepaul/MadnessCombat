@@ -124,6 +124,19 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
   ctx.scale(s, s);
   ctx.scale(a.facing, 1);
   applyRoot(ctx, root);
+  // M18 split render: only one side of the cut is drawn (ctx is in actor-local H here, facing right)
+  const cut = pose.cut;
+  if (cut) {
+    const { nx, ny, d, keep } = cut, tx = -ny, ty = nx, far = 3;
+    const ox = nx * d, oy = ny * d;
+    ctx.beginPath();
+    ctx.moveTo(ox + tx * far, oy + ty * far);
+    ctx.lineTo(ox - tx * far, oy - ty * far);
+    ctx.lineTo(ox - tx * far + nx * keep * far, oy - ty * far + ny * keep * far);
+    ctx.lineTo(ox + tx * far + nx * keep * far, oy + ty * far + ny * keep * far);
+    ctx.closePath();
+    ctx.clip();
+  }
   // M11 improbability mode: a rubbery squash after a bounce
   if ((pose.squash ?? 0) > 0.02) { ctx.translate(0, -0.5); ctx.scale(1 + pose.squash * 0.5, 1 - pose.squash * 0.4); ctx.translate(0, 0.5); }
   ctx.lineJoin = 'round';
@@ -280,6 +293,20 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
       ctx.restore();
     }
     handOr('F', sk.handF);
+  }
+  // M18 split render: the cut face, red where there's blood, ink otherwise
+  if (cut) {
+    // only across the body: centred at mid-height, half a body long each way along the cut
+    const { nx, ny, d } = cut, tx = -ny, ty = nx, cx = nx * d - tx * 0.52 * ty, cy = ny * d - 0.52 * Math.abs(ty);
+    ctx.beginPath();
+    ctx.moveTo(cx + tx * 0.48, cy + ty * 0.48);
+    ctx.lineTo(cx - tx * 0.48, cy - ty * 0.48);
+    ctx.lineWidth = 0.05;
+    ctx.strokeStyle = opts.blood ? BLOOD : '#5d5e63';
+    ctx.stroke();
+    ctx.lineWidth = 0.014;
+    ctx.strokeStyle = INK;
+    ctx.stroke();
   }
   ctx.restore();
   // prone guns: drawn outside the lying body's rotation, where the rig (and the hitscan) put them
