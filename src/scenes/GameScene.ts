@@ -34,6 +34,7 @@ import { World } from '../sim/world';
 import { STAGE1, type StageRoomId } from '../data/stages/stage1';
 import { STAGE1_BEATS, type Stage1Beat, stage1From } from '../data/stages/stage1Script';
 import { STAGE2 } from '../data/stages/stage2';
+import { STAGE3 } from '../data/stages/stage3';
 import { type StageDef, stageRunner } from '../sim/stage';
 import { coopLink, type CoopLink } from '../net/link';
 import { applySnapshot, type Snapshot, SnapshotWriter } from '../net/snapshot';
@@ -59,7 +60,7 @@ export interface GameSceneData {
   /** `?room=test`: the style-frame room with the M0 cast (look check). */
   testRoom?: boolean;
   /** Stage route `?stage=1&room=arena` (the default: the whole stage from its intro); `&wave=A` starts at that wave. M9: `?stage=2&room=<id>`. */
-  stage?: 1 | 2;
+  stage?: 1 | 2 | 3;
   room?: StageRoomId | string;
   wave?: string;
   /** `&beat=riot|grenade|boss|waveB`: start the stage script at that beat (playtesting). */
@@ -69,10 +70,10 @@ export interface GameSceneData {
 }
 
 /** Room definitions by id, for the guest (the host's snapshot names the room). */
-const ROOMS_BY_ID = Object.fromEntries([TEST_ROOM, ...Object.values(STAGE1.rooms).map((r) => r.room), ...Object.values(STAGE2.rooms).map((r) => r.room)].map((r) => [r.id, r]));
+const ROOMS_BY_ID = Object.fromEntries([TEST_ROOM, ...Object.values(STAGE1.rooms).map((r) => r.room), ...Object.values(STAGE2.rooms).map((r) => r.room), ...Object.values(STAGE3.rooms).map((r) => r.room)].map((r) => [r.id, r]));
 
 /** M9 room-graph stages by number. */
-const ROOM_STAGES: Record<number, StageDef> = { 2: STAGE2 };
+const ROOM_STAGES: Record<number, StageDef> = { 2: STAGE2, 3: STAGE3 };
 
 /**
  * M9 checkpoint per room: where the stage was entered last, with each player's loadout and the
@@ -196,6 +197,9 @@ export class GameScene extends Phaser.Scene {
       if (this.snaps) this.snaps.needFull = true;
     });
     this.world.events.on('cannonHit', () => this.cannonHits++);
+    // M11: the floor falling away and the vending machine walking off change the room's picture
+    this.world.events.on('collapse', () => this.bakeRoom());
+    this.world.events.on('bruteWake', () => this.bakeRoom());
     // world-persistence-decals: settled bodies are baked once; picking one up re-bakes the rest
     this.world.events.on('corpseFrozen', (e) => {
       const a = this.world.actorById(e.actorId);
@@ -264,12 +268,12 @@ export class GameScene extends Phaser.Scene {
 
   /** Restart the room from its start (checkpoint per room; to confirm with the user in M13). */
   /**
-   * The stage the end card leads on to (stage links before M13's stage select): stage 1 -> 2.
+   * The stage the end card leads on to (stage links before M13's stage select): 1 -> 2 -> 3.
    * Undefined in labs, the test room, and on the last stage built.
    */
-  get nextStage(): 2 | undefined {
+  get nextStage(): 2 | 3 | undefined {
     if (this.lab || this.data_.testRoom || !this.stageInfo) return undefined;
-    return this.stageInfo.stage === 1 ? 2 : undefined;
+    return this.stageInfo.stage === 1 ? 2 : this.stageInfo.stage === 2 ? 3 : undefined;
   }
 
   restart(): void {

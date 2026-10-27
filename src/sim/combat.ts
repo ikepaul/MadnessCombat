@@ -8,6 +8,7 @@ import { GUNS, isWeapon, WEAPONS } from '../data/weapons';
 import { stepHands } from './guns';
 import { blastFlight } from './explosives';
 import { tryTakedown } from './stealth';
+import { ceilingBounce, knockbackScale, wallRestitution } from './improbability';
 import { stepRising, zombieDamage, zombieLosesHead } from './zombies';
 import { bossHit } from './boss';
 import { ACTION_KINDS, actionTiming, disarm, dropCooking, holdsLong, lobHeldGrenade, startAction, startMeleeAction, stealTarget, stepAction, stepGrenade } from './melee';
@@ -328,7 +329,9 @@ export function applyHit(
   const corpse = o.state === 'dead';
   const base = bullet ? bullet.damage : kind === 'gun' && part === 'head' ? GUNS.throwHead : kind === 'finisher' && heavy ? M.finisher.heavyDamage : DAMAGE[kind];
   const combo = !corpse && base > 0 && o.kind !== 'hero' && MELEE_KINDS.includes(kind) && chainBonus(world, by, o, kind);
-  const damage = corpse || base <= 0 || o.protected ? 0 : o.kind === 'hero' ? 1 : o.kind === 'zombie' ? zombieDamage(kind, base)
+  const damage = corpse || base <= 0 || (o.protected && kind !== 'pin') ? 0 : o.kind === 'hero' ? 1 : o.kind === 'zombie' ? zombieDamage(kind, base)
+    // M11 the brute (~6 melee hits): every blow is one, bullets half, explosions three
+    : o.variant === 'vending' ? (base >= 99 ? (kind === 'blast' ? 3 : o.hp) : kind === 'bullet' ? 0.5 : 1)
     : o.variant === 'bodyguard' ? (part === 'head' || base >= 99 ? o.hp : 1) : base + (combo ? C_.bonus : 0);
   o.hp = Math.max(0, o.hp - damage);
   let killed = !corpse && o.hp <= 0;
@@ -367,6 +370,13 @@ export function applyHit(
     const pointBlank = !!bullet?.pointBlank;
     const decap = o.kind === 'grunt' && (kind === 'heavy' || kind === 'uppercut' || kind === 'slash' || (kind === 'finisher' && heavy) || ((pointBlank || kind === 'gun') && part === 'head'));
     die(world, o, by, kind, dirX, dirZ, decap, pointBlank ? 'heavy' : kind);
+    return;
+  }
+  // M11: the hovering jetpack and the vending-machine brute don't go down: a flinch, nothing more
+  if (o.hover !== undefined || o.variant === 'vending') {
+    if (o.state === 'attack' && o.hover !== undefined) o.attack = undefined;
+    if (o.state !== 'attack') { o.state = 'stun'; o.stateT = 0; o.stunFor = 0.12; }
+    o.pose.lean = -0.2;
     return;
   }
   // a light hit in the air can't freeze you mid-jump: it knocks you down instead
@@ -459,8 +469,10 @@ function landingAngle(o: Actor, dirX: number): number {
   return o.facing === -Math.sign(dirX || -o.facing) ? -Math.PI / 2 : Math.PI / 2;
 }
 
-function startFlight(o: Actor, kind: HitKind, dirX: number, dirZ: number): void {
+function startFlight(o: Actor, kind: HitKind, dirX: number, dirZ: number, scale = 1): void {
   const l = launch(kind, dirX, dirZ);
+  // M11 improbability mode: bodies fly ~2.4x as far and fast (the airtime stays, the speed scales)
+  if (scale !== 1) { l.vx *= scale; l.vz *= scale; l.vy *= Math.sqrt(scale); }
   const r = o.pose.root.r;
   o.flight = { ...l, r, r0: r, rTo: landingAngle(o, dirX), spin: 0, phase: 'air', t: 0, hit: [] };
   o.body.vel = { x: 0, y: 0, z: 0 };
@@ -470,7 +482,7 @@ function knockDown(world: World, o: Actor, kind: HitKind, dirX: number, dirZ: nu
   dropWeapon(world, o, dirX);
   o.state = 'knockback';
   o.stateT = 0;
-  startFlight(o, kind, dirX, dirZ);
+  startFlight(o, kind, dirX, dirZ, knockbackScale(world));
   setClip(o, 'knockback');
 }
 
@@ -516,7 +528,7 @@ export function die(world: World, o: Actor, by: Actor | undefined, kind: HitKind
     world.events.emit('corpseSettled', { actorId: o.id, ...o.pos });
     return;
   }
-  if (kind !== 'wall') startFlight(o, flight, dirX, dirZ);
+  if (kind !== 'wall') startFlight(o, flight, dirX, dirZ, knockbackScale(world));
   setClip(o, 'knockback');
 }
 
@@ -540,6 +552,8 @@ export function stepFlight(world: World, a: Actor, dt: number): 'air' | 'skid' |
     a.pos.z = p.z;
     a.pos.y += f.vy * dt - 0.5 * GRAVITY * dt * dt;
     f.vy -= GRAVITY * dt;
+    // M11: off the ceiling (or stuck in it)
+    if (ceilingBounce(world, a)) return 'stopped';
     if (f.thrownBy !== undefined) {
       f.r += f.spin * dt;
       thrownBodyHits(world, a);
@@ -579,8 +593,11 @@ export function stepFlight(world: World, a: Actor, dt: number): 'air' | 'skid' |
 function wallImpact(world: World, a: Actor, wall: 'left' | 'right' | 'back', speed: number): void {
   const f = a.flight!;
   f.wall = wall;
-  if (wall === 'back') f.vz *= -0.2;
-  else f.vx *= -0.2;
+  // M11 improbability mode: an elastic bounce, squashed like rubber
+  const e = wallRestitution(world);
+  if (wall === 'back') f.vz *= -e;
+  else f.vx *= -e;
+  if (e > 0.5) a.pose.squash = 0.35;
   world.events.emit('wallHit', { actorId: a.id, ...a.pos, wall, speed });
   // melee-grab-throw: a fast wall impact kills
   if (f.thrownBy !== undefined && alive(a) && speed >= G.wallKillSpeed) {

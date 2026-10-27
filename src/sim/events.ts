@@ -153,6 +153,20 @@ export interface GameEvents {
   surrender: At;
   /** The ending: the boss's shot from behind. */
   bossShot: At & { targetId: number };
+  // M11: stage 3's surreal rules
+  improbability: { on: boolean };
+  ceilingStick: At;
+  flyIn: At;
+  collapse: { phase: 'crack' | 'fall'; side: -1 | 1; x: number };
+  fellIntoVoid: At;
+  blockDrop: { phase: 'shadow' | 'land'; x: number; y: number; z: number };
+  /** The camera room's security camera turns toward you (the cutscene cue). */
+  cameraTurn: { x: number; y: number; z: number };
+  /** The jetpack mini-boss: rising out of the void, flying off, back through the door. */
+  jetpack: At & { phase: 'up' | 'away' | 'back' };
+  shove: At & { targetId: number };
+  /** The vending machine at the back comes alive. */
+  bruteWake: { x: number; y: number; z: number };
   /** The target ran out of the room (boss-target). */
   targetFled: At;
   /** Lightning telegraph: his hand goes up toward a corpse (the bolt follows after TUNING.boss.castTime). */

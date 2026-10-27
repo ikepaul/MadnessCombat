@@ -11,7 +11,8 @@ import type { RoomDef } from './room';
 import type { WaveDirector } from './waves';
 import { stepProps } from './cover';
 import { type ElevatorState, stepElevator } from './elevator';
-import { blastExit, checkExits, type ExitDef, type ExitState, stepTraversal, type Tracker } from './stage';
+import { type Collapse, type FallingBlock, stepBlocks, stepCollapse } from './improbability';
+import { blastExit, checkExits, type ExitDef, type ExitState, skyLanding, stepTraversal, type Tracker } from './stage';
 import { Seq } from './sequencer';
 import { isBoss, stepBoss, stepSwept } from './boss';
 import { installAlertRules } from './stealth';
@@ -57,6 +58,10 @@ export class World {
   exits: ExitState[] = [];
   exitTaken?: ExitDef;
   transition = false;
+  /** M11: improbability mode (src/sim/improbability.ts), the arena collapse, falling blocks. */
+  physics: 'normal' | 'improbable' = 'normal';
+  collapse?: Collapse;
+  blocks: FallingBlock[] = [];
   /** M10: the elevator cab's state while in that room (src/sim/elevator.ts). */
   elevator?: ElevatorState;
   /** One-off story flags (a title card shown once per stage, not again after a checkpoint restart). */
@@ -81,6 +86,7 @@ export class World {
     this.resetDoors();
     installAlertRules(this);
     this.events.on('explosion', (e) => { if (!this.puppet) blastExit(this, e); });
+    this.events.on('land', (e) => { if (!this.puppet) skyLanding(this, e.actorId); });
     this.events.on('waveStart', () => { this.enemyGrenades = 1; });
     // world-kill-counter: every enemy death counts
     this.events.on('kill', (e) => {
@@ -158,6 +164,8 @@ export class World {
     this.room = ownProps(room);
     this.enemyGrenades = 1;
     this.elevator = undefined;
+    this.collapse = undefined;
+    this.blocks = [];
     this.resetDoors();
     this.events.emit('roomChanged', { roomId: room.id });
   }
@@ -217,6 +225,8 @@ export class World {
     stepCannons(this, this.dt);
     stepProps(this, this.dt);
     stepElevator(this, this.dt);
+    stepCollapse(this, this.dt);
+    stepBlocks(this, this.dt);
     this.director?.step(this, this.dt);
     this.stepDoors();
     this.events.emit('tick', { tick: this.tick });
