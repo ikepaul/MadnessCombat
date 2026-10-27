@@ -16,6 +16,8 @@ export type Recipe =
   | 'cityLoop' | 'wipe' | 'rungs'
   // M10
   | 'motorLoop' | 'cutterLoop' | 'ding' | 'cableSnap' | 'stinger'
+  // M11
+  | 'boing' | 'burnerLoop'
   // M8 boss
   | 'crackle' | 'thunder' | 'rumble' | 'wardHum' | 'ricochet' | 'cannonBoom' | 'fallWhistle' | 'heavyLand' | 'telekinesis';
 
@@ -425,6 +427,20 @@ export function render(recipe: Recipe, sr: number, seed: number): Float32Array {
       noise(b, r, (t) => 3000 * Math.exp(-t * 8) + 150, swell(0.05, 0.35), 0.8, 60);
       tone(b, (t) => 220 * Math.exp(-t * 6), swell(0.03, 0.35), 0.5);
       return normalise(b.d, 0.5);
+    }
+    case 'boing': {
+      // improbability mode: a warped spring on every bounce
+      const b = new Buf(sr, 0.5);
+      tone(b, (t) => jitter(220, 0.15) * (1 + 0.5 * Math.sin(t * 60) * Math.exp(-t * 6)) * (1 + t * 0.8), ad(0.003, 0.18), 1);
+      tone(b, (t) => jitter(440, 0.15) * (1 + 0.3 * Math.sin(t * 60)), ad(0.003, 0.08), 0.3);
+      return normalise(b.d, 0.5);
+    }
+    case 'burnerLoop': {
+      // the jetpack: a roaring burner, 2 s loop
+      const b = new Buf(sr, 2.5);
+      noise(b, r, (t) => 900 + 300 * Math.sin(t * 13), (t) => 0.8 + 0.2 * Math.sin(t * 27), 1, 120);
+      tone(b, () => 70, () => 1, 0.25, 'saw');
+      return normalise(loopable(b.d, sr, 0.3), 0.45);
     }
     case 'motorLoop': {
       // the elevator climbing: a motor drone with a rattle on the guide rails, 4 s loop

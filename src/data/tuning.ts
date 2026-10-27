@@ -50,6 +50,40 @@ export const TUNING = {
   },
 
   /** Hit points. research/design-decisions.md: grunts die from 1 good hit, the player survives ~3. */
+  /** M11 world-improbability-mode (src/sim/improbability.ts). */
+  improbability: {
+    /** Knockback x2.3-2.5: a punch sends a body ~9 H/s vs ~4 normally (ep3 f2385-f2404). */
+    knockback: 2.4,
+    /** Wall and ceiling bounce (normal mode: 0.2, the body all but stops). PLAN.md M11 */
+    restitution: 0.8,
+    /** A body hitting the ceiling at least this fast sticks there this often (ep3: one does). invented */
+    stickSpeed: 5,
+    stickChance: 0.1,
+    /** Enemies flying in out of control (H/s). invented */
+    flyInSpeed: 8,
+    flyInLift: 4,
+  },
+  /** M11 enemy-sun-brute, our vending machine: ~6 melee hits (invented), big slow knockdown punches. */
+  brute: { hp: 6, reach: 1.0, speed: 0.55 },
+  /** M11 world-arena-collapse. */
+  collapse: {
+    /** The crack telegraph before the floor goes (s). PLAN.md M11 ~1 s */
+    crack: 1.0,
+    /** Falling into the void: acceleration (H/s^2) and how long until it's gone (s). invented */
+    fallSpeed: 14,
+    fallTime: 1.0,
+  },
+  /** M11 world-falling-hazard: the tank. */
+  fallingBlock: {
+    /** Shadow before it drops (s): the note's 0.5-1.0 s. */
+    shadow: 0.9,
+    height: 7,
+    fallSpeed: 16,
+    /** Footprint half-sizes and height of the landed tank (H): tall enough to pin against. own design */
+    halfX: 1.1,
+    halfZ: 0.42,
+    top: 1.25,
+  },
   /** M10 world-elevator-fight (src/sim/elevator.ts). Timings invented unless noted. */
   elevator: {
     /** Shaft scroll while the cab climbs (H/s), and the fall. */
@@ -92,6 +126,9 @@ export const TUNING = {
     dropHeight: 2.6,
     /** world-breach: enemies in a room entered from above are caught off guard this long (s). invented */
     surprise: 1.0,
+    /** move-fall-transition: falling in from the sky starts this high (H, above the frame); a shove over the edge (H/s). invented */
+    skyHeight: 5,
+    shoveSpeed: 5,
   },
   /** M7 stealth (melee-stealth-kill, move-drop-from-above). */
   stealth: {

@@ -135,6 +135,30 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
       play('moan', at(a.pos.x, a.pos.y + 0.8, a.pos.z));
     }
   });
+  // M11: improbability (a boing on every bounce, the tape wobble), the jetpack, the collapse, the tank
+  let burner: number | undefined;
+  world.events.on('improbability', (e) => engine.setWobble(e.on));
+  world.events.on('wallHit', (e) => { if (world.physics === 'improbable') play('boing', at(e.x, e.y + 0.5, e.z)); });
+  world.events.on('flyIn', (e) => play('whooshThrow', at(e.x, e.y + 0.5, e.z)));
+  world.events.on('ceilingStick', (e) => { play('wall', at(e.x, e.y + 0.8, e.z)); play('boing', at(e.x, e.y + 0.8, e.z, { rate: 0.6 })); });
+  world.events.on('jetpack', (e) => {
+    if (e.phase === 'up') burner = engine.play('burner', at(e.x, 1.2, e.z));
+    else if (e.phase === 'away') { if (burner !== undefined) engine.stop(burner, 0.6); burner = undefined; }
+    else play('door', at(e.x, 1, e.z));
+  });
+  world.events.on('shove', (e) => { play('whooshHeavy', at(e.x, e.y + 0.6, e.z)); play('impactHeavy', at(e.x, e.y + 0.6, e.z)); });
+  world.events.on('collapse', (e) => {
+    if (e.phase === 'crack') { play('crack', { gain: 1 }); play('rumble', {}); }
+    else { play('rumble', { gain: 1.2 }); play('explosion', { gain: 0.6, rate: 0.6 }); engine.duck(0.5); }
+  });
+  world.events.on('fellIntoVoid', (e) => play('voxDeath', at(e.x, e.y + 0.7, e.z, { rate: 1.2 })));
+  world.events.on('blockDrop', (e) => {
+    if (e.phase === 'shadow') play('fallWhistle', at(e.x, 3, e.z));
+    else { play('heavyLand', at(e.x, 0.5, e.z)); play('explosion', at(e.x, 0.5, e.z, { gain: 0.7, rate: 0.8 })); engine.duck(0.4); }
+  });
+  world.events.on('bruteWake', (e) => { play('clang', at(e.x, 1, e.z)); play('thump', at(e.x, 0.3, e.z, { delay: 0.2 })); });
+  world.events.on('cameraTurn', (e) => play('tick', at(e.x, e.y, e.z, { rate: 0.7 })));
+  world.events.on('roomChanged', () => { if (burner !== undefined) { engine.stop(burner, 0.2); burner = undefined; } });
   // M10: the elevator (motor while it climbs), the welder's cutter, the cables, the ending
   let motor: number | undefined, cutter: number | undefined;
   const stopLoop = (v: number | undefined) => { if (v !== undefined) engine.stop(v, 0.25); return undefined; };

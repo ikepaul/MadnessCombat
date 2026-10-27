@@ -98,6 +98,14 @@ export class Decals {
   }
 
   /** Re-bake everything (room or blood toggle changed). */
+  /** M11 world-arena-collapse: marks on the half that fell away go with it. */
+  dropBeyond(x: number, side: -1 | 1): void {
+    const sx = project(x, 0, 9.2)[0];
+    const gone = (d: Decal) => ('z' in d ? (d.x - x) * side > 0 : (d.x - sx) * side > 0);
+    this.baked = this.baked.filter((d) => !gone(d));
+    this.growing = this.growing.filter((g) => (g.x - x) * side <= 0);
+  }
+
   /** M9: a new room starts clean (blood and holes stay with the room they were made in). */
   clear(): void {
     this.baked = [];

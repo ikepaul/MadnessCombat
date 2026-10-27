@@ -4,7 +4,7 @@
 // The stage runner is a sequencer script: it enters a room (players placed at the entry, the
 // room's exits armed, its script started), waits until an exit is taken, plays the traversal and
 // the ink wipe (decided 2026-10-27), and loads the next room. Every room entry is a checkpoint.
-import { STANDING } from '../anim/skeleton';
+import { lyingAt, STANDING } from '../anim/skeleton';
 import { TUNING } from '../data/tuning';
 import type { PaletteId } from '../data/palettes';
 import { type Actor, alive } from './actor';
@@ -45,8 +45,11 @@ export interface ExitDef {
 /** Where players appear in a room, and how they arrive. */
 export interface EntryDef {
   x: number; z: number; facing: 1 | -1;
-  /** walk: standing at the spot; above: dropping in from the ceiling (vent, breach); vault: over a ledge. */
-  from: 'walk' | 'above' | 'vault';
+  /**
+   * walk: standing at the spot; above: dropping in from the ceiling (vent, breach); vault: over a
+   * ledge; sky: falling out of the sky (move-fall-transition: shadow first, a face-down landing).
+   */
+  from: 'walk' | 'above' | 'vault' | 'sky';
   /** Enemies are caught off guard for TUNING.stage.surprise s (vent / breach entries, world-breach). */
   surprise?: boolean;
 }
@@ -114,6 +117,18 @@ export function takeExit(world: World, id: string): void {
   if (x && !world.exitTaken) take(world, x.def);
 }
 
+/** move-fall-transition: a player dropping in from the sky lands face down (no damage) and gets up. */
+export function skyLanding(world: World, actorId: number): void {
+  const a = world.actorById(actorId);
+  if (!a?.skyFall) return;
+  a.skyFall = false;
+  a.state = 'down';
+  a.stateT = 0;
+  a.pose.root = lyingAt(Math.PI / 2);
+  setClip(a, 'lying');
+  world.events.emit('bodyFall', { actorId: a.id, ...a.pos, speed: 6 });
+}
+
 /** Open (or shut) an exit of the current room. */
 export function openExit(world: World, id: string, open = true): void {
   const x = world.exits.find((e) => e.def.id === id);
@@ -165,6 +180,11 @@ function placeAtEntry(p: Actor, e: EntryDef, i: number): void {
     p.pos.y = T.dropHeight;
     p.body.state = 'air';
     p.body.stateTime = 0;
+  } else if (e.from === 'sky') {
+    p.pos.y = T.skyHeight;
+    p.body.state = 'air';
+    p.body.stateTime = 0;
+    p.skyFall = true;
   } else if (e.from === 'vault') {
     p.traversing = { kind: 'vault', t: 0 };
     p.pos.x = e.x - e.facing * (T.vaultDistance + i * 0.55);
@@ -205,6 +225,14 @@ export function stepTraversal(world: World, a: Actor, dt: number): void {
     case 'hatch':
       stepHatchClimb(world, a, dt);
       break;
+    case 'shoved': {
+      // M11: shoved off the edge into the void: across, then down
+      const side = world.room.void?.side ?? -1;
+      a.pos.x += side * T.shoveSpeed * dt;
+      if (world.room.void && (a.pos.x - world.room.void.x) * side > 0) a.pos.y -= (2 + tr.t * 10) * dt;
+      a.pose.root = lyingAt(-side * a.facing * Math.min(1, tr.t * 2) * Math.PI / 2);
+      break;
+    }
   }
 }
 

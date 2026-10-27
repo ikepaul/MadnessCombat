@@ -342,17 +342,17 @@ Labs: `world-elevator-fight`, `enemy-welder`, `world-destructible` (clip 1), `wo
 **Read first:** `research/stages.md` (Stage 3 rooms 1–6), `world-improbability-mode`, `world-arena-collapse`, `world-falling-hazard`, `move-fall-transition`, `boss-clown` (clips 2–3), `enemy-sun-brute`, `melee-environment-weapon`, `world-kill-counter`.
 
 Build:
-- [ ] **Design pass first**: our own surreal street (no storefront from the show), our own "background object comes alive" brute instead of the sun, our own giant falling object instead of the marshmallow, the jetpack mini-boss look.
-- [ ] Loadout: two knives. Rooms 1–4: vent drop takedown, knife throws + retrieval, table room (an enemy grabs the floor axe, table flip, throw the empty rifle, fight from the table), camera room (security camera → cutscene: the target activates the improbability device).
-- [ ] **Improbability mode**: knockback ×2.3–2.5, wall/ceiling restitution 0.8, 10% chance to embed in the ceiling (invented), enemies enter flying. Active until the end of the street.
-- [ ] **Arena collapse**: crack telegraph ≈ 1 s, then half the floor falls away (things on it fall).
-- [ ] **Jetpack mini-boss (fight 1)**: hovers over the void, long MG burst (human shield/cover), flies off when empty, re-enters behind you through a door (door-open telegraph) and shoves. Scripted outcome: you fall → **fall transition** into the street (shadow, face-down landing).
-- [ ] Street: two-sided ambush, weapon churn, surreal sky, **giant falling object** (shadow 0.5–1 s, crush, becomes a solid block), uproot the street sign, **brute** (≈ 6 melee hits, invented), the mini-boss with a scimitar → **pin** to the block → cutscene revive as a zombie.
+- [x] **Design pass first**: our own surreal street (no storefront from the show), our own "background object comes alive" brute instead of the sun, our own giant falling object instead of the marshmallow, the jetpack mini-boss look.
+- [x] Loadout: two knives. Rooms 1–4: vent drop takedown, knife throws + retrieval, table room (an enemy grabs the floor axe, table flip, throw the empty rifle, fight from the table), camera room (security camera → cutscene: the target activates the improbability device).
+- [x] **Improbability mode**: knockback ×2.3–2.5, wall/ceiling restitution 0.8, 10% chance to embed in the ceiling (invented), enemies enter flying. Active until the end of the street.
+- [x] **Arena collapse**: crack telegraph ≈ 1 s, then half the floor falls away (things on it fall).
+- [x] **Jetpack mini-boss (fight 1)**: hovers over the void, long MG burst (human shield/cover), flies off when empty, re-enters behind you through a door (door-open telegraph) and shoves. Scripted outcome: you fall → **fall transition** into the street (shadow, face-down landing).
+- [x] Street: two-sided ambush, weapon churn, surreal sky, **giant falling object** (shadow 0.5–1 s, crush, becomes a solid block), uproot the street sign, **brute** (≈ 6 melee hits, invented), the mini-boss with a scimitar → **pin** to the block → cutscene revive as a zombie.
 
 Look & sound:
-- [ ] Warm stage palette. Improbability visuals: rubbery squash on wall bounces, motion trails on flying bodies, surreal sky layer (own designs), the collapse with a void edge.
-- [ ] Improbability audio: warped "boing" layer on knockbacks, tape-wobble filter on the world bus, falling-object whistle, jetpack burner loop, MG roll.
-- [ ] Stage 3 music cues wired (opening, building combat, improbability street).
+- [x] Warm stage palette. Improbability visuals: rubbery squash on wall bounces, motion trails on flying bodies, surreal sky layer (own designs), the collapse with a void edge.
+- [x] Improbability audio: warped "boing" layer on knockbacks, tape-wobble filter on the world bus, falling-object whistle, jetpack burner loop, MG roll.
+- [x] Stage 3 music cues wired (opening, building combat, improbability street).
 
 Acceptance: improbability bodies bounce off walls and the ceiling, and stop doing so after the mode ends · the collapse kills everything on the falling side · the mini-boss fight can't end in his death (scripted) · pin works only next to a solid prop.
 Labs: `world-improbability-mode`, `world-arena-collapse`, `world-falling-hazard`, `move-fall-transition`, `boss-clown` (clips 2–3), `enemy-sun-brute`, `combat-human-shield`.

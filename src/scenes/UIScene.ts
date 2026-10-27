@@ -142,7 +142,9 @@ export class UIScene extends Phaser.Scene {
       const vs = !target ? '' : kills > target ? `${kills - target} more than` : kills === target ? 'exactly' : `${target - kills} short of`;
       const episode = target ? `${vs} the episode's ${target}\n` : '';
       // co-op: only the host restarts the room
-      const again = game.coop === 'guest' ? 'waiting for the host to fight again' : 'press Enter to fight again';
+      const next = game.nextStage;
+      const again = game.coop === 'guest' ? 'waiting for the host'
+        : next ? `Enter: on to Stage ${next}  ·  R: Stage ${game.stageInfo!.stage} again` : 'press Enter to fight again';
       (this.card.getByName('sub') as Phaser.GameObjects.Text).setText(`${episode}${again}`);
       this.card.setVisible(true);
     }

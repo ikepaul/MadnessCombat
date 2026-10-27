@@ -9,6 +9,7 @@ import '../labs/bossLabs';
 import '../labs/hazardLabs';
 import '../labs/enemyLabs';
 import '../labs/stage2Labs';
+import '../labs/stage3Labs';
 import '../labs/gunLabs';
 import '../labs/meleeLabs';
 import '../labs/throwLabs';
@@ -20,6 +21,8 @@ import { paintCharacter } from '../render/canvas/characterPainter';
 import { paintBoss } from '../render/canvas/bossPainter';
 import { paintItem } from '../render/canvas/itemPainter';
 import { paintDoor, paintProp, paintRoom } from '../render/canvas/roomPainter';
+import { paintTank } from '../render/canvas/sceneryPainter';
+import { TUNING } from '../data/tuning';
 import { Decals } from '../render/decals';
 import { PostFx } from '../render/post';
 import { Vfx } from '../render/vfx';
@@ -34,6 +37,7 @@ import { World } from '../sim/world';
 import { STAGE1, type StageRoomId } from '../data/stages/stage1';
 import { STAGE1_BEATS, type Stage1Beat, stage1From } from '../data/stages/stage1Script';
 import { STAGE2 } from '../data/stages/stage2';
+import { STAGE3 } from '../data/stages/stage3';
 import { type StageDef, stageRunner } from '../sim/stage';
 import { coopLink, type CoopLink } from '../net/link';
 import { applySnapshot, type Snapshot, SnapshotWriter } from '../net/snapshot';
@@ -59,7 +63,7 @@ export interface GameSceneData {
   /** `?room=test`: the style-frame room with the M0 cast (look check). */
   testRoom?: boolean;
   /** Stage route `?stage=1&room=arena` (the default: the whole stage from its intro); `&wave=A` starts at that wave. M9: `?stage=2&room=<id>`. */
-  stage?: 1 | 2;
+  stage?: 1 | 2 | 3;
   room?: StageRoomId | string;
   wave?: string;
   /** `&beat=riot|grenade|boss|waveB`: start the stage script at that beat (playtesting). */
@@ -69,10 +73,10 @@ export interface GameSceneData {
 }
 
 /** Room definitions by id, for the guest (the host's snapshot names the room). */
-const ROOMS_BY_ID = Object.fromEntries([TEST_ROOM, ...Object.values(STAGE1.rooms).map((r) => r.room), ...Object.values(STAGE2.rooms).map((r) => r.room)].map((r) => [r.id, r]));
+const ROOMS_BY_ID = Object.fromEntries([TEST_ROOM, ...Object.values(STAGE1.rooms).map((r) => r.room), ...Object.values(STAGE2.rooms).map((r) => r.room), ...Object.values(STAGE3.rooms).map((r) => r.room)].map((r) => [r.id, r]));
 
 /** M9 room-graph stages by number. */
-const ROOM_STAGES: Record<number, StageDef> = { 2: STAGE2 };
+const ROOM_STAGES: Record<number, StageDef> = { 2: STAGE2, 3: STAGE3 };
 
 /**
  * M9 checkpoint per room: where the stage was entered last, with each player's loadout and the
@@ -196,6 +200,12 @@ export class GameScene extends Phaser.Scene {
       if (this.snaps) this.snaps.needFull = true;
     });
     this.world.events.on('cannonHit', () => this.cannonHits++);
+    // M11: the floor falling away and the vending machine walking off change the room's picture
+    this.world.events.on('collapse', (e) => {
+      if (e.phase === 'fall') this.decals.dropBeyond(e.x, e.side);
+      this.bakeRoom();
+    });
+    this.world.events.on('bruteWake', () => this.bakeRoom());
     // world-persistence-decals: settled bodies are baked once; picking one up re-bakes the rest
     this.world.events.on('corpseFrozen', (e) => {
       const a = this.world.actorById(e.actorId);
@@ -230,8 +240,15 @@ export class GameScene extends Phaser.Scene {
         audio()?.applySettings();
       },
     });
-    // end card: Enter fights the room again
-    this.input.keyboard?.on('keydown-ENTER', () => { if (this.cleared && host) { checkpoint = undefined; this.restart(); } });
+    // end card: Enter goes on to the next stage (or fights this one again if there's none yet), R replays this one
+    this.input.keyboard?.on('keydown-ENTER', () => {
+      if (!this.cleared || !host) return;
+      checkpoint = undefined;
+      const next = this.nextStage;
+      if (next) this.scene.restart({ stage: next, coop: this.data_.coop });
+      else this.restart();
+    });
+    this.input.keyboard?.on('keydown-R', () => { if (this.cleared && host && this.nextStage) { checkpoint = undefined; this.restart(); } });
     this.scene.launch('ui');
   }
 
@@ -256,6 +273,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Restart the room from its start (checkpoint per room; to confirm with the user in M13). */
+  /**
+   * The stage the end card leads on to (stage links before M13's stage select): 1 -> 2 -> 3.
+   * Undefined in labs, the test room, and on the last stage built.
+   */
+  get nextStage(): 2 | 3 | undefined {
+    if (this.lab || this.data_.testRoom || !this.stageInfo) return undefined;
+    return this.stageInfo.stage === 1 ? 2 : this.stageInfo.stage === 2 ? 3 : undefined;
+  }
+
   restart(): void {
     this.scene.restart({ ...this.data_, palette: this.paletteId });
   }
@@ -448,6 +474,12 @@ export class GameScene extends Phaser.Scene {
     for (const p of this.world.room.props) list.push({ z: p.z0, draw: () => paintProp(ctx, p, pal) });
     for (const c of this.world.cannons) list.push({ z: c.z, draw: () => paintCannon(ctx, c) });
     for (const b of this.world.balls) list.push({ z: b.z - 0.01, draw: () => paintBall(ctx, b) });
+    // M11 world-falling-hazard: the tank's shadow grows, then it comes down
+    for (const b of this.world.blocks) {
+      if (b.phase === 'landed') continue;
+      const k = b.phase === 'shadow' ? Math.min(1, b.t / TUNING.fallingBlock.shadow) : 1;
+      list.push({ z: b.z, draw: () => paintTank(ctx, b.x, b.z, b.facing, b.y, b.phase === 'shadow', k) });
+    }
     list.sort((a, b) => b.z - a.z);
     for (const d of list) d.draw();
     for (const p of this.world.players) if (p.state === 'downed') paintReviveBar(ctx, p);

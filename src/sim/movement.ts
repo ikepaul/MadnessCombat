@@ -32,6 +32,17 @@ export function stepLocomotion(world: World, a: Actor, cmd: PlayerCommand, dt: n
 
   updateFacing(a, cmd, ix);
 
+  // M11 the jetpack: hovering, no gravity, flies wherever the script steers (over the void too)
+  if (a.hover !== undefined) {
+    a.pos.y += (a.hover - a.pos.y) * Math.min(1, dt * 4);
+    a.pos.x = clamp(a.pos.x + ix * speed * dt, -world.room.halfWidth - 1.5, world.room.halfWidth + 1.5);
+    a.pos.z = clamp(a.pos.z + iz * speed * MOVE.depthFactor * dt, world.room.zFront, world.room.zBack - 0.2);
+    b.state = 'air';
+    b.vel = { x: 0, y: 0, z: 0 };
+    a.pose.walkPhase = undefined;
+    return;
+  }
+
   const enter = (s: typeof b.state) => { b.state = s; b.stateTime = 0; };
 
   switch (b.state) {

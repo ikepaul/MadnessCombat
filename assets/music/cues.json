@@ -39,6 +39,11 @@
     "s2-lobby": { "ambience": "ambRoom", "combat": "madness-combat-v1" },
     "s2-crates": { "ambience": "ambRoom", "combat": "madness-combat-v1" },
     "s2-final": { "ambience": "ambRoom", "combat": "madness-combat-v1" },
+    "s3-outside": { "ambience": null, "combat": "madness-combat-v1" },
+    "s3-vent": { "ambience": "ambRoom", "combat": "madness-combat-v1" },
+    "s3-tables": { "ambience": "ambRoom", "combat": "madness-combat-v1" },
+    "s3-camera": { "ambience": "ambRoom", "combat": "madness-combat-v1" },
+    "s3-street": { "ambience": null, "combat": "madness-combat-v1" },
     "test-room": {
       "ambience": null,
       "combat": "madness-combat-v1"
