@@ -1,8 +1,17 @@
 {
-  "_format": "rooms: room id -> ambience sound id and combat track id (or null). tracks: id -> bpm, beatsPerBar, loopStart/loopEnd (s) and stems for intensity layers 1-3 (files in assets/music/, see design/audio-direction.md delivery spec). Until the user's tracks arrive every room plays its ambience only.",
+  "_format": "rooms: room id -> ambience sound id, combat track id (or null), `cues` (script cue name -> track id: the stage script sends these, src/sim/sequencer.ts `music`) and `diegetic` (the track a boombox in the room plays). tracks: id -> bpm, beatsPerBar, loopStart/loopEnd (s; 0/0 = loop the whole file) and stems (files in assets/music/, named s{stage}_{cue}_{stem}.wav as in design/audio-direction.md; combat cues: intensity layers 1-3). A track whose files aren't all in assets/music/ yet is skipped: its room plays the ambience only, and a boombox plays radio static.",
   "rooms": {
-    "stage1-arena": { "ambience": "ambWind", "combat": null },
+    "stage1-arena": {
+      "ambience": "ambWind",
+      "combat": null,
+      "cues": { "riot": "s1_riot", "boss": "s1_boss" },
+      "diegetic": "s1_boombox"
+    },
     "test-room": { "ambience": "ambRoom", "combat": null }
   },
-  "tracks": {}
+  "tracks": {
+    "s1_boombox": { "bpm": 115, "beatsPerBar": 4, "loopStart": 0, "loopEnd": 0, "stems": ["s1_boombox_mix.wav"] },
+    "s1_riot": { "bpm": 145, "beatsPerBar": 4, "loopStart": 0, "loopEnd": 0, "stems": ["s1_riot_layer1.wav", "s1_riot_layer2.wav", "s1_riot_layer3.wav"] },
+    "s1_boss": { "bpm": 145, "beatsPerBar": 4, "loopStart": 0, "loopEnd": 0, "stems": ["s1_boss_layer1.wav", "s1_boss_layer2.wav", "s1_boss_layer3.wav"] }
+  }
 }

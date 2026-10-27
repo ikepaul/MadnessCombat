@@ -4,7 +4,7 @@ import { STAGE1 } from '../src/data/stages/stage1';
 import { GRENADE_BEAT, STAGE1_BEATS, stage1From, WAVE_B, waveB } from '../src/data/stages/stage1Script';
 import { TUNING } from '../src/data/tuning';
 import { type Actor, alive, createActor } from '../src/sim/actor';
-import { placeCannon } from '../src/sim/boss';
+import { placeCannon } from '../src/sim/cannon';
 import { IDLE_COMMAND, type PlayerCommand } from '../src/sim/command';
 import type { GameEvents } from '../src/sim/events';
 import { spawnEnemy } from '../src/sim/waves';

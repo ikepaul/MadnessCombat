@@ -19,7 +19,8 @@ export interface PlayOptions {
   delay?: number;
 }
 
-interface Live { src: AudioBufferSourceNode; gain: GainNode }
+/** A playing voice; `pan` and `base` (gain before depth) let place() move a looping source. */
+interface Live { src: AudioBufferSourceNode; gain: GainNode; pan?: StereoPannerNode; base?: number }
 
 const dbToGain = (db: number) => 10 ** (db / 20);
 
@@ -177,9 +178,46 @@ export class AudioEngine {
       pan.connect(send).connect(this.reverb);
     }
     src.start(o.delay ? now + o.delay : 0);
-    this.live.set(v.voiceId, { src, gain });
+    this.live.set(v.voiceId, { src, gain, pan, base: def.gain * (o.gain ?? 1) });
     src.onended = () => this.live.delete(v.voiceId);
     return v.voiceId;
+  }
+
+  /** Voice ids for loopBuffer (negative: they never clash with the pool's). */
+  private nextLoopId = -1;
+
+  /**
+   * Loop a decoded buffer (a delivered music file) as a positioned source on `bus`, through the
+   * room reverb by `reverb`. Move it with place(), stop it with stop().
+   */
+  loopBuffer(buf: AudioBuffer, bus: Bus, gain: number, reverb: number, o: PlayOptions = {}): number {
+    const c = this.ctx, id = this.nextLoopId--;
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    const g = c.createGain();
+    const pan = c.createStereoPanner();
+    src.connect(g).connect(pan).connect(this.buses[bus]);
+    if (reverb > 0) { const send = c.createGain(); send.gain.value = reverb; pan.connect(send).connect(this.reverb); }
+    this.live.set(id, { src, gain: g, pan, base: gain });
+    this.place(id, o, 0);
+    src.start();
+    return id;
+  }
+
+  /**
+   * Move a playing voice (a diegetic source following its object): pan from screen x, the depth
+   * attenuation, an extra gain. Glides over `glide` s so it doesn't zipper.
+   */
+  place(voiceId: number, o: PlayOptions, glide = 0.05): void {
+    const l = this.live.get(voiceId);
+    if (!l?.pan) return;
+    const t = this.ctx.currentTime;
+    const pan = o.screenX === undefined ? 0 : Math.max(-1, Math.min(1, (o.screenX - 960) / 960)) * AUDIO.panRange;
+    const g = (l.base ?? 1) * (o.gain ?? 1) * dbToGain(AUDIO.depthDb * Math.max(0, Math.min(1, o.depth ?? 0)));
+    if (glide <= 0) { l.pan.pan.value = pan; l.gain.gain.value = g; return; }
+    l.pan.pan.setTargetAtTime(pan, t, glide);
+    l.gain.gain.setTargetAtTime(g, t, glide);
   }
 
   stop(voiceId: number, fade = 0.05): void {

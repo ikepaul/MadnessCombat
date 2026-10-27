@@ -5,7 +5,8 @@
 // the ending (fetch the boombox, dance, the body-count card).
 import { TUNING } from '../tuning';
 import type { Actor } from '../../sim/actor';
-import { placeCannon, spawnBoss } from '../../sim/boss';
+import { spawnBoss } from '../../sim/boss';
+import { placeCannon } from '../../sim/cannon';
 import type { Seq } from '../../sim/sequencer';
 import type { RoomScript, WaveEntry } from '../../sim/waves';
 import type { World } from '../../sim/world';

@@ -12,8 +12,9 @@ const IRON = '#36373c', IRON_HI = '#5d5e63', STAND = '#4a4b50';
 export function paintCannon(ctx: Ctx, c: Cannon): void {
   const y = c.y ?? 0, s = scaleAt(c.z);
   const [gx, gy] = project(c.x, 0, c.z);
-  // the shadow first: small and faint while it's high up, full size as it lands
-  const k = 1 - Math.min(1, y / TUNING.boss.cannon.dropHeight);
+  // the shadow first: it grows over the whole warning + fall, small and faint at first, full size as it lands
+  const CN = TUNING.boss.cannon;
+  const k = c.drop ? Math.min(1, c.drop.t / (CN.shadow + CN.dropHeight / CN.fallSpeed)) : 1 - Math.min(1, y / CN.dropHeight);
   ctx.beginPath();
   ctx.ellipse(gx, gy, (0.18 + 0.36 * k) * s, (0.03 + 0.045 * k) * s, 0, 0, Math.PI * 2);
   ctx.fillStyle = `rgba(0,0,0,${(0.1 + 0.15 * k).toFixed(3)})`;

@@ -432,6 +432,7 @@ describe('phase 2 always plays', () => {
     // once the cannon is down he can be hurt again
     hero.hands[0] = null;
     for (let i = 0; i < secs(5) && !(world.cannons[0]?.y === 0); i++) tick(world);
+    tick(world); // he notices it's down on his next step
     expect(world.cannons[0].y).toBe(0);
     expect(boss.boss!.untouchable).toBe(false);
     hero.hands[0] = newHand('pistol', 99, 0);

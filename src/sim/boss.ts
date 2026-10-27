@@ -11,7 +11,7 @@ import { TUNING } from '../data/tuning';
 import { isWeapon } from '../data/weapons';
 import { project, type ScreenPoint, scaleAt } from '../render/camera';
 import { type Actor, alive, createActor } from './actor';
-import type { Cannon } from './cannon';
+import { type Cannon, dropCannon, landCannon } from './cannon';
 import { applyHit, die, dropBody, setClip } from './combat';
 import type { HitKind } from './events';
 import { canRaise, raiseCorpse } from './zombies';
@@ -103,7 +103,7 @@ export function stepBoss(world: World, a: Actor & { boss: BossState }, dt: numbe
   else if (act?.kind === 'dash') stepDash(world, a, s, act, dt);
   else if (act?.kind === 'grab') stepGrab(world, a, s, act, dt);
   else if (act?.kind === 'sweep') stepSweep(world, a, s, act, dt);
-  else if (act?.kind === 'summon') stepSummon(world, a, s, act, dt);
+  else if (act?.kind === 'summon') stepSummon(a, s, act, dt);
   else if (act?.kind === 'volley') stepVolley(world, a, s, act, dt);
   else if (act?.kind === 'recover') { act.t += dt; if (act.t >= act.time) s.act = undefined; }
   else choose(world, a, s);
@@ -371,51 +371,17 @@ function startSummon(world: World, a: Actor, s: BossState): void {
   const p = nearestPlayer(world, a);
   const facing = (p ? (p.pos.x >= a.pos.x ? 1 : -1) : a.facing) as 1 | -1;
   a.facing = facing;
-  const c: Cannon = { x: clampX(world, a.pos.x + facing * CN.offset), z: a.pos.z, facing, timer: 0, live: true, y: CN.dropHeight, shots: 0, byId: a.id };
-  world.cannons.push(c);
+  const c = dropCannon(world, clampX(world, a.pos.x + facing * CN.offset), a.pos.z, facing, a.id);
   s.cannon = c;
   s.act = { kind: 'summon', t: 0, cannon: c };
-  world.events.emit('cannonDrop', { x: c.x, z: c.z, phase: 'shadow' });
 }
 
-function stepSummon(world: World, a: Actor, s: BossState, m: Extract<BossAct, { kind: 'summon' }>, dt: number): void {
-  const t0 = m.t, c = m.cannon;
+/** His hand stays up while it falls (src/sim/cannon.ts drops it); then the volley. */
+function stepSummon(a: Actor, s: BossState, m: Extract<BossAct, { kind: 'summon' }>, dt: number): void {
   m.t += dt;
-  if (m.t < CN.shadow) return;
-  if (t0 < CN.shadow) world.events.emit('cannonDrop', { x: c.x, z: c.z, phase: 'fall' });
-  c.y = Math.max(0, (c.y ?? 0) - CN.fallSpeed * dt);
-  if (c.y > 0) return;
-  landCannon(world, a, c);
+  if (m.cannon.drop) return;
   s.untouchable = false;
   s.act = { kind: 'volley', t: 0, from: { x: a.pos.x, z: a.pos.z }, started: false };
-}
-
-/** Footprint of the landed cannon (H): barrel + stand. */
-const CANNON_HALF = { x: 0.42, z: 0.22, top: 0.72 };
-
-/** A cannon already standing (stage routes that start after the boss): nobody mans it yet. */
-export function placeCannon(world: World, x: number, z: number, facing: 1 | -1): Cannon {
-  const H = CANNON_HALF;
-  const c: Cannon = { x, z, facing, timer: 0, live: true, y: 0, shots: 0 };
-  world.cannons.push(c);
-  world.room.props.push({ kind: 'cannon', x0: x - H.x, x1: x + H.x, z0: z - H.z, z1: z + H.z, top: H.top });
-  return c;
-}
-
-/** It lands: whoever is under it is crushed and shoved clear, and it stays as solid ground. */
-function landCannon(world: World, a: Actor, c: Cannon): void {
-  const H = CANNON_HALF;
-  for (const o of world.actors) {
-    if (o === a || o.swept) continue;
-    const dx = o.pos.x - c.x, dz = o.pos.z - c.z;
-    if (Math.abs(dz) > Math.max(CN.crushBand, H.z + 0.2)) continue;
-    if (alive(o) && Math.abs(dx) <= CN.crushRadius && Math.abs(dz) <= CN.crushBand) applyHit(world, a, o, 'cannon', Math.sign(dx) || c.facing, 0, { x: o.pos.x, y: 0.5, z: o.pos.z });
-    // nothing may stay inside the solid footprint: shove it out the nearer side
-    if (Math.abs(dx) < H.x + TUNING.move.radius) o.pos.x = clampX(world, c.x + (Math.sign(dx) || -c.facing) * (H.x + TUNING.move.radius + 0.02));
-  }
-  world.room.props.push({ kind: 'cannon', x0: c.x - H.x, x1: c.x + H.x, z0: c.z - H.z, z1: c.z + H.z, top: H.top });
-  world.events.emit('cannonDrop', { x: c.x, z: c.z, phase: 'land' });
-  world.events.emit('cameraShake', { px: TUNING.boss.cannon.landShake, seconds: 0.35 });
 }
 
 /**
@@ -520,7 +486,7 @@ export function bossHit(world: World, by: Actor | undefined, o: Actor, kind: Hit
   o.pose.push = 0;
   // nobody mans the cannon now (it stays: wave B's grunts take it over); one still falling lands
   if (s?.cannon) {
-    if ((s.cannon.y ?? 0) > 0) { s.cannon.y = 0; landCannon(world, o, s.cannon); }
+    if (s.cannon.drop) landCannon(world, s.cannon);
     s.cannon.shots = 0;
     s.cannon.byId = undefined;
   }

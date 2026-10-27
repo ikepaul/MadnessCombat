@@ -294,10 +294,12 @@ Build:
 Look & sound:
 - [x] Lightning bolt VFX (jagged, cyan-white, 2 frames + afterglow), raise-dead green spread, shield shimmer + ricochet sparks, telekinesis distortion ripple, cannon drop shadow + dust, cannonball + muzzle blast, falling-object whistle.
 - [x] Boss sounds (crackle, thunder, rumble, ward hum, ricochet, dash whoosh, slams, telekinesis, cannon boom, heavy landing).
-- [ ] Boombox as a positioned diegetic music source (user's track or ambience until delivered); stage 1 music cues: the script already sends `riot` / `boss` / `outro` (`MusicSystem.setTrack`), the tracks need entries in `assets/music/cues.json`.
+- [x] Boombox as a positioned diegetic music source (`src/audio/boombox.ts`: follows the boombox in a hand or on the floor, pan + depth + room reverb; the user's `s1_boombox_mix.wav` once delivered, radio static until then; swells for the outro). Stage 1 music cues in `assets/music/cues.json` (`riot` → `s1_riot`, `boss` → `s1_boss`, `diegetic` → `s1_boombox`); undelivered tracks are skipped.
 
 Acceptance: the stage completes headless with a scripted bot (sequencer + waves don't deadlock) · boss phases trigger in order · all Stage 1 labs still pass.
 Labs: `boss-halo` (clips 1–4), `world-falling-hazard` (cannon drop).
+
+Done notes: the whole stage is one sequencer script (`src/data/stages/stage1Script.ts`; `?beat=` starts it at any beat). Decisions taken here (invented, tunable in `TUNING.boss` and the script's constants): boss 3 head hits, phase 2 at his first wound or after 30 s and he can't be hurt until his cannon lands; ward 1 s up then a 1.5 s window, never during a move; strike lands where you stood when his hand went up; 6 slams, mashing cuts them to 2, the grab costs one life; volleys of 4 every 9 s; wave B's cannoneer; pickups by kill count; the boombox is locked until the ending; the ending's 60 s fallback. The cannon is a new prop design (no sign-off needed for props). No placeholder music: until the user's tracks arrive the cues are silent and the boombox plays radio static.
 
 ## M9: Room chaining & Stage 2, first half (L)
 **Goal:** multi-room stages, stealth opening, breach, door waves, the clown, the boss interruption.

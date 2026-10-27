@@ -6,6 +6,7 @@ import { bindDebugKeys } from '../input/debugKeys';
 import { PlayerInput } from '../input/playerInput';
 import '../labs/aiLabs';
 import '../labs/bossLabs';
+import '../labs/hazardLabs';
 import '../labs/enemyLabs';
 import '../labs/gunLabs';
 import '../labs/meleeLabs';
@@ -37,12 +38,15 @@ import { paintReviveBar, paintReviveCircle } from '../render/canvas/revivePainte
 import { hookWorldAudio } from '../audio/hooks';
 import { audio } from '../audio/mixer';
 import { MusicSystem } from '../audio/music';
+import { BoomboxSource } from '../audio/boombox';
 import { FeelDirector } from '../feel/feel';
 import { FeelFx } from '../render/feelFx';
 import { cycleEffects, saveSettings, SETTINGS } from '../settings';
 
 /** One music system for the game (survives room restarts). */
 let music: MusicSystem | undefined;
+/** The current scene's boombox source (M8). */
+let boombox: BoomboxSource | undefined;
 /** Guest: the host's first snapshot of a new session, applied after the scene restarts. */
 let pendingFull: Snapshot | undefined;
 
@@ -153,7 +157,10 @@ export class GameScene extends Phaser.Scene {
       hookWorldAudio(this.world, engine);
       music ??= new MusicSystem(engine);
       void music.setRoom(this.world.room.id);
-      this.world.events.on('music', (e) => void music?.setTrack(e.cue));
+      this.world.events.on('music', (e) => void music?.setCue(e.cue));
+      // M8: the boombox plays from wherever it is (one at a time; the old scene's stops)
+      boombox?.dispose();
+      boombox = new BoomboxSource(this.world, engine);
     }
     this.vfx = new Vfx(this.world, () => this.blood);
     this.decals = new Decals(this.world, this.decalLayer, () => this.blood);
@@ -318,6 +325,7 @@ export class GameScene extends Phaser.Scene {
       this.post.update();
       this.feelFx.update(delta / 1000);
       music?.setIntensity(this.world.actors.filter((a) => a.ai && a.state !== 'dead' && !a.entering).length);
+      boombox?.update();
       return;
     }
     // keep an edge latched until a tick actually consumes it
@@ -337,6 +345,7 @@ export class GameScene extends Phaser.Scene {
     this.feelFx.update(delta / 1000);
     // music intensity follows the enemies actually in the fight
     music?.setIntensity(this.world.actors.filter((a) => a.ai && a.state !== 'dead' && !a.entering).length);
+    boombox?.update();
   }
 
   /** PLAN.md M3: player death -> restart the room. Co-op: once nobody is left standing. */
