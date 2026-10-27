@@ -9,7 +9,7 @@ import { isWeapon, WEAPONS } from '../data/weapons';
 import { GRAVITY, TUNING } from '../data/tuning';
 import { project, type ScreenPoint, scaleAt, unprojectFloor } from '../render/camera';
 import { type Actor, alive, type AttackKind, type HeldItem, meleeBand, newHand } from './actor';
-import { applyHit, setClip, snapTarget, tryBat } from './combat';
+import { applyHit, heldByPartner, setClip, snapTarget, tryBat } from './combat';
 import type { PlayerCommand } from './command';
 import { COVER, flipTable } from './cover';
 import { explode } from './explosives';
@@ -115,7 +115,7 @@ function swingTargets(world: World, a: Actor, def: MeleeDef, reach: number, alre
   return world.actors
     .filter((o) => {
       if (o === a || !alive(o) || already.includes(o.id)) return false;
-      if (o.state === 'grabbed' || o.state === 'getUp' || o.state === 'downed' || o.state === 'down') return false;
+      if ((o.state === 'grabbed' && !heldByPartner(world, a, o)) || o.state === 'getUp' || o.state === 'downed' || o.state === 'down') return false;
       if (a.playerIndex !== undefined && o.playerIndex !== undefined) return false; // no friendly fire in co-op
       const ahead = (o.pos.x - a.pos.x) * a.facing;
       if (ahead < -0.1 || ahead > reach || Math.abs(o.pos.z - a.pos.z) > meleeBand(a, def.depthBand)) return false;

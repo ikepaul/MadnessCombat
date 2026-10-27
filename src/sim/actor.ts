@@ -270,6 +270,9 @@ export interface Actor {
   chain?: { by: number; count: number; t: number; last: string; /** M18: hits from both players in it. */ team?: boolean };
   /** M18 double-team: the last damaging hit a player landed on this one. */
   lastHeroHit?: { by: number; t: number };
+  /** M18 hold & hit: the holder's partner's hits on him while held; `tender` = hit enough to die on any impact when thrown. */
+  heldHits?: number;
+  tender?: boolean;
   /** M18: who hit this one last (a knockback flight remembers its sender). */
   lastHitBy?: number;
   /** Walk speed factor this tick (the machine gun slows you while firing). */

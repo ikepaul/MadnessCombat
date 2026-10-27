@@ -172,3 +172,50 @@ describe('M18 body bat', () => {
     expect(g.state).toBe('dead');
   });
 });
+
+describe('M18 hold & hit', () => {
+  function held() {
+    const { world, p1, p2 } = coop(-0.9, 1.5);
+    const g = grunt(world, -0.45);
+    tick(world, 1, { grab: true });
+    expect(p1.holding?.id).toBe(g.id);
+    tick(world, 2);
+    // P2 stands in front of the held grunt
+    p2.pos.x = g.pos.x + 0.45;
+    return { world, p1, p2, g };
+  }
+
+  it("P2's third jab kills the held grunt; P1 still holds the corpse; a team kill", () => {
+    const { world, p1, g } = held();
+    const kills = record(world, 'kill');
+    for (let k = 0; k < 3; k++) { tick(world, 1, {}, { attack: 'light', face: -1 }); tick(world, 25); }
+    expect(g.state).toBe('dead');
+    expect(p1.holding?.id).toBe(g.id);
+    expect(kills[0].team).toBe(true);
+  });
+
+  it("P2's heavy kills at once; P2's pistol shot too (it used to be absorbed)", () => {
+    const a = held();
+    tick(a.world, 1, {}, { attack: 'heavy', face: -1 });
+    tick(a.world, 16);
+    expect(a.g.state).toBe('dead');
+    const b = held();
+    b.p2.hands[0] = newHand('pistol');
+    tick(b.world, 1, {}, { press: [true, false], aim: head(b.g) });
+    expect(b.g.state).toBe('dead');
+  });
+
+  it('the held grunt faces away from the holder', () => {
+    const { p1, g } = held();
+    expect(g.facing).toBe(p1.facing);
+  });
+
+  it('hit twice, then thrown, he dies when he lands', () => {
+    const { world, g } = held();
+    for (let k = 0; k < 2; k++) { tick(world, 1, {}, { attack: 'light', face: -1 }); tick(world, 25); }
+    expect(g.state).not.toBe('dead');
+    tick(world, 1, { grab: true, aim: project(-3, 0, Z) });
+    tick(world, 60);
+    expect(g.state).toBe('dead');
+  });
+});

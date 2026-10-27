@@ -290,7 +290,8 @@ export class World {
       // held by the collar: the body's top sits at the hands
       // just behind the holder in depth, so the holding hands draw over the body
       o.pos = { x: a.pos.x + a.facing * (0.42 - 0.5 * back), y: a.pos.y + 0.12 + 0.3 * back, z: a.pos.z + 0.005 };
-      o.facing = (-a.facing) as 1 | -1;
+      // M18 restrain: a living grunt a hero holds faces away from him (toward the partner and the guns)
+      o.facing = (alive(o) && a.playerIndex !== undefined ? a.facing : -a.facing) as 1 | -1;
       o.pose.groundY = a.pose.groundY;
       o.pose.root = alive(o) ? { ...STANDING, r: 0.1 } : { ...STANDING, r: 0.35 };
       o.pose.clip = 'grabbed';
