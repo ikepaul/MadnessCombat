@@ -23,3 +23,10 @@ Clips (local only): `clip-1` ep1 lightning hits a corpse, it turns green, sits u
 - **Corpses are a resource for the boss**: every grunt you kill can come back. That makes gibbing/blowing up corpses (`throw-grenade`) meaningful.
 - Zombie: HP ≈ 3 bullet hits, ignores decapitation (keeps going headless, invented: until 1 more hit), melee only (or the weapon it had), walk 0.8 H/s, no knockdown from light hits.
 - Raise rule: the boss targets intact corpses only. Gibbed/decapitated-and-destroyed corpses can't rise.
+
+## Episode 4 additions (2026-10-27)
+Seen in: ep4 2:31–3:00. Confidence: high.
+- **Armed zombies**: the zombie agent carries and fires a rifle (bursts). Raised grunts stay unarmed.
+- New zombie look in the show (exposed jaw): ours keeps its own design.
+- Raised horde of ≈ 19 in one room; they go down to pistol shots and sword hits like before (1–3 hits).
+- Game: a raised corpse that held a gun keeps it (`SpawnOpts.variant: 'zombie'` + weapon), with the zombie damage rules and the gun-grunt aim telegraph (slower: 0.6 s, invented).

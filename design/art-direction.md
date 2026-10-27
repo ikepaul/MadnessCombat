@@ -110,4 +110,4 @@ Every effect gets an intensity setting (off / reduced / full) in M13 for accessi
 - Stage cards (title, body count) are plain text on black, like episode title cards, in our own wording.
 
 ## Do not copy
-The cross face; the show's character designs, names and logo/title lettering; its title-card texts; its music and sound effects; recognisable backgrounds (the tree arena, the storefront sign, specific posters). We keep: proportions, staging, camera, the greyscale + red look, floating hands/feet, the flat vector style and the gore level.
+The cross face; the clown's iron mask (ep4); the show's character designs, names and logo/title lettering; its title-card texts and on-screen gag texts (ep4's HUD gag); its music and sound effects; recognisable backgrounds (the tree arena, the storefront sign, specific posters, the club's name and posters). We keep: proportions, staging, camera, the greyscale + red look, floating hands/feet, the flat vector style and the gore level.

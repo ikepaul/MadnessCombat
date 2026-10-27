@@ -13,3 +13,8 @@ Clips (local only): `clip-1` the screen bars go red. The halo boss stabs the her
 - Ep2 ending: non-interactive cutscene after the target surrenders.
 - Ep3 ending: a short **playable last stand**: red bars, the player can't move but can aim and fire for ≈ 5 s (invented). Killing the boss (behind you) and the target finishes the stage. A gun pointed backwards over the shoulder is allowed here only.
 - Both endings make "the player dies at the end" part of the stage rather than a game over.
+
+## Episode 4 additions (2026-10-27)
+Seen in: ep4 2:48–3:05. Confidence: high (frames + wiki).
+- A third scripted ending: the hero is downed by a bullet, still kills the armed zombie from the floor, loses a blade clash to the boss's sword + pistol and, down again, sets off a **hidden detonator**: both die.
+- Game: when the hero is downed in the final duel, a prompt-free "hold E 1 s" detonates (blast radius 3 H, kills the boss). Not detonating = the boss finishes you after ≈ 4 s and the room restarts from its checkpoint (invented). The end card follows the blast.

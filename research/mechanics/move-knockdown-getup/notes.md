@@ -27,3 +27,8 @@ Clips (local only): `clip-1` punched by the boombox guy and gets up · `clip-2` 
 ## Invented / not shown
 - I-frames during get-up, mash-to-recover.
 - Which hits cause knockdown versus flinch: proposal = punches from bosses/brutes, explosions, thrown bodies, lightning and telekinesis knock down; grunt punches only flinch.
+
+## Episode 4 additions (2026-10-27)
+Seen in: ep4 2:56.9–2:59.6. Confidence: medium.
+- **Acting from the ground**: downed by a bullet, the hero swings his sword from the floor and kills the enemy standing over him, then gets up.
+- Game (invented): while the hero lies down (knockdown or prone), LMB with a melee weapon is a low sweep-slash at feet height, and guns fire as from prone. Generalises the ep1 prone shot.
