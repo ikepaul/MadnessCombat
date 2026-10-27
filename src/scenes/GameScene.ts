@@ -230,8 +230,15 @@ export class GameScene extends Phaser.Scene {
         audio()?.applySettings();
       },
     });
-    // end card: Enter fights the room again
-    this.input.keyboard?.on('keydown-ENTER', () => { if (this.cleared && host) { checkpoint = undefined; this.restart(); } });
+    // end card: Enter goes on to the next stage (or fights this one again if there's none yet), R replays this one
+    this.input.keyboard?.on('keydown-ENTER', () => {
+      if (!this.cleared || !host) return;
+      checkpoint = undefined;
+      const next = this.nextStage;
+      if (next) this.scene.restart({ stage: next, coop: this.data_.coop });
+      else this.restart();
+    });
+    this.input.keyboard?.on('keydown-R', () => { if (this.cleared && host && this.nextStage) { checkpoint = undefined; this.restart(); } });
     this.scene.launch('ui');
   }
 
@@ -256,6 +263,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Restart the room from its start (checkpoint per room; to confirm with the user in M13). */
+  /**
+   * The stage the end card leads on to (stage links before M13's stage select): stage 1 -> 2.
+   * Undefined in labs, the test room, and on the last stage built.
+   */
+  get nextStage(): 2 | undefined {
+    if (this.lab || this.data_.testRoom || !this.stageInfo) return undefined;
+    return this.stageInfo.stage === 1 ? 2 : undefined;
+  }
+
   restart(): void {
     this.scene.restart({ ...this.data_, palette: this.paletteId });
   }
