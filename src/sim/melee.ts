@@ -212,7 +212,7 @@ export function tossHeld(world: World, a: Actor, i: 0 | 1, aim?: ScreenPoint): I
   return it;
 }
 
-/** throw-grenade: release toward the floor point under the cursor (max GRENADE.maxRange). */
+/** throw-grenade: release toward the floor point under the cursor (max GRENADE.maxRange, the hero's GRENADE.playerRange). */
 function lobGrenade(world: World, a: Actor, fuse: number, aim?: ScreenPoint): void {
   a.pose.grenade = false;
   const from = { x: a.pos.x + a.facing * 0.3, y: a.pos.y + 0.7, z: a.pos.z };
@@ -220,7 +220,9 @@ function lobGrenade(world: World, a: Actor, fuse: number, aim?: ScreenPoint): vo
   const p = aim ? unprojectFloor(aim[0], aim[1]) : undefined;
   if (p) { tx = p.x; tz = p.z; }
   const dx = tx - from.x, dz = tz - from.z, d = Math.hypot(dx, dz);
-  if (d > GRENADE.maxRange) { tx = from.x + (dx / d) * GRENADE.maxRange; tz = from.z + (dz / d) * GRENADE.maxRange; }
+  const range = a.kind === 'hero' ? GRENADE.playerRange : GRENADE.maxRange;
+  if (d > range) { tx = from.x + (dx / d) * range; tz = from.z + (dz / d) * range; }
+  tx = Math.max(-world.room.halfWidth + 0.2, Math.min(world.room.halfWidth - 0.2, tx));
   tz = Math.max(world.room.zFront, Math.min(world.room.zBack - 0.15, tz));
   const it = world.spawnItem('grenade', 'grunt', from, lobVelocity(from, tx, tz), Math.sign(tx - from.x || a.facing) * 9);
   it.live = true;

@@ -582,3 +582,19 @@ describe('friendly fire (playtest 2026-10-27 setting)', () => {
     expect(ally.state).toBe('free');
   });
 });
+
+describe('grenade tuning (playtest 2026-10-27)', () => {
+  it('the hero lobs a grenade 6 H away; it lands there with time left on the fuse', () => {
+    const { world, hero } = setup(EMPTY, -3.2);
+    hero.grenades = 1;
+    const target = project(2.8, 0, Z);
+    tick(world, { grenade: true, aim: target }, 6);
+    tick(world, { grenade: false, aim: target }, 1);
+    let g = world.items.find((i) => i.kind === 'grenade' && i.live);
+    for (let i = 0; i < 30 && !g; i++) { tick(world, { aim: target }); g = world.items.find((x) => x.kind === 'grenade' && x.live); }
+    for (let i = 0; i < 120 && g && g.state === 'air'; i++) { tick(world, { aim: target }); g = world.items.find((x) => x.kind === 'grenade' && x.live); }
+    expect(g).toBeDefined();
+    expect(g!.pos.x).toBeGreaterThan(2.0);
+    expect(g!.fuse!).toBeGreaterThan(1.0);
+  });
+});

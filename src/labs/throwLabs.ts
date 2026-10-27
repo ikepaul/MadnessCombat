@@ -58,7 +58,7 @@ const faceToPlayer = (world: World, a: Actor): 1 | -1 => ((world.player?.pos.x ?
   const e = enemies([{ x: 1.2, z: 9.2 }, { x: 1.7, z: 9.5 }, { x: 1.5, z: 8.8 }, { x: 2.8, z: 9.6 }], 2.5);
   registerLab({
     slug: 'throw-grenade',
-    title: `Hold G to pull the pin and cook (the pin drops), release to lob it to the floor point under the cursor (max 4 H). Fuse 1.1 s from the pin, blast 2 H: kills, gibs corpses close by (can't be raised), throws bodies ~1.5 H up, leaves a scorch (ep1 f1340-f1416). Cook too long and it goes off in your hand. ${CONTROLS}`,
+    title: `Hold G to pull the pin and cook (the pin drops), release to lob it to the floor point under the cursor (max 7 H for you, 4 H for enemies). Fuse 2.5 s from the pin (raised in the playtest so you can throw theirs back), blast 2 H: kills, gibs corpses close by (can't be raised), throws bodies ~1.5 H up, leaves a scorch (ep1 f1340-f1416). Cook too long and it goes off in your hand. ${CONTROLS}`,
     setup(world) {
       hero(world, -2.4, 9.2);
       e.setup(world);
