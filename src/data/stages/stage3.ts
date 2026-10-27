@@ -35,6 +35,32 @@ export const STREET: RoomDef = {
   doors: [], props: [], lamps: [], vents: [], boards: [], vending: { x: 2.6, z: 10.15 },
 };
 
+/** M12 rooms 7-8: the desert, which the walls turn into a sealed box. */
+export const DESERT: RoomDef = {
+  id: 's3-desert', halfWidth: 3.5, height: 3.6, zFront: 8, zBack: 10.4, outdoor: true, scene: 'desert',
+  doors: [], props: [], lamps: [], vents: [], boards: [],
+};
+/** Room 9: the vending room (blasted into through the left wall). */
+export const VENDING: RoomDef = {
+  id: 's3-vending', halfWidth: 3.6, height: 3.6, zFront: 8, zBack: 10.4, wallHole: 'left',
+  doors: [{ wall: 'right', z0: 8.6, z1: 9.35, height: 1.9, open: false }],
+  props: [{ kind: 'vending', x0: 2.2, x1: 3.0, z0: 9.85, z1: 10.3, top: 1.55 }],
+  lamps: [{ x: 0, z: 9.6, shadeY: 2.3, poolR: 1.3 }], vents: [], boards: [],
+};
+/** Room 10: the console room. */
+export const CONSOLE: RoomDef = {
+  id: 's3-console', halfWidth: 3.6, height: 3.8, zFront: 8, zBack: 10.67,
+  doors: [{ wall: 'left', z0: 8.6, z1: 9.35, height: 1.9, open: false }, { wall: 'right', z0: 8.6, z1: 9.35, height: 1.9, open: false }],
+  props: [{ kind: 'table', x0: -0.9, x1: 0.9, z0: 10.0, z1: 10.5, top: 0.75 }],
+  lamps: [{ x: 0, z: 9.8, shadeY: 2.5, poolR: 1.4 }], vents: [], boards: [{ x0: -2.2, x1: -0.4, y0: 1.2, y1: 2.3 }, { x0: 0.4, x1: 2.2, y0: 1.2, y1: 2.3 }],
+};
+/** Room 11: the final lift room. */
+export const LIFT: RoomDef = {
+  id: 's3-lift', halfWidth: 3.6, height: 3.8, zFront: 8, zBack: 10.67,
+  doors: [{ wall: 'left', z0: 8.6, z1: 9.35, height: 1.9, open: true }],
+  props: [], lamps: [{ x: 1.6, z: 9.9, shadeY: 2.5, poolR: 1.3 }], vents: [], boards: [],
+};
+
 const EAST = { x0: 3.15, x1: 9, z0: 0, z1: 99 };
 
 export const STAGE3: StageDef = {
@@ -78,12 +104,36 @@ export const STAGE3: StageDef = {
     street: {
       room: STREET,
       entries: { sky: { x: 0.2, z: 9.2, facing: 1, from: 'sky' } },
-      // on to the desert (M12): the end of the built stage for now
-      exits: [{ id: 'desert', kind: 'edge', ...EAST, to: null, entry: 'west', locked: true }],
+      exits: [{ id: 'desert', kind: 'edge', ...EAST, to: 'desert', entry: 'west', locked: true }],
       script: stage3Scripts.street,
+    },
+    desert: {
+      room: DESERT,
+      entries: { west: { x: -2.9, z: 9.2, facing: 1, from: 'walk' } },
+      // boss-halo clip 6: blasted through the box's wall into the next room
+      exits: [{ id: 'blast', kind: 'blasted', x0: 99, x1: 99, z0: 99, z1: 99, to: 'vending', entry: 'hole', locked: true }],
+      script: stage3Scripts.desert,
+    },
+    vending: {
+      room: VENDING,
+      entries: { hole: { x: -2.9, z: 9.2, facing: 1, from: 'thrown' } },
+      exits: [{ id: 'east-door', kind: 'door', x0: 3.25, x1: 9, z0: 8.55, z1: 9.4, to: 'console', entry: 'west', locked: true }],
+      script: stage3Scripts.vending,
+    },
+    console: {
+      room: CONSOLE,
+      entries: { west: { x: -2.9, z: 9.0, facing: 1, from: 'walk' } },
+      exits: [{ id: 'east-door', kind: 'door', x0: 3.25, x1: 9, z0: 8.55, z1: 9.4, to: 'lift', entry: 'west', locked: true }],
+      script: stage3Scripts.console,
+    },
+    lift: {
+      room: LIFT,
+      entries: { west: { x: -2.9, z: 9.0, facing: 1, from: 'walk' } },
+      exits: [],
+      script: stage3Scripts.lift,
     },
   },
 };
 
-export const STAGE3_ROOMS = ['outside', 'vent', 'tables', 'camera', 'street'] as const;
+export const STAGE3_ROOMS = ['outside', 'vent', 'tables', 'camera', 'street', 'desert', 'vending', 'console', 'lift'] as const;
 void EAST;

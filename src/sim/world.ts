@@ -12,6 +12,7 @@ import type { WaveDirector } from './waves';
 import { stepProps } from './cover';
 import { checkHatch, type ElevatorState, stepElevator } from './elevator';
 import { type Collapse, type FallingBlock, stepBlocks, stepCollapse } from './improbability';
+import { type LastStand, lastStandCommand, type LockWall, stepLastStand, stepLockWalls } from './arena';
 import { blastExit, checkExits, type ExitDef, type ExitState, skyLanding, stepTraversal, type Tracker } from './stage';
 import { Seq } from './sequencer';
 import { isBoss, stepBoss, stepSwept } from './boss';
@@ -58,6 +59,9 @@ export class World {
   exits: ExitState[] = [];
   exitTaken?: ExitDef;
   transition = false;
+  /** M12: the arena lock's walls and the last stand (src/sim/arena.ts). */
+  lockWalls: LockWall[] = [];
+  lastStand?: LastStand;
   /** M11: improbability mode (src/sim/improbability.ts), the arena collapse, falling blocks. */
   physics: 'normal' | 'improbable' = 'normal';
   collapse?: Collapse;
@@ -166,6 +170,8 @@ export class World {
     this.elevator = undefined;
     this.collapse = undefined;
     this.blocks = [];
+    this.lockWalls = [];
+    this.lastStand = undefined;
     this.resetDoors();
     this.events.emit('roomChanged', { roomId: room.id });
   }
@@ -228,6 +234,8 @@ export class World {
     stepElevator(this, this.dt);
     stepCollapse(this, this.dt);
     stepBlocks(this, this.dt);
+    stepLockWalls(this, this.dt);
+    stepLastStand(this, this.dt);
     this.director?.step(this, this.dt);
     this.stepDoors();
     this.events.emit('tick', { tick: this.tick });
@@ -237,7 +245,12 @@ export class World {
   private commandFor(a: Actor): PlayerCommand {
     const s = this.scripted.get(a.id);
     if (s) return s;
-    if (a.playerIndex !== undefined) return this.inputLocked ? IDLE_COMMAND : this.commands[a.playerIndex] ?? IDLE_COMMAND;
+    if (a.playerIndex !== undefined) {
+      if (this.inputLocked) return IDLE_COMMAND;
+      const c = this.commands[a.playerIndex] ?? IDLE_COMMAND;
+      // M12 the last stand: aim and fire only
+      return this.lastStand && !this.lastStand.done ? lastStandCommand(a, c) : c;
+    }
     return a.brain ? a.brain(a, this.dt) : IDLE_COMMAND;
   }
 

@@ -334,7 +334,9 @@ export function applyHit(
     // M11 the brute (~6 melee hits): every blow is one, bullets half, explosions three
     : o.variant === 'vending' ? (base >= 99 ? (kind === 'blast' ? 3 : o.hp) : kind === 'bullet' ? 0.5 : 1)
     : o.variant === 'bodyguard' ? (part === 'head' || base >= 99 ? o.hp : 1) : base + (combo ? C_.bonus : 0);
-  o.hp = Math.max(0, o.hp - damage);
+  // M12 boss-clown clip 4: the zombie mini-boss shrugs off most of it while he holds the sign
+  const taken = o.damageScale !== undefined && damage < 99 ? damage * o.damageScale : damage;
+  o.hp = Math.max(0, o.hp - taken);
   let killed = !corpse && o.hp <= 0;
   let dazedNow = false;
   // M10 world-interrogate-knockout: this one gets knocked silly instead (a melee blow), stars for ~5 s
@@ -549,6 +551,8 @@ export function stepFlight(world: World, a: Actor, dt: number): 'air' | 'skid' |
     if (room.outdoor) { /* open ground: the bounds just stop the body */ }
     else if (Math.abs(want.x) > lim && Math.abs(p.x - want.x) > 1e-6) wallImpact(world, a, want.x > 0 ? 'right' : 'left', Math.abs(f.vx));
     else if (want.z > room.zBack - TUNING.move.radius && Math.abs(p.z - want.z) > 1e-6) wallImpact(world, a, 'back', Math.abs(f.vz));
+    // M12 throw-catch-return: thrown into the vending machine (the glass goes, so does he)
+    if (f.thrownBy !== undefined && alive(a) && (Math.abs(p.x - want.x) > 1e-6 || Math.abs(p.z - want.z) > 1e-6)) vendingSmash(world, a, want);
     a.pos.x = p.x;
     a.pos.z = p.z;
     a.pos.y += f.vy * dt - 0.5 * GRAVITY * dt * dt;
@@ -605,6 +609,16 @@ function wallImpact(world: World, a: Actor, wall: 'left' | 'right' | 'back', spe
     f.hit.push(-1);
     applyHit(world, world.actorById(f.thrownBy), a, 'wall', -Math.sign(f.vx) || 1, 0, a.pos);
   }
+}
+
+/** A thrown body stopped by the vending machine smashes into it and dies. */
+function vendingSmash(world: World, a: Actor, want: { x: number; z: number }): void {
+  const R = TUNING.move.radius;
+  const v = world.room.props.find((p) => p.kind === 'vending' && !p.smashed && want.x > p.x0 - R && want.x < p.x1 + R && want.z > p.z0 - R && want.z < p.z1 + R);
+  if (!v || v.kind !== 'vending') return;
+  v.smashed = true;
+  world.events.emit('vendingSmash', { actorId: a.id, ...a.pos });
+  applyHit(world, world.actorById(a.flight!.thrownBy!), a, 'wall', -Math.sign(a.flight!.vx) || 1, 0, { ...a.pos });
 }
 
 /** A thrown body knocks down whoever it hits (melee-grab-throw). */

@@ -81,6 +81,8 @@ export interface Pose {
   dazed?: boolean;
   /** M10: hands up. */
   handsUp?: boolean;
+  /** M12: the boss has his sword out (the dive, the stab). */
+  sword?: boolean;
   /** M11: the twin-tank jetpack on the mini-boss's back (flames while hovering). */
   jetpack?: boolean;
   /** M10 enemy-welder: cutting (sparks, the torch). */
@@ -253,6 +255,8 @@ export interface Actor {
   catchAt?: number;
   /** Hits absorbed while held as a human shield (combat-human-shield). */
   shieldHits?: number;
+  /** M12: share of the damage this one actually takes (the zombie mini-boss holding the sign: 0.1). */
+  damageScale?: number;
   /** M11: stuck head-first in the ceiling (improbability mode). */
   ceilingStuck?: boolean;
   /** M11: falling into the void after the arena collapse (seconds so far). */

@@ -12,6 +12,7 @@ import { openExit, takeExit } from '../../sim/stage';
 import type { RoomScript, SpawnOpts, WaveEntry } from '../../sim/waves';
 import type { World } from '../../sim/world';
 import { raiseCorpse } from '../../sim/zombies';
+import { stage3LateScripts } from './stage3Late';
 
 const dead = (a: Actor) => a.state === 'dead';
 const unaware = (opts: Partial<SpawnOpts> = {}): SpawnOpts => ({ aware: false, idle: 'stand', ...opts });
@@ -291,4 +292,4 @@ function* street(s: Seq, _entry: string): Beat {
 
 void overVoid;
 void newHand;
-export const stage3Scripts = { outside, vent, tables, camera, street };
+export const stage3Scripts = { outside, vent, tables, camera, street, ...stage3LateScripts };

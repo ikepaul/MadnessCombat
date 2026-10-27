@@ -50,6 +50,35 @@ export const TUNING = {
   },
 
   /** Hit points. research/design-decisions.md: grunts die from 1 good hit, the player survives ~3. */
+  /** M12 world-arena-lock (src/sim/arena.ts). */
+  arenaLock: {
+    /** Shadow before each wall comes down (s): the note's ~0.5 s. */
+    shadow: 0.55,
+    height: 7,
+    fallSpeed: 18,
+    /** Standing this close to a wall's line when it lands = crushed (H). invented */
+    crushBand: 0.45,
+    /** Between one wall landing and the next one's shadow (s). invented */
+    gap: 0.7,
+  },
+  /** M12 world-last-stand. */
+  lastStand: {
+    /** Aim and fire for ~5 s (decided: playable last stand). */
+    seconds: 5,
+    /** The boss and the target each go down to this many hits here. invented */
+    bossHits: 2,
+  },
+  /** M12 boss-halo clips 6-7: the sword dive and the teleport. invented */
+  duel: {
+    /** Rising with the sword before the dive (the telegraph), the dive itself, the pause after (s). */
+    windup: 0.6,
+    dive: 0.32,
+    recover: 1.1,
+    /** Bullet hits that make him teleport away. */
+    hitsToTeleport: 3,
+    /** boss-clown clip 4: the zombie mini-boss with the sign takes 10% damage until it's out of his hands. */
+    signArmour: 0.1,
+  },
   /** M11 world-improbability-mode (src/sim/improbability.ts). */
   improbability: {
     /** Knockback x2.3-2.5: a punch sends a body ~9 H/s vs ~4 normally (ep3 f2385-f2404). */

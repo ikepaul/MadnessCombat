@@ -167,6 +167,18 @@ export interface GameEvents {
   shove: At & { targetId: number };
   /** The vending machine at the back comes alive. */
   bruteWake: { x: number; y: number; z: number };
+  // M12: the desert box, the duel, the last stand
+  wallDrop: { side: 'right' | 'back' | 'left'; phase: 'shadow' | 'land' };
+  /** The blood flood spreading over the sealed arena's floor (cosmetic). */
+  bloodFlood: { x: number; z: number };
+  swordDive: At & { phase: 'windup' | 'dive' | 'hit' };
+  teleport: At;
+  /** The boss's wall blast: the wall gives way where you hit it. */
+  wallBlast: { x: number; y: number; z: number };
+  /** Thrown into the vending machine: glass and cans everywhere. */
+  vendingSmash: At;
+  stab: At & { targetId: number };
+  lastStand: { phase: 'start' | 'end' };
   /** The target ran out of the room (boss-target). */
   targetFled: At;
   /** Lightning telegraph: his hand goes up toward a corpse (the bolt follows after TUNING.boss.castTime). */
