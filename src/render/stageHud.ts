@@ -21,6 +21,9 @@ export class StageHud {
     this.radar = scene.add.graphics().setDepth(60);
     this.wipe = scene.add.graphics().setDepth(95);
     world.events.on('roomTransition', (e) => (this.phase = { kind: e.phase, t0: world.time }));
+    // a new room is there: if the wipe is still covering the screen, uncover it (co-op guests can
+    // miss the 'in' event; never leave the screen black)
+    world.events.on('roomChanged', () => { if (this.phase?.kind === 'out') this.phase = { kind: 'in', t0: world.time }; });
   }
 
   update(): void {
