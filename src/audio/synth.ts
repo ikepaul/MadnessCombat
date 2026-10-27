@@ -15,8 +15,7 @@ export type Recipe =
   // M9
   | 'cityLoop' | 'wipe' | 'rungs'
   // M8 boss
-  | 'crackle' | 'thunder' | 'rumble' | 'wardHum' | 'ricochet' | 'cannonBoom' | 'fallWhistle' | 'heavyLand' | 'telekinesis'
-  | 'radioLoop';
+  | 'crackle' | 'thunder' | 'rumble' | 'wardHum' | 'ricochet' | 'cannonBoom' | 'fallWhistle' | 'heavyLand' | 'telekinesis';
 
 /** Seeded RNG (mulberry32) so variants are stable between runs. */
 function rng(seed: number): () => number {
@@ -424,20 +423,6 @@ export function render(recipe: Recipe, sr: number, seed: number): Float32Array {
       noise(b, r, (t) => 3000 * Math.exp(-t * 8) + 150, swell(0.05, 0.35), 0.8, 60);
       tone(b, (t) => 220 * Math.exp(-t * 6), swell(0.03, 0.35), 0.5);
       return normalise(b.d, 0.5);
-    }
-    case 'radioLoop': {
-      // the boombox until the user's tune arrives: a small speaker between stations. Hiss through a
-      // narrow band, a faint carrier whine, crackles. An ambience, not music (no placeholder music).
-      const b = new Buf(sr, 6.5);
-      noise(b, r, (t) => 2400 + 600 * Math.sin(t * 1.7), (t) => 0.5 + 0.25 * Math.sin(t * 0.9) ** 2, 1, 600);
-      tone(b, (t) => 1150 + 40 * Math.sin(t * 0.6), (t) => 0.06 + 0.05 * Math.sin(t * 0.45) ** 2, 1);
-      tone(b, () => 100, () => 0.08, 1);
-      const len = Math.round(sr * 0.012);
-      for (let k = 0; k < 40; k++) {
-        const i0 = Math.floor(r() * (b.n - len)), g = 0.3 + r() * 0.7;
-        for (let i = 0; i < len; i++) b.d[i0 + i] += (r() * 2 - 1) * g * Math.exp(-i / (sr * 0.002));
-      }
-      return normalise(bandpass(loopable(b.d, sr), sr, 1800, 0.7), 0.3);
     }
     case 'cityLoop': {
       // stage 2 night streets and rooftops: a low traffic rumble, a soft wind and far-off hum, 9 s loop

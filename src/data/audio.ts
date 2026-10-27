@@ -98,8 +98,6 @@ export const SOUNDS = {
   fallWhistle: def('fallWhistle', 'world', 0.6, { variants: 1, limit: 1, reverb: 0.2 }),
   heavyLand: def('heavyLand', 'impacts', 1, { variants: 2, limit: 1, reverb: 0.5 }),
   telekinesis: def('telekinesis', 'weapons', 0.8, { variants: 2, limit: 1, reverb: 0.3 }),
-  /** M8: the boombox's speaker until the user's tune is delivered (on the music bus: the music volume applies). */
-  boomboxStatic: def('radioLoop', 'music', 0.45, { variants: 1, limit: 1, reverb: 0.3, loop: true }),
   // M9: stage 2 (generated)
   ambCity: def('cityLoop', 'world', 0.3, { variants: 1, limit: 1, reverb: 0, loop: true }),
   wipe: def('wipe', 'ui', 0.5, { variants: 1, limit: 1, reverb: 0 }),

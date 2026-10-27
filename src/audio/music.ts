@@ -25,7 +25,7 @@ const decoded = new Map<string, Promise<AudioBuffer>>();
 
 /**
  * M8: the room's boombox tune (`diegetic` in cues.json), decoded once; undefined until the user's
- * file is delivered (the boombox plays radio static meanwhile).
+ * file is delivered (the boombox stays silent meanwhile).
  */
 export function diegeticTrack(engine: AudioEngine, roomId: string): Promise<AudioBuffer> | undefined {
   const id = CUES.rooms[roomId]?.diegetic, track = id ? CUES.tracks[id] : undefined;
