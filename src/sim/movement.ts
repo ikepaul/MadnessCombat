@@ -4,7 +4,7 @@ import { aboutFeet } from '../anim/skeleton';
 import { GRAVITY, JUMP_V0, TUNING } from '../data/tuning';
 import { project } from '../render/camera';
 import { type Actor, alive } from './actor';
-import { clamp, moveWithCollision, surfaceBelow } from './collision';
+import { clamp, moveWithCollision, STAIR_STEP, stairHeight, surfaceBelow } from './collision';
 import type { PlayerCommand } from './command';
 import type { World } from './world';
 
@@ -228,6 +228,9 @@ function walkHorizontal(world: World, a: Actor, dt: number): void {
   const p = moveWithCollision(world.room, a.pos.x, a.pos.z, a.body.vel.x * dt, a.body.vel.z * dt, a.pos.y, a.entering);
   a.pos.x = p.x;
   a.pos.z = p.z;
+  // M14 move-stairs: feet on a staircase follow its ramp, up or down
+  const sh = a.body.state !== 'air' ? stairHeight(world.room, a.pos.x, a.pos.z) : undefined;
+  if (sh !== undefined && Math.abs(sh - a.pos.y) <= STAIR_STEP) a.pos.y = sh;
   // walked in from off-screen or through a door: the room bounds apply from now on
   if (a.entering && Math.abs(a.pos.x) <= world.room.halfWidth - MOVE.radius) a.entering = false;
 }

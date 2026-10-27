@@ -4,7 +4,7 @@
 import { afterKill, gibCorpse, goreKill } from './gore';
 import { aboutFeet, lyingAt, rootToWorld, STANDING } from '../anim/skeleton';
 import { GRAVITY, TUNING } from '../data/tuning';
-import { DISARM, GRENADE, MELEE, SHIELD } from '../data/melee';
+import { DISARM, GRENADE, GUARD, isMelee, MELEE, SHIELD } from '../data/melee';
 import { GUNS, isWeapon, WEAPONS } from '../data/weapons';
 import { stepHands } from './guns';
 import { blastFlight } from './explosives';
@@ -15,7 +15,7 @@ import { bossHit } from './boss';
 import { ACTION_KINDS, actionTiming, disarm, dropCooking, faceCursor, holdsLong, lobHeldGrenade, startAction, startMeleeAction, stealTarget, stepAction, stepGrenade } from './melee';
 import { project, unprojectFloor } from '../render/camera';
 import { type Actor, type AttackKind, alive, type Flight } from './actor';
-import { clamp, moveWithCollision, surfaceBelow } from './collision';
+import { clamp, moveWithCollision, stairHeight, stairsAt, surfaceBelow } from './collision';
 import type { PlayerCommand } from './command';
 import { type HitKind, MELEE_KINDS } from './events';
 import { circleHits } from './hurtbox';
@@ -36,6 +36,9 @@ export function attackTiming(kind: AttackKind, weapon?: string): { startup: numb
   if (ACTION_KINDS.includes(kind)) return actionTiming(kind, weapon);
   return M[kind as 'light' | 'heavy' | 'uppercut' | 'finisher'];
 }
+
+/** M14 move-stairs: a body slides down a staircase this fast (H/s). invented */
+const STAIR_SLIDE = 2;
 
 /** Revamp A6: a hit reaction plays out over this long (s). invented */
 export const REACT_LIFE = 0.6;
@@ -65,6 +68,7 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
     // M10b: RMB spent on an over-the-shoulder shot doesn't also throw a heavy punch
     if (stepHands(world, a, cmd, dt)) cmd = { ...cmd, attack: null };
     stepGrenade(world, a, cmd, dt);
+    cmd = stepGuard(world, a, cmd);
   }
 
   switch (a.state) {
@@ -169,6 +173,47 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
   // the painter reads what each hand holds from the pose
   a.pose.held = a.hands[0]?.item ?? null;
   a.pose.heldB = a.hands[1]?.item ?? null;
+}
+
+/** M14 melee-blade-deflect: a sword-class blade in the front hand with the back hand free guards on RMB. */
+function guardBlade(a: Actor): boolean {
+  const h = a.hands[0];
+  return !!h && isMelee(h.item) && !!MELEE[h.item].guard && !a.hands[1];
+}
+
+/** Holding RMB with a guard blade, on the ground and free: the guard is up (and RMB never punches). */
+function stepGuard(world: World, a: Actor, cmd: PlayerCommand): PlayerCommand {
+  const blade = guardBlade(a);
+  const on = blade && a.state === 'free' && a.body.state === 'ground' && !!cmd.hold?.[1];
+  if (on && !a.guard) a.guard = { since: world.time, n: 0 };
+  if (!on) a.guard = undefined;
+  a.pose.guard = on || undefined;
+  if (on) a.walkFactor = Math.min(a.walkFactor ?? 1, GUARD.walk);
+  return blade && (cmd.attack === 'heavy' || cmd.attack === 'uppercut') ? { ...cmd, attack: null } : cmd;
+}
+
+/** Blows a sword guard turns: bullets, blades, clubs, thrown blades. */
+const GUARDED: HitKind[] = ['bullet', 'slash', 'stab', 'smash', 'knife'];
+
+/**
+ * A blow from the front meets the guard: right after the guard went up it's a parry (a bullet
+ * goes back into the shooter, a blade attacker is stunned); otherwise it's deflected, except every
+ * GUARD.leakEvery-th one, which gets through (returns false: the hit lands as usual).
+ */
+function guardHit(world: World, o: Actor, by: Actor, kind: HitKind, at: { x: number; y: number; z: number }, bullet?: { damage: number; pointBlank: boolean }): boolean {
+  const g = o.guard!;
+  if (world.time - g.since <= GUARD.parryWindow + 1e-6) {
+    g.since = -Infinity; // one parry per raise
+    world.events.emit('block', { actorId: o.id, byId: by.id, how: 'parry', ...at });
+    const dir = Math.sign(by.pos.x - o.pos.x) || 1;
+    if (kind === 'bullet' && bullet) applyHit(world, o, by, 'bullet', dir, 0, { x: by.pos.x, y: by.pos.y + 0.6, z: by.pos.z }, 'body', false, { damage: bullet.damage, pointBlank: false });
+    else if (alive(by)) { by.attack = undefined; by.state = 'stun'; by.stateT = 0; by.stunFor = H.stun; by.pose.lean = -0.3; setClip(by, 'stun'); }
+    return true;
+  }
+  g.n++;
+  if (g.n % GUARD.leakEvery === 0) return false;
+  world.events.emit('block', { actorId: o.id, byId: by.id, how: 'deflect', ...at });
+  return true;
 }
 
 /** LMB punches only with an empty front hand, RMB only with an empty back hand. */
@@ -364,6 +409,8 @@ export function applyHit(
   if (o.grabbedBy !== undefined && by?.id !== o.grabbedBy && world.actorById(o.grabbedBy)?.kind === 'boss' && kind !== 'blast') return;
   // combat-human-shield: a body held up as a shield takes what was meant for its holder
   if (o.grabbedBy !== undefined && by?.id !== o.grabbedBy && kind !== 'blast') { shieldHit(world, by, o, kind, at, part); return; }
+  // M14 melee-blade-deflect: a raised sword turns bullets and blades coming from the front
+  if (o.guard && by && GUARDED.includes(kind) && Math.sign(by.pos.x - o.pos.x) === o.facing && guardHit(world, o, by, kind, at, bullet)) return;
   const corpse = o.state === 'dead';
   const base = bullet ? bullet.damage : kind === 'gun' && part === 'head' ? GUNS.throwHead : kind === 'finisher' && heavy ? M.finisher.heavyDamage : DAMAGE[kind];
   // M10b: a launched grunt in the air (being juggled), and the uppercut that launches a stunned one
@@ -373,7 +420,8 @@ export function applyHit(
   let damage = corpse || base <= 0 || (o.protected && kind !== 'pin') ? 0 : o.kind === 'hero' ? 1 : o.kind === 'zombie' ? zombieDamage(kind, base)
     // M11 the brute (~6 melee hits): every blow is one, bullets half, explosions three
     : o.variant === 'vending' ? (base >= 99 ? (kind === 'blast' ? 3 : o.hp) : kind === 'bullet' ? 0.5 : 1)
-    : o.variant === 'bodyguard' ? (part === 'head' || base >= 99 ? o.hp : 1) : base + (combo ? C_.bonus : 0);
+    : o.variant === 'bodyguard' ? (part === 'head' || base >= 99 ? o.hp : 1)
+    : o.variant === 'agent' ? agentDamage(o, kind, base, combo) : base + (combo ? C_.bonus : 0);
   // the launcher sends him up alive; jabs only keep him up (the heavy that follows finishes it)
   if (launcher) damage = J.launchDamage;
   else if (juggled && kind === 'light') damage = 0;
@@ -452,6 +500,12 @@ export function applyHit(
   switch ((airborne && kind === 'light') || dazedNow ? 'heavy' : gunToHead ? 'light' : kind) {
     case 'light':
     case 'stab':
+      // M14 enemy-agent: jabs don't stun him (and the first of a chain is blocked)
+      if (o.variant === 'agent' && kind === 'light') {
+        o.pose.lean = -0.12;
+        if (damage === 0) world.events.emit('block', { actorId: o.id, byId: by?.id ?? 0, ...at });
+        break;
+      }
       // enemy-zombie: light hits only make a zombie twitch
       if (o.kind === 'zombie') { o.state = 'stun'; o.stateT = 0; o.stunFor = TUNING.zombie.flinch; o.pose.lean = -0.2; setClip(o, 'stun'); break; }
       // combat-disarm: a punch knocks the weapon away 30% of the time (kicks and sweeps always: knockdowns drop it)
@@ -505,6 +559,16 @@ function chainBonus(world: World, by: Actor | undefined, o: Actor, kind: HitKind
   }
   const n = o.chain!.count;
   return n >= 3 || (n === 2 && (kind === 'heavy' || kind === 'uppercut') && (prev === 'light' || prev === 'gun'));
+}
+
+/**
+ * M14 enemy-agent: he blocks the first jab of a chain (it does nothing), blunt weapons hit him
+ * twice as hard; everything else as usual on his 12 hp. invented
+ */
+function agentDamage(o: Actor, kind: HitKind, base: number, combo: boolean): number {
+  if (kind === 'light' && (o.chain?.count ?? 1) <= 1) return 0;
+  if (kind === 'smash') return base * TUNING.ai.agent.bluntScale;
+  return base + (combo ? C_.bonus : 0);
 }
 
 const HEAD_KINDS: HitKind[] = ['light', 'heavy', 'uppercut', 'head'];
@@ -1100,12 +1164,23 @@ function stepCorpse(world: World, a: Actor, dt: number): void {
     case 'tumble':
       if (!a.flight || stepFlight(world, a, dt) === 'stopped') settle(world, a);
       break;
-    case 'settled':
+    case 'settled': {
+      // M14 move-stairs: a body on a staircase slides down to its low end before it lies still
+      const st = stairsAt(world.room, a.pos.x, a.pos.z);
+      const low = st ? (st.y0 < st.y1 ? st.x0 : st.x1) : 0;
+      if (st && Math.abs(a.pos.x - low) > 0.02) {
+        a.pos.x += Math.sign(low - a.pos.x) * Math.min(Math.abs(low - a.pos.x), STAIR_SLIDE * dt);
+        a.pos.y = stairHeight(world.room, a.pos.x, a.pos.z) ?? a.pos.y;
+        a.pose.groundY = a.pos.y;
+        c.t = 0;
+        break;
+      }
       if (reached(c.t, C.freezeDelay)) {
         c.phase = 'frozen';
         world.events.emit('corpseFrozen', { actorId: a.id });
       }
       break;
+    }
     case 'frozen':
       break;
   }

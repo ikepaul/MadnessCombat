@@ -26,6 +26,8 @@ export interface Hand {
   clicked: boolean;
   /** Extreme gore: a blade or club with blood on it. */
   bloody?: boolean;
+  /** M14 gun-fire-mode: a rifle switched to single shot (one round per click, tighter spread). */
+  semi?: boolean;
 }
 
 /** A full hand for `item`: guns come loaded with one spare magazine. */
@@ -82,6 +84,8 @@ export interface Pose {
   prevT?: number;
   /** Revamp A6: a hit reaction layered on top of the clip (head snaps back, body folds, pitched forward from behind). */
   react?: { part: 'head' | 'body' | 'back'; age: number; v: number };
+  /** M14 melee-blade-deflect: the sword held up as a guard (drawn diagonally in front). */
+  guard?: boolean;
   /** Revamp A7: how this body dies (knees-first drop, flung spin, clutching crumple); undefined = the plain tumble. */
   death?: 'drop' | 'fling' | 'crumple';
   /** Whole-body transform (lying, prone, spin, squash). */
@@ -256,6 +260,8 @@ export interface Actor {
   chain?: { by: number; count: number; t: number; last: string };
   /** Walk speed factor this tick (the machine gun slows you while firing). */
   walkFactor?: number;
+  /** M14 melee-blade-deflect: guarding since (world time), blows turned so far. */
+  guard?: { since: number; n: number };
   /** Hand 0 (front, LMB) and hand 1 (back, RMB). */
   hands: [Hand | null, Hand | null];
   /** Length of the current stun (s). */
@@ -307,7 +313,7 @@ export interface Actor {
   /** M11 move-fall-transition: falling in from the sky (lands face down). */
   skyFall?: boolean;
   /** M7 grunt variants: squad leader (shades, gun), elite bodyguard (2 hits, headshot 1), the VIP they guard. */
-  variant?: 'leader' | 'bodyguard' | 'vip' | 'riot' | 'target' | 'welder' | 'vending' | NpcVariant;
+  variant?: 'leader' | 'bodyguard' | 'vip' | 'riot' | 'target' | 'welder' | 'vending' | 'agent' | NpcVariant;
   /** M8: something carried that isn't a weapon (the boombox NPC's boombox), drawn at the front hand. */
   carry?: 'boombox';
   /** Being taken down (stealth kill) by this actor: held still until the kill (M7). */

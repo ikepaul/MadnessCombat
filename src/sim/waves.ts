@@ -24,6 +24,8 @@ export interface SpawnOpts {
   idle?: AiState['idle'];
   patrol?: [number, number];
   face?: 1 | -1;
+  /** M14 world-crowd-dancefloor: grunts with the same crowd name are alerted together. */
+  crowd?: string;
   /** M8: a job instead of the usual fight (wave B's cannoneer). */
   role?: AiState['role'];
 }
@@ -165,10 +167,17 @@ export function applySpawnOpts(world: World, a: Actor, opts: SpawnOpts): void {
   const ai = a.ai!;
   a.variant = opts.variant;
   ai.role = opts.role;
+  ai.crowd = opts.crowd;
   // enemy-elite-bodyguard: 2 hits (a head shot: 1)
   if (opts.variant === 'bodyguard') a.hp = a.maxHp = TUNING.ai.bodyguardHits;
   // M9 the mini-boss (riot helmet): tougher than a grunt; the steal is the way in (boss-clown)
   if (opts.variant === 'riot') a.hp = a.maxHp = TUNING.ai.riotHp;
+  // M14 enemy-agent: three head shots
+  if (opts.variant === 'agent') {
+    a.hp = a.maxHp = TUNING.ai.agent.hp;
+    // the pistol rides in the back hand, so the front hand is free for his jabs
+    if (a.hands[0] && !a.hands[1]) { a.hands[1] = a.hands[0]; a.hands[0] = null; a.pose.heldB = a.pose.held; a.pose.held = null; }
+  }
   if (opts.aware === false) {
     ai.aware = false;
     ai.idle = opts.idle ?? 'stand';

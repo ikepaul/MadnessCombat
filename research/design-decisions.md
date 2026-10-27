@@ -56,6 +56,12 @@ Decisions taken with the user while researching (2026-10-26). The mechanic notes
 - **Juggles**: grunts only. Zombies shrug off the launcher.
 - **Co-op combos** (shared chains, hand-off juggles, double-teams, weapon passes): later, with M13. In M10b chains stay per attacker; both players can use every move.
 
+## Decided for stage 4 (2026-10-27, with the user)
+- **Ending**: you have to **win** the duel. When the boss's health runs out he grabs the hero as he falls ("takes you with him"); the hero sets off his grenade and the blast kills both, then the end card. Losing the duel is an ordinary death (the room restarts), so there's no reason to lose on purpose. Replaces the detonator-while-downed proposal.
+- **The DJ (our clown) is a mini-boss fight**: after the crowd he fights and can be killed (not the episode's untouchable non-combatant). His fight is designed in M16; his look in the M14 design pass.
+- **Fire-mode key**: **B**, its own rebindable key; R stays reload only.
+- **Sword guard**: **hold RMB** with a sword-class weapon (sword, katana, scimitar); long weapons keep RMB = thrust.
+- The show's on-screen gag text is not copied; by default there is none (no answer yet on an own gag).
+
 ## Still open (to ask later)
-- Stage 4 (before M14): the **ending**: the show's mutual kill with a detonator (proposal: hold E while downed in the final duel; not detonating restarts the room), or a different finish? Does the DJ (our clown) stay a non-combatant who survives? Fire-mode key: R with a full magazine, or its own key? Sword guard on RMB (thrust stays on long weapons only)? The show's on-screen gag HUD text is not copied: our own gag, or none?
 - Pistol-whip (gun-butt hit at contact range): its own key (F with a gun in hand) or automatic? Not in the M10b slice.

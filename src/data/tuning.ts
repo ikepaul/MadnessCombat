@@ -198,6 +198,8 @@ export const TUNING = {
   },
   /** M7 zombies (enemy-zombie). */
   zombie: {
+    /** M14: an armed zombie (ep4's raised agent with a rifle) aims this long before it fires (s). invented */
+    gunTelegraph: 0.6,
     /** enemy-zombie: bolt -> standing ~1.0 s (ep1 f1485-f1520). */
     rise: 1.0,
     /** enemy-zombie: walk 0.7-0.9 H/s (ep1 f1525-f1555), as a share of the calm walk (zombies never combat-walk). */
@@ -223,7 +225,8 @@ export const TUNING = {
     leaveSpeed: 6,
     /** M9 boss-halo clip 5: the fling covers ~3.6 H in ~0.33 s (ep2): 3.0 in the air + the skid. Wind-up and mass raise (s). */
     fling: { distance: 3.0, airtime: 0.33, windup: 0.35 },
-    massRaise: { max: 8, cast: 0.6 },
+    /** `club` = the stage 4 club's whole-room raise (ep4 2:34, wiki 19 zombies). */
+    massRaise: { max: 8, cast: 0.6, club: 19 },
     /** Hover height under his feet and its bob (H, s). style frame, invented */
     hover: 0.14,
     hoverBob: 0.03,
@@ -516,6 +519,17 @@ export const TUNING = {
     bodyguardHits: 2,
     /** M9 boss-clown: the riot-helmet mini-boss takes 2 rifle head shots or 4 to the body. invented */
     riotHp: 8,
+    /**
+     * M14 enemy-agent: survives at least two head wounds (ep4 1:15-1:16), so 12 hp = 3 head shots;
+     * fights hand to hand inside `closeRange` (H), the heavy pistol beyond; blunt weapons hit him
+     * twice as hard (the episode's baton kill). All invented.
+     */
+    agent: { hp: 12, closeRange: 3, bluntScale: 2 },
+    /**
+     * M14 world-crowd-dancefloor: a crowd's grunts without an attack token wait closer in than the
+     * usual ring and shove (no damage) when right next to the player. All invented.
+     */
+    crowd: { ring: 0.8, shoveRange: 0.75, shove: 0.3, shoveEvery: [1.2, 2.2] as const },
     /** M7 ranged grunts (enemy-grunt-armed). */
     ranged: {
       /** Keep this far from the player in x (H): pistols/rifles, and shotguns (close range). invented within the note's 3-5 H */

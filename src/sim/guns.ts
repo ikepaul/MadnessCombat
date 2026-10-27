@@ -106,6 +106,7 @@ export function stepHands(world: World, a: Actor, cmd: PlayerCommand, dt: number
       backShot = true;
     }
   }
+  if (cmd.fireMode) switchFireMode(world, a);
   for (const i of [0, 1] as const) {
     const g = gunIn(a.hands[i]);
     if (!g) continue;
@@ -123,7 +124,7 @@ export function stepHands(world: World, a: Actor, cmd: PlayerCommand, dt: number
     const pressed = !!cmd.press?.[i] && !(backShot && i === 1), held = !!cmd.hold?.[i] && !(backShot && i === 1);
     if (h.ammo > 0) {
       // (tolerance: summing 1/60 s ticks drifts, and the measured SMG rate is exactly 6 ticks)
-      if ((w.auto ? held || pressed : pressed) && h.cooldown <= 1e-6 && canShoot(a)) fire(world, a, i, h, w, dual);
+      if ((w.auto && !h.semi ? held || pressed : pressed) && h.cooldown <= 1e-6 && canShoot(a)) fire(world, a, i, h, w, dual);
       if (held && w.firingWalk < 1) a.walkFactor = w.firingWalk;
     } else if (pressed) {
       // gun-empty-throw: one dry click, then the next press throws the gun
@@ -169,7 +170,7 @@ function fire(world: World, a: Actor, i: 0 | 1, h: Hand, w: WeaponDef, dual: boo
   a.pose.kick![i] = w.recoil;
   // the barrel's direction on screen (local angle, mirrored to the facing side)
   const base = Math.atan2(Math.sin(rig.angle), Math.cos(rig.angle) * a.facing);
-  const spread = ((w.spread * (dual && !w.oneHanded ? GUNS.dualLongSpread : 1)) * Math.PI) / 180;
+  const spread = ((w.spread * (dual && !w.oneHanded ? GUNS.dualLongSpread : 1) * (h.semi ? GUNS.semiSpread : 1)) * Math.PI) / 180;
   const rays: ShotRay[] = [];
   // no friendly fire (invented); your own human shield doesn't stop your shots
   const skip = (o: Actor) => o === a || o.grabbedBy === a.id || (a.playerIndex !== undefined && o.playerIndex !== undefined);
@@ -290,7 +291,20 @@ function pickUp(world: World, a: Actor, pressed: boolean, cmd: PlayerCommand): v
     a.hands[i] = null;
   }
   a.hands[slot] = newHand(it.kind as Exclude<typeof it.kind, 'head'>, it.ammo, it.spare);
+  // M14 gun-fire-mode: a rifle a player picks up starts on single shot (B for full auto)
+  if (a.playerIndex !== undefined && isWeapon(it.kind) && WEAPONS[it.kind].modes) a.hands[slot]!.semi = true;
   world.events.emit('pickup', { actorId: a.id, itemId: it.id, hand: slot, item: it.kind, ...a.pos });
+}
+
+/** M14 gun-fire-mode: B flips the selector on the first hand holding a gun that has one (front hand first). */
+function switchFireMode(world: World, a: Actor): void {
+  for (const i of [0, 1] as const) {
+    const g = gunIn(a.hands[i]);
+    if (!g || !g.w.modes) continue;
+    g.h.semi = !g.h.semi;
+    world.events.emit('fireMode', { actorId: a.id, hand: i, weapon: g.w.id, semi: g.h.semi, ...a.pos });
+    return;
+  }
 }
 
 const isLong = (a: Actor) => { const h = a.hands[0]; return !!h && isMelee(h.item) && MELEE[h.item].twoHanded; };

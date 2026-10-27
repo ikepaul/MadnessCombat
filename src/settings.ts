@@ -4,18 +4,18 @@
 import type { EffectIntensity } from './data/feel';
 
 /** Rebindable actions (M13 settings); mouse buttons stay LMB / RMB. */
-export type Action = 'up' | 'down' | 'left' | 'right' | 'jump' | 'dive' | 'grab' | 'use' | 'reload' | 'throw' | 'grenade' | 'split';
+export type Action = 'up' | 'down' | 'left' | 'right' | 'jump' | 'dive' | 'grab' | 'use' | 'reload' | 'throw' | 'grenade' | 'split' | 'fireMode';
 
 export const ACTION_LABELS: Record<Action, string> = {
   up: 'Move back (depth)', down: 'Move forward (depth)', left: 'Move left', right: 'Move right', jump: 'Jump',
   dive: 'Dive / prone', grab: 'Grab / throw / catch', use: 'Pick up / use / takedown', reload: 'Reload',
-  throw: 'Throw held weapon', grenade: 'Grenade (hold)', split: 'Split aim (hold)',
+  throw: 'Throw held weapon', grenade: 'Grenade (hold)', split: 'Split aim (hold)', fireMode: 'Fire mode (rifles)',
 };
 
 /** Phaser key names (Phaser.Input.Keyboard.KeyCodes). */
 export const DEFAULT_KEYS: Record<Action, string> = {
   up: 'W', down: 'S', left: 'A', right: 'D', jump: 'SPACE', dive: 'CTRL', grab: 'F', use: 'E',
-  reload: 'R', throw: 'Q', grenade: 'G', split: 'SHIFT',
+  reload: 'R', throw: 'Q', grenade: 'G', split: 'SHIFT', fireMode: 'B',
 };
 
 export type FriendlyFire = 'damage' | 'knockdown' | 'through';

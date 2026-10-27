@@ -19,9 +19,9 @@
 </head>
 <body>
 <header>
-  <div class="group"><span>View</span><button data-k="view" data-v="scene" class="on">Scene</button><button data-k="view" data-v="sheet">Character sheet</button><button data-k="view" data-v="cast1">Stage 1 cast</button><button data-k="view" data-v="cast2">Stage 2 cast</button><button data-k="view" data-v="cast3">Stage 3 cast</button></div>
+  <div class="group"><span>View</span><button data-k="view" data-v="scene" class="on">Scene</button><button data-k="view" data-v="sheet">Character sheet</button><button data-k="view" data-v="cast1">Stage 1 cast</button><button data-k="view" data-v="cast2">Stage 2 cast</button><button data-k="view" data-v="cast3">Stage 3 cast</button><button data-k="view" data-v="cast4">Stage 4 cast</button></div>
   <div class="group"><span>Face</span><button data-k="face" data-v="slit" class="on">A · slit</button><button data-k="face" data-v="dots">B · dots</button><button data-k="face" data-v="blank">C · blank</button></div>
-  <div class="group"><span>Palette</span><button data-k="palette" data-v="neutral" class="on">Stage 1 · neutral</button><button data-k="palette" data-v="cool">Stage 2 · cool</button><button data-k="palette" data-v="warm">Stage 3 · warm</button></div>
+  <div class="group"><span>Palette</span><button data-k="palette" data-v="neutral" class="on">Stage 1 · neutral</button><button data-k="palette" data-v="cool">Stage 2 · cool</button><button data-k="palette" data-v="warm">Stage 3 · warm</button><button data-k="palette" data-v="night">Stage 4 · night</button></div>
   <div class="group"><span>FX</span><button data-k="fx" data-v="heavy" class="on">Heavy</button><button data-k="fx" data-v="subtle">Subtle</button><button data-k="fx" data-v="off">Off</button></div>
   <div class="group"><span>Overlay</span><button data-k="grid" data-v="off" class="on">Off</button><button data-k="grid" data-v="on">H grid</button></div>
   <div class="group"><span>Time</span><button data-k="speed" data-v="1" class="on">1×</button><button data-k="speed" data-v="0.25">0.25×</button><button data-k="speed" data-v="0">Pause</button></div>
@@ -47,6 +47,10 @@ const PALETTES = {
   warm:    { ceil:'#8b8780', back:'#afa9a0', sideL:'#a39d94', sideR:'#9e988f', floor:'#948e85', board:'#c9c2b8',
              suit:'#938d84', suitShade:'#756f67', hero:'#3d3934', heroShade:'#2b2824', skin:'#d6d1ca', skinHi:'#f4f0ea',
              hand:'#e8e4dd', shoe:'#4f4a44', prop:'#c9c3b9', propShade:'#908a81', door:'#dcd7cf' },
+  // M14 design pass (proposal): stage 4 night / club, the darkest set, a faint violet cast in the greys
+  night:   { ceil:'#4a4a52', back:'#64646d', sideL:'#5a5a63', sideR:'#55555e', floor:'#4f4f58', board:'#7a7a84',
+             suit:'#7a7a83', suitShade:'#5f5f68', hero:'#2a2a30', heroShade:'#1b1b20', skin:'#c9c8cf', skinHi:'#ebeaf0',
+             hand:'#dddce2', shoe:'#3d3d44', prop:'#7c7c86', propShade:'#55555e', door:'#8e8e98' },
 };
 const INK = '#141416', BLOOD = '#c70f1b', BLOOD_DARK = '#860812', ZOMBIE = '#63d06b', ZOMBIE_HI = '#a6f0aa';
 
@@ -207,6 +211,14 @@ function gunShape(kind) {
     ctx.beginPath(); ctx.roundRect(-0.02, -0.022, 0.42, 0.044, 0.02); ctx.fillStyle = '#2f3034'; ctx.fill(); ctx.stroke();
     return {};
   }
+  if (kind === 'rifle') { // M14 sheet: a generic long rifle (stock, receiver, curved mag, barrel)
+    ctx.beginPath(); ctx.moveTo(-0.16, -0.06); ctx.lineTo(-0.04, -0.09); ctx.lineTo(0.3, -0.09); ctx.lineTo(0.3, -0.06); ctx.lineTo(0.04, -0.05);
+    ctx.lineTo(0.03, 0.04); ctx.lineTo(-0.03, 0.04); ctx.lineTo(-0.04, -0.03); ctx.lineTo(-0.16, -0.0); ctx.closePath();
+    ctx.fillStyle = '#3b3c41'; ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0.08, -0.05); ctx.quadraticCurveTo(0.1, 0.03, 0.06, 0.08); ctx.lineTo(0.12, 0.08); ctx.quadraticCurveTo(0.15, 0.02, 0.13, -0.05); ctx.closePath(); ctx.fillStyle = '#2a2b2f'; ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#6c6d72'; ctx.fillRect(0.3, -0.083, 0.14, 0.016); ctx.strokeRect(0.3, -0.083, 0.14, 0.016);
+    return { muzzle: [0.44, -0.075], eject: [0.1, -0.09] };
+  }
   return {};
 }
 
@@ -293,6 +305,32 @@ function drawCharacter(c, pal, face) {
   if (c.variant === 'dancer') { // tracksuit: one light stripe down the side
     ctx.save(); bodyPath(); ctx.clip(); ctx.fillStyle = '#dcdcdf'; ctx.fillRect(-0.005, -0.62, 0.035, 0.62); ctx.restore();
     bodyPath(); ctx.lineWidth = 0.016; ctx.strokeStyle = INK; ctx.stroke();
+  }
+  if (c.variant === 'agentOp' || c.variant === 'zAgent') { // M14 agent A: buttoned high-collar jacket, a red pin on the collar, a seam down the front
+    ctx.beginPath(); ctx.roundRect(-0.02, -0.6, 0.2, 0.06, 0.015); ctx.fillStyle = '#2c2e34'; ctx.fill(); ctx.lineWidth = 0.008; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.beginPath(); ctx.arc(0.13, -0.57, 0.014, 0, 7); ctx.fillStyle = '#a3141c'; ctx.fill();
+    ctx.save(); bodyPath(); ctx.clip(); ctx.strokeStyle = 'rgba(20,20,22,0.55)'; ctx.lineWidth = 0.008;
+    ctx.beginPath(); ctx.moveTo(0.1, -0.54); ctx.lineTo(0.1, -0.02); ctx.stroke();
+    ctx.fillStyle = '#2c2e34'; for (const by of [-0.42, -0.3, -0.18]) { ctx.beginPath(); ctx.arc(0.125, by, 0.011, 0, 7); ctx.fill(); }
+    if (c.variant === 'zAgent') { // torn: a jagged dark rip and a green patch of skin through it
+      ctx.beginPath(); ctx.moveTo(-0.12, -0.42); ctx.lineTo(-0.04, -0.36); ctx.lineTo(-0.1, -0.3); ctx.lineTo(-0.02, -0.22); ctx.lineTo(-0.14, -0.25); ctx.closePath();
+      ctx.fillStyle = ZOMBIE; ctx.fill(); ctx.lineWidth = 0.008; ctx.strokeStyle = INK; ctx.stroke();
+    }
+    ctx.restore(); bodyPath(); ctx.lineWidth = 0.016; ctx.strokeStyle = INK; ctx.stroke();
+  }
+  if (c.variant === 'agentCoat') { // M14 agent B: long coat with a belt and a hem flaring past the body
+    ctx.beginPath(); ctx.moveTo(-0.21, -0.08); ctx.lineTo(-0.24, 0.02); ctx.lineTo(0.24, 0.02); ctx.lineTo(0.21, -0.08); ctx.closePath(); ctx.fillStyle = '#55575d'; ctx.fill(); ctx.lineWidth = 0.012; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.save(); bodyPath(); ctx.clip(); ctx.fillStyle = '#2f3036'; ctx.fillRect(-0.25, -0.3, 0.5, 0.045);
+    ctx.fillStyle = '#9a9ca2'; ctx.fillRect(0.06, -0.31, 0.05, 0.065); ctx.restore();
+    bodyPath(); ctx.lineWidth = 0.016; ctx.strokeStyle = INK; ctx.stroke();
+  }
+  if (c.variant === 'agentVisor') { // M14 agent C: plain suit with narrow lapels
+    ctx.save(); bodyPath(); ctx.clip(); ctx.strokeStyle = 'rgba(20,20,22,0.6)'; ctx.lineWidth = 0.01;
+    ctx.beginPath(); ctx.moveTo(0.0, -0.58); ctx.lineTo(0.08, -0.38); ctx.lineTo(0.16, -0.58); ctx.stroke(); ctx.restore();
+  }
+  if (c.variant === 'danceGlow') { // M14 dancer A: a pale glow ring round the neck
+    ctx.save(); ctx.shadowColor = 'rgba(255,255,255,0.9)'; ctx.shadowBlur = 14;
+    ctx.beginPath(); ctx.ellipse(0.04, -0.57, 0.15, 0.035, 0, 0, 7); ctx.lineWidth = 0.018; ctx.strokeStyle = '#f4f4f8'; ctx.stroke(); ctx.restore();
   }
   if (c.player2) { // co-op player 2: a light strap across the body, shoulder to hip (own design)
     ctx.save(); bodyPath(); ctx.clip();
@@ -563,6 +601,28 @@ function headGear(kind) {
     ctx.beginPath(); ctx.ellipse(-0.03, -0.09, 0.2, 0.15, 0, Math.PI * 0.95, Math.PI * 1.9); ctx.quadraticCurveTo(-0.05, -0.13, -0.2, -0.02); ctx.closePath();
     ctx.fillStyle = '#25262b'; ctx.fill(); ctx.lineWidth = 0.012; ctx.strokeStyle = INK; ctx.stroke();
     ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 0.008; ctx.beginPath(); ctx.moveTo(0.1, -0.2); ctx.quadraticCurveTo(-0.05, -0.22, -0.17, -0.1); ctx.stroke();
+  } else if (kind === 'agentOp' || kind === 'zAgent') { // M14 agent A: short dark crop and a coiled earpiece wire down to the collar
+    ctx.beginPath(); ctx.ellipse(-0.02, -0.13, 0.2, 0.11, 0, Math.PI * 0.98, Math.PI * 1.98); ctx.closePath(); ctx.fillStyle = '#26272c'; ctx.fill(); ctx.lineWidth = 0.012; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.beginPath(); ctx.arc(-0.06, 0.0, 0.022, 0, 7); ctx.fillStyle = '#d9d9dc'; ctx.fill(); ctx.lineWidth = 0.008; ctx.stroke();
+    ctx.strokeStyle = '#d9d9dc'; ctx.lineWidth = 0.006; ctx.beginPath();
+    for (let k = 0; k <= 12; k++) ctx.lineTo(-0.065 + Math.sin(k * 1.6) * 0.012, 0.02 + k * 0.016); ctx.stroke();
+  } else if (kind === 'agentCoat') { // M14 agent B: a flat cap with a short brim
+    ctx.beginPath(); ctx.ellipse(0.0, -0.12, 0.215, 0.12, 0, Math.PI, 0); ctx.closePath(); ctx.fillStyle = '#4a4c53'; ctx.fill(); ctx.lineWidth = 0.014; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0.1, -0.13); ctx.quadraticCurveTo(0.27, -0.13, 0.29, -0.09); ctx.lineTo(0.12, -0.1); ctx.closePath(); ctx.fillStyle = '#3a3c42'; ctx.fill(); ctx.stroke();
+  } else if (kind === 'agentVisor') { // M14 agent C: one narrow mirrored band across the eyes, round the head
+    ctx.beginPath(); ctx.roundRect(-0.2, -0.085, 0.42, 0.07, 0.03); ctx.fillStyle = '#9ea1aa'; ctx.fill(); ctx.lineWidth = 0.012; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 0.01; ctx.beginPath(); ctx.moveTo(0.06, -0.068); ctx.lineTo(0.16, -0.068); ctx.stroke();
+  } else if (kind === 'djPhones' || kind === 'djLed') { // M14 DJ (our riot-helmet mini-boss, raised): the helmet, plus A big studio headphones / B an LED strip on the visor
+    headGear('mbRiot');
+    if (kind === 'djPhones') {
+      ctx.strokeStyle = '#1e1f23'; ctx.lineWidth = 0.035; ctx.beginPath(); ctx.moveTo(-0.08, -0.02); ctx.quadraticCurveTo(-0.02, -0.33, 0.12, -0.22); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(-0.09, 0.02, 0.085, 0.105, 0, 0, 7); ctx.fillStyle = '#26272c'; ctx.fill(); ctx.lineWidth = 0.014; ctx.strokeStyle = INK; ctx.stroke();
+      for (const r of [0.06, 0.035]) { ctx.beginPath(); ctx.ellipse(-0.09, 0.02, r * 0.85, r, 0, 0, 7); ctx.lineWidth = 0.007; ctx.strokeStyle = '#6b6d73'; ctx.stroke(); }
+    } else {
+      for (let k = 0; k < 6; k++) { ctx.beginPath(); ctx.arc(0.03 + k * 0.035, -0.02, 0.011, 0, 7); ctx.fillStyle = k % 2 ? '#f4f4f8' : '#a3141c'; ctx.fill(); }
+    }
+  } else if (kind === 'danceBand') { // M14 dancer B: a light headband
+    ctx.beginPath(); ctx.roundRect(-0.21, -0.17, 0.42, 0.05, 0.02); ctx.fillStyle = '#dcdce0'; ctx.fill(); ctx.lineWidth = 0.01; ctx.strokeStyle = INK; ctx.stroke();
   } else if (kind === 'dancer') { // M8 dancer NPC: knit beanie with a pom
     ctx.beginPath(); ctx.ellipse(0.0, -0.1, 0.212, 0.165, 0, Math.PI, 0); ctx.closePath(); ctx.fillStyle = '#cfd0d3'; ctx.fill(); ctx.lineWidth = 0.014; ctx.strokeStyle = INK; ctx.stroke();
     ctx.beginPath(); ctx.roundRect(-0.215, -0.135, 0.43, 0.06, 0.02); ctx.fillStyle = '#b6b7bb'; ctx.fill(); ctx.stroke();
@@ -578,6 +638,10 @@ const VARIANT_SUIT = {
   // M9 design pass (options): mini-boss A gas mask, B riot helmet, C mascot; target A combover, B bureaucrat, C fur collar
   mbGas: ['#55575e', '#45474d'], mbRiot: ['#3f4148', '#30323a'], mbMascot: ['#dadadd', '#bcbcc1'],
   tgCombover: ['#d6d6d9', '#b5b5ba'], tgBureau: ['#7a7c83', '#63656b'], tgFur: ['#2f3036', '#222328'],
+  // M14 design pass (options): agent A operator, B long coat, C visor; armed zombie; DJ A/B; dancers A/B
+  agentOp: ['#4b4e57', '#3a3d45'], agentCoat: ['#6a6c72', '#55575d'], agentVisor: ['#55575f', '#43454c'],
+  zAgent: ['#4b4e57', '#3a3d45'], djPhones: ['#3f4148', '#30323a'], djLed: ['#3f4148', '#30323a'],
+  danceGlow: ['#6f7078', '#585960'], danceBand: ['#8a8b93', '#707178'],
 };
 const BOLT = '#eafcff', BOLT_GLOW = 'rgba(110,215,255,';
 const BOSS = { coat: '#2c2c32', coatShade: '#1d1d22', collar: '#3c3c44', skin: '#c6c6cb', glove: '#3c3c44', scale: 1.1 };
@@ -917,6 +981,63 @@ function drawCast3(pal, face) {
   notes.forEach((n, i) => ctx.fillText(n, 70, 50 + i * 28));
 }
 
+// ---------- stage 4 cast (M14 design pass, options; own designs) ----------
+function carBoxy() { // a squared-off compact sedan, side view, facing +x; 2.5 H long (ep4 measured car length)
+  ctx.lineWidth = 0.02; ctx.strokeStyle = INK;
+  ctx.beginPath(); ctx.moveTo(-1.25, -0.2); ctx.lineTo(-1.2, -0.62); ctx.lineTo(-0.55, -0.66); ctx.lineTo(-0.35, -1.0); ctx.lineTo(0.45, -1.0); ctx.lineTo(0.7, -0.66);
+  ctx.lineTo(1.2, -0.6); ctx.lineTo(1.25, -0.2); ctx.closePath(); ctx.fillStyle = '#6a6b73'; ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-0.3, -0.66); ctx.lineTo(-0.17, -0.93); ctx.lineTo(0.08, -0.93); ctx.lineTo(0.08, -0.66); ctx.closePath();
+  ctx.moveTo(0.14, -0.66); ctx.lineTo(0.14, -0.93); ctx.lineTo(0.42, -0.93); ctx.lineTo(0.6, -0.66); ctx.closePath(); ctx.fillStyle = '#2b2c32'; ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 0.012; ctx.beginPath(); ctx.moveTo(-0.15, -0.9); ctx.lineTo(-0.05, -0.72); ctx.stroke();
+  ctx.strokeStyle = INK; ctx.lineWidth = 0.012; ctx.beginPath(); ctx.moveTo(0.11, -0.66); ctx.lineTo(0.11, -0.22); ctx.stroke();
+  ctx.fillStyle = '#e8e6d8'; ctx.beginPath(); ctx.roundRect(1.12, -0.52, 0.1, 0.1, 0.02); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#a3141c'; ctx.fillRect(-1.24, -0.52, 0.06, 0.1);
+  for (const wx of [-0.75, 0.75]) { ctx.beginPath(); ctx.arc(wx, -0.2, 0.2, 0, 7); ctx.fillStyle = '#1e1f23'; ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.arc(wx, -0.2, 0.09, 0, 7); ctx.fillStyle = '#8b8c93'; ctx.fill(); ctx.stroke(); }
+}
+function clubStage(t) { // a low riser, a DJ desk with two decks, speaker stacks either side
+  ctx.lineWidth = 0.02; ctx.strokeStyle = INK;
+  ctx.fillStyle = '#3a3a42'; ctx.fillRect(-1.6, -0.25, 3.2, 0.25); ctx.strokeRect(-1.6, -0.25, 3.2, 0.25);
+  for (const sx of [-1.35, 1.05]) {
+    for (let k = 0; k < 2; k++) {
+      const y = -0.25 - (k + 1) * 0.6;
+      ctx.fillStyle = '#26262c'; ctx.fillRect(sx, y, 0.3, 0.6); ctx.strokeRect(sx, y, 0.3, 0.6);
+      const pulse = 1 + 0.06 * Math.max(0, Math.sin(t * 0.8 + k));
+      for (const [cy, r] of [[y + 0.18, 0.08], [y + 0.42, 0.11]]) { ctx.beginPath(); ctx.arc(sx + 0.15, cy, r * pulse, 0, 7); ctx.fillStyle = '#4a4a52'; ctx.fill(); ctx.stroke(); }
+    }
+  }
+  ctx.fillStyle = '#2f2f36'; ctx.fillRect(-0.5, -0.65, 1.0, 0.4); ctx.strokeRect(-0.5, -0.65, 1.0, 0.4);
+  for (const dx of [-0.25, 0.25]) { ctx.beginPath(); ctx.ellipse(dx, -0.68, 0.17, 0.035, 0, 0, 7); ctx.fillStyle = '#18181c'; ctx.fill(); ctx.stroke(); }
+}
+function drawCast4(pal, face) {
+  const t = sim.frame;
+  ctx.fillStyle = pal.back; ctx.fillRect(0, 0, W, SH);
+  ctx.fillStyle = pal.floor; ctx.fillRect(0, 900, W, SH - 900);
+  ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.beginPath(); ctx.moveTo(0, 900); ctx.lineTo(W, 900); ctx.stroke();
+  const label = (txt, x, y, chosen) => { ctx.font = '600 17px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = chosen ? '#e0636a' : '#e9e9ee'; ctx.fillText(txt, x, y); };
+  const at = (x, y, sc, fn) => { ctx.save(); ctx.translate(x, y); ctx.scale(sc, sc); ctx.lineJoin = 'round'; ctx.lineCap = 'round'; fn(); ctx.restore(); };
+  const ch = (x, s, variant, kind = 'grunt', extra = {}) => drawCharacter({ kind, variant, facing: 1, t, screen: { x, y: 880, s }, ...extra }, pal, face);
+  // the club stage with the DJ on it
+  at(1500, 520, 150, () => clubStage(t)); ch(1500, 150, 'djPhones', 'zombie', { screen: { x: 1500, y: 418, s: 150 } });
+  label('Club stage + DJ A · helmet + headphones (proposal)', 1500, 560, true);
+  ch(1790, 150, 'djLed', 'zombie', { screen: { x: 1790, y: 418, s: 150 } }); label('DJ B · LED visor', 1790, 560);
+  // agents
+  ch(150, 230, 'agentOp', 'grunt', { gun: 'pistol', aimAt: [420, 700] }); label('Agent A · operator (proposal)', 160, 935, true);
+  ch(430, 230, 'agentCoat'); label('Agent B · long coat, cap', 430, 962);
+  ch(650, 230, 'agentVisor'); label('Agent C · visor band', 650, 935);
+  // the armed zombie (the boss's lieutenant)
+  ch(900, 230, 'zAgent', 'zombie', { gun: 'rifle', aimAt: [1300, 700] }); label('Armed zombie · torn agent + rifle', 900, 962, true);
+  // dancers
+  ch(1150, 190, 'danceGlow', 'grunt', { dance: true }); label('Dancer A · glow ring (proposal)', 1150, 935, true);
+  ch(1330, 190, 'danceBand', 'grunt', { dance: true }); label('Dancer B · headband', 1340, 962);
+  // the car
+  at(820, 400, 150, carBoxy); label('Car · boxy compact (proposal)', 820, 430, true);
+  ctx.textAlign = 'left'; ctx.font = '500 19px system-ui, sans-serif'; ctx.fillStyle = 'rgba(240,240,244,0.9)';
+  const notes = ['M14 design pass (proposals, waiting for sign-off): agent, armed zombie, the DJ (our riot-helmet mini-boss, raised), dancers, the car, the club, palette 4 (night).',
+    'Own designs: no dark suit + dark glasses agent, no iron mask, no clown. Red stays the only accent (agent pin, DJ helmet stripe), green only on zombies.',
+    'Switch the palette to "Stage 4 · night" to see them in their stage colours.'];
+  notes.forEach((n, i) => ctx.fillText(n, 70, 50 + i * 28));
+}
+
 // ---------- character sheet ----------
 function drawSheet(pal, face) {
   ctx.fillStyle = pal.back; ctx.fillRect(0, 0, W, SH);
@@ -995,6 +1116,7 @@ function frame(now) {
   else if (state.view === 'cast1') drawCast(pal, state.face);
   else if (state.view === 'cast2') drawCast2(pal, state.face);
   else if (state.view === 'cast3') drawCast3(pal, state.face);
+  else if (state.view === 'cast4') drawCast4(pal, state.face);
   else drawSheet(pal, state.face);
   if (state.fx !== 'off') post();
   if (state.view === 'scene') killCounter(sim.kills);
@@ -1019,6 +1141,7 @@ if (params.has('frame')) {
   if (state.view === 'cast1') drawCast(pal, state.face);
   if (state.view === 'cast2') drawCast2(pal, state.face);
   if (state.view === 'cast3') drawCast3(pal, state.face);
+  if (state.view === 'cast4') drawCast4(pal, state.face);
   if (state.grid === 'on' && state.view === 'scene') gridOverlay();
   if (state.fx !== 'off') post();
   if (state.view === 'scene') killCounter(sim.kills);

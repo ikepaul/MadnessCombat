@@ -82,6 +82,10 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
     }
   });
   world.events.on('dryFire', (e) => play('dryFire', at(e.x, e.y + 0.5, e.z)));
+  // M14: the agent's block (a dry knock), a round deflected off a sword guard, a parry's ring
+  world.events.on('block', (e) => play(e.how === 'deflect' ? 'ricochet' : e.how === 'parry' ? 'clang' : 'hitWood', at(e.x, e.y, e.z)));
+  // M14 gun-fire-mode: the selector's click (the dry-fire tick, placeholder until its own sound)
+  world.events.on('fireMode', (e) => play('dryFire', at(e.x, e.y + 0.5, e.z)));
   world.events.on('reload', (e) => {
     const p = at(e.x, e.y + 0.5, e.z);
     if (e.phase === 'start') play('magOut', p);
@@ -181,7 +185,11 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
     else if (e.phase === 'away') { if (burner !== undefined) engine.stop(burner, 0.6); burner = undefined; }
     else play('door', at(e.x, 1, e.z));
   });
-  world.events.on('shove', (e) => { play('whooshHeavy', at(e.x, e.y + 0.6, e.z)); play('impactHeavy', at(e.x, e.y + 0.6, e.z)); });
+  world.events.on('shove', (e) => {
+    // M14: a crowd grunt's shove is only a scuffle of cloth
+    if (e.soft) { play('cloth', at(e.x, e.y + 0.6, e.z)); return; }
+    play('whooshHeavy', at(e.x, e.y + 0.6, e.z)); play('impactHeavy', at(e.x, e.y + 0.6, e.z));
+  });
   world.events.on('collapse', (e) => {
     if (e.phase === 'crack') { play('crack', { gain: 1 }); play('rumble', {}); }
     else { play('rumble', { gain: 1.2 }); play('explosion', { gain: 0.6, rate: 0.6 }); engine.duck(0.5); }

@@ -1,7 +1,7 @@
 // Static room layer: walls, ceiling, floor, depth shading, baseboards, doors, decor and the
 // key light. Ported from design/style-frame; baked once per room/palette change.
 import { INK, type Palette } from '../../data/palettes';
-import { type DoorDef, type PoleDef, type PropDef, ROOM_DRAW_NEAR_Z, type RoomDef, type TableDef } from '../../sim/room';
+import { type DoorDef, type PoleDef, type PropDef, ROOM_DRAW_NEAR_Z, type RoomDef, type Stairs, type TableDef } from '../../sim/room';
 import { project as P, SCREEN_H, SCREEN_W, scaleAt } from '../camera';
 import { type Ctx, line, linear, mulberry32, poly, shade } from './draw';
 import { paintCeilingHole, paintCrate, paintDesert, paintElevator, paintLadder, paintRoof, paintSecurityCamera, paintStreet, paintTank, paintToyStreet, paintVendingProp, paintVoid, paintWallHole } from './sceneryPainter';
@@ -56,6 +56,8 @@ export function paintRoom(ctx: Ctx, room: RoomDef, pal: Palette, elevator?: { of
   ctx.strokeStyle = 'rgba(20,20,22,0.55)';
   line(ctx, [bx0, bbTop], [bx1, bbTop]);
   for (const sx of [-hw, hw]) line(ctx, P(sx, bb, zn), P(sx, bb, zb));
+  // M14 move-stairs
+  for (const st of room.stairs ?? []) paintStairs(ctx, st, pal);
 
   for (const v of room.vents) {
     poly(ctx, [P(v.x0, h, v.z0), P(v.x1, h, v.z0), P(v.x1, h, v.z1), P(v.x0, h, v.z1)]);
@@ -167,6 +169,26 @@ export function paintDoor(ctx: Ctx, room: RoomDef, d: DoorDef, open: number, pal
   poly(ctx, [P(x, 0, d.z0), P(x, d.height, d.z0), P(fx, d.height, fz), P(fx, 0, fz)]);
   ctx.fillStyle = pal.door; ctx.fill();
   ctx.stroke();
+}
+
+/**
+ * M14 move-stairs: a staircase as ~0.2 H steps between its two heights: each step a lit tread
+ * (top, across the depth band) over a darker riser (front face), with a solid side block under it.
+ */
+function paintStairs(ctx: Ctx, st: Stairs, pal: Palette): void {
+  const n = Math.max(2, Math.round(Math.abs(st.y1 - st.y0) / 0.2));
+  const up = st.y1 > st.y0 ? 1 : -1;
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = INK;
+  for (let i = 0; i < n; i++) {
+    // step i spans x a..b at height y (the higher end of each step)
+    const a = st.x0 + ((st.x1 - st.x0) * i) / n, b = st.x0 + ((st.x1 - st.x0) * (i + 1)) / n;
+    const y = up > 0 ? st.y0 + ((st.y1 - st.y0) * (i + 1)) / n : st.y0 + ((st.y1 - st.y0) * i) / n;
+    poly(ctx, [P(a, 0, st.z0), P(b, 0, st.z0), P(b, y, st.z0), P(a, y, st.z0)]);
+    ctx.fillStyle = pal.propShade; ctx.fill(); ctx.stroke();
+    poly(ctx, [P(a, y, st.z0), P(b, y, st.z0), P(b, y, st.z1), P(a, y, st.z1)]);
+    ctx.fillStyle = pal.prop; ctx.fill(); ctx.stroke();
+  }
 }
 
 export function paintProp(ctx: Ctx, p: PropDef, pal: Palette): void {

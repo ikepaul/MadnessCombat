@@ -13,7 +13,7 @@ import { GRENADE } from '../data/melee';
 import { GUNS, isWeapon, WEAPONS, type WeaponDef } from '../data/weapons';
 import { project, type ScreenPoint } from '../render/camera';
 import { type Actor, alive, type Brain, type Hand } from './actor';
-import { clamp } from './collision';
+import { clamp, moveWithCollision } from './collision';
 import { IDLE_COMMAND, type PlayerCommand } from './command';
 import type { Cannon } from './cannon';
 import { castRay } from './hitscan';
@@ -50,7 +50,11 @@ export interface AiState {
   /** M7 stealth: false = unaware (idles, smokes or patrols facing a fixed way). */
   aware?: boolean;
   /** What an unaware enemy does, and its patrol span (x). */
-  idle?: 'stand' | 'smoke' | 'chat' | 'patrol';
+  idle?: 'stand' | 'smoke' | 'chat' | 'patrol' | 'dance' | 'cower';
+  /** M14 world-crowd-dancefloor: grunts sharing a crowd name are alerted together. */
+  crowd?: string;
+  /** M14 crowd: seconds until this grunt shoves the player again. */
+  shoveT?: number;
   patrol?: [number, number];
   /** Patrol: walking direction and the wait at a turn. */
   patrolDir?: 1 | -1;
@@ -89,7 +93,7 @@ export function gunHand(a: Actor): { h: Hand; w: WeaponDef; i: 0 | 1 } | undefin
 
 /** Melee fighters share the attack tokens; gun grunts shoot from range instead. Unaware ones don't fight yet. */
 function usesTokens(world: World, a: Actor): boolean {
-  if (gunHand(a) || a.ai?.aware === false || a.takenBy !== undefined || a.variant === 'vip') return false;
+  if ((gunHand(a) && a.variant !== 'agent') || a.ai?.aware === false || a.ai?.idle === 'cower' || a.takenBy !== undefined || a.variant === 'vip') return false;
   // the cannoneer works the cannon instead of queueing for a punch
   if (a.ai?.role === 'cannon' && landedCannon(world)) return false;
   // a squad sticks to its living leader unless a player walks right up to it
@@ -195,6 +199,12 @@ export function gruntBrain(world: World): Brain {
       if (ai.surpriseT! <= 0 && ai.aware === false) alert(world, a);
       return { ...IDLE_COMMAND, face: a.facing };
     }
+    // M14 enemy-behaviours: the cowering grunt never fights: he sweats and watches
+    if (ai.idle === 'cower') {
+      const q = world.activePlayers[0];
+      a.pose.sweat = true;
+      return { ...IDLE_COMMAND, face: q && q.pos.x < a.pos.x ? -1 : 1 };
+    }
     if (ai.aware === false) return unawareStep(world, a, dt);
     // enemy-squad-leader: the leader is down, the squad charges
     if (ai.leader !== undefined) {
@@ -222,8 +232,11 @@ export function gruntBrain(world: World): Brain {
       ai.role = undefined; // nothing to man: fight like the rest
     }
     const gun = gunHand(a);
-    if (gun) return rangedStep(world, a, p, gun, face, dt);
+    // M14 enemy-agent: closes in and fights hand to hand; the heavy pistol only beyond closeRange
+    const brawl = a.variant === 'agent' && dist(a, p) < TUNING.ai.agent.closeRange;
+    if (gun && !brawl) return rangedStep(world, a, p, gun, face, dt);
     stopAiming(world, a);
+    if (brawl) return meleeStep(world, a, p, face, dt);
     // enemy-behaviours: empty-handed grunts go for a weapon on the floor nearby
     const loot = !a.hands[0] && !a.hands[1] && a.kind !== 'zombie' ? scavenge(world, a) : undefined;
     if (loot) return loot;
@@ -235,6 +248,8 @@ export function gruntBrain(world: World): Brain {
 function unawareStep(world: World, a: Actor, dt: number): PlayerCommand {
   const ai = a.ai!, S = TUNING.stealth;
   lookOut(world, a, dt);
+  // M14 world-crowd-dancefloor: the crowd dances (the stage 1 dancer's loop) until the alarm
+  a.pose.dancing = ai.aware === false && ai.idle === 'dance' ? true : undefined;
   // an unaware guard's gun hangs lowered
   const aim = gunHand(a) ? project(a.pos.x + a.facing * 2, a.pos.y + 0.1, a.pos.z) : undefined;
   if (ai.aware !== false) return { ...IDLE_COMMAND, face: a.facing, aim };
@@ -329,8 +344,10 @@ function rangedStep(world: World, a: Actor, p: Actor, gun: NonNullable<ReturnTyp
   if (ai.aimT !== undefined) {
     if (!shootable(p)) { stopAiming(world, a); return { ...IDLE_COMMAND, face, aim: lowered }; }
     ai.aimT += dt;
-    a.pose.telegraph = Math.min(1, ai.aimT / R.telegraph);
-    if (ai.aimT + 1e-6 < R.telegraph) return { ...IDLE_COMMAND, face, aim: chestAim(p) };
+    // M14: an armed zombie takes longer over it
+    const tel = a.kind === 'zombie' ? TUNING.zombie.gunTelegraph : R.telegraph;
+    a.pose.telegraph = Math.min(1, ai.aimT / tel);
+    if (ai.aimT + 1e-6 < tel) return { ...IDLE_COMMAND, face, aim: chestAim(p) };
     // someone stepped into the line during the telegraph: usually hold fire
     if (allyInLine(world, a, p) && world.rng() < R.holdFire) { stopAiming(world, a); ai.cooldown = 0.3; return { ...IDLE_COMMAND, face, aim: lowered }; }
     // fire: aim error picked per shot (per burst for automatics)
@@ -490,8 +507,10 @@ function meleeStep(world: World, a: Actor, p: Actor, face: 1 | -1, dt: number): 
       ai.driftT = 1.5 + world.rng() * 1.5;
       ai.waitZ = room.zFront + 0.2 + world.rng() * (room.zBack - room.zFront - 0.5);
     }
-    tx = p.pos.x - face * ai.ring;
-    tz = ai.waitZ;
+    tx = p.pos.x - face * (ai.crowd ? TUNING.ai.crowd.ring : ai.ring);
+    tz = ai.crowd ? p.pos.z + (ai.waitZ - (room.zFront + room.zBack) / 2) * 0.5 : ai.waitZ;
+    // M14 crowd: pressing in, the ones right next to the player shove him (no damage)
+    if (ai.crowd) crowdShove(world, a, p, dt);
     // enemy-squad-leader: the squad waits grouped round its leader (cohesion 2 H)
     const l = ai.leader !== undefined ? world.actorById(ai.leader) : undefined;
     if (l && alive(l)) {
@@ -501,6 +520,20 @@ function meleeStep(world: World, a: Actor, p: Actor, face: 1 | -1, dt: number): 
   }
   tx = clamp(tx, -inside, inside);
   return { ...steer(a, tx, tz, world.tokens.has(a.id) ? 0.06 : 0.2), face };
+}
+
+/** M14 world-crowd-dancefloor: a short harmless push on the player from a crowd grunt beside him. */
+function crowdShove(world: World, a: Actor, p: Actor, dt: number): void {
+  const C = TUNING.ai.crowd, ai = a.ai!;
+  ai.shoveT = (ai.shoveT ?? C.shoveEvery[0] + world.rng() * (C.shoveEvery[1] - C.shoveEvery[0])) - dt;
+  if (ai.shoveT > 0 || a.state !== 'free' || p.state !== 'free' || dist(a, p) > C.shoveRange) return;
+  ai.shoveT = C.shoveEvery[0] + world.rng() * (C.shoveEvery[1] - C.shoveEvery[0]);
+  const dir = Math.sign(p.pos.x - a.pos.x) || 1;
+  const q = moveWithCollision(world.room, p.pos.x, p.pos.z, dir * C.shove, 0, p.pos.y);
+  p.pos.x = q.x;
+  p.pose.lean = -0.15 * dir * p.facing;
+  a.pose.lean = 0.2;
+  world.events.emit('shove', { actorId: a.id, targetId: p.id, soft: true, ...p.pos });
 }
 
 // ---------- M8: manning the boss's cannon (ep1 f2799-f2849) ----------

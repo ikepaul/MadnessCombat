@@ -19,6 +19,7 @@ export class PlayerInput {
   private pickupLatch = false;
   private reloadLatch = false;
   private throwLatch = false;
+  private modeLatch = false;
   private pressLatch: [boolean, boolean] = [false, false];
   private attackLatch: PlayerCommand['attack'] = null;
   /** Aim only counts once the mouse has moved over the game (the pointer starts at 0,0). */
@@ -37,6 +38,7 @@ export class PlayerInput {
     this.keys.use.on('down', () => (this.pickupLatch = true));
     this.keys.reload.on('down', () => (this.reloadLatch = true));
     this.keys.throw.on('down', () => (this.throwLatch = true));
+    this.keys.fireMode.on('down', () => (this.modeLatch = true));
     scene.input.mouse?.disableContextMenu();
     scene.input.on('pointermove', () => (this.aimActive = true));
     scene.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
@@ -63,6 +65,7 @@ export class PlayerInput {
       pickup: this.pickupLatch,
       reload: this.reloadLatch,
       throwGun: this.throwLatch,
+      fireMode: this.modeLatch,
       split: k.split.isDown,
       grenade: k.grenade.isDown,
     };
@@ -76,6 +79,7 @@ export class PlayerInput {
     this.pickupLatch = false;
     this.reloadLatch = false;
     this.throwLatch = false;
+    this.modeLatch = false;
     this.pressLatch = [false, false];
     this.attackLatch = null;
   }
