@@ -2,7 +2,8 @@
 // with a scripted bot (sequencer + waves don't deadlock).
 import { describe, expect, it } from 'vitest';
 import { STAGE1 } from '../src/data/stages/stage1';
-import { GRENADE_BEAT, INTRO, stage1 } from '../src/data/stages/stage1Script';
+import { BOSS_BEAT, GRENADE_BEAT, INTRO, stage1 } from '../src/data/stages/stage1Script';
+import { isBoss } from '../src/sim/boss';
 import { GRENADE } from '../src/data/melee';
 import { project } from '../src/render/camera';
 import { TUNING } from '../src/data/tuning';
@@ -105,20 +106,46 @@ function grenadier(world: World, hero: Actor, mem: { cook: number }): PlayerComm
   return { ...IDLE_COMMAND, aim, grenade: mem.cook < 24 };
 }
 
-/** The bot for the whole stage so far; `throwGrenade: false` leaves the grenade lying (timeout path). */
+/**
+ * Beat 4 with real inputs: walk over the dropped SMG (empty hands pick it up), then hold fire at
+ * the boss's head whenever his ward is down, standing a few H off on his facing side.
+ */
+function bossShooter(world: World, hero: Actor): PlayerCommand {
+  const boss = world.actors.find(isBoss);
+  if (!boss) return { ...IDLE_COMMAND };
+  if (!hero.hands[0]) {
+    const smg = world.items.find((it) => it.kind === 'smg' && it.state === 'floor');
+    if (!smg) return { ...IDLE_COMMAND };
+    const dx = smg.pos.x - hero.pos.x, dz = smg.pos.z - hero.pos.z, d = Math.hypot(dx, dz);
+    return d < 0.2 ? { ...IDLE_COMMAND } : { ...IDLE_COMMAND, moveX: dx / d, moveZ: dz / d };
+  }
+  const aim = project(boss.pos.x, boss.pos.y + 0.79 * TUNING.boss.scale, boss.pos.z);
+  const open = boss.boss.phase === 'fight' && boss.boss.ward <= 0;
+  const reload = hero.hands[0].ammo === 0 && hero.hands[0].spare > 0;
+  return { ...IDLE_COMMAND, aim, hold: [open, false], press: [open, false], reload };
+}
+
+/**
+ * The bot for the whole stage so far; `throwGrenade: false` leaves the grenade lying (timeout path).
+ * Zombies and grunts on screen go down to the M3 test's "kill all" shortcut.
+ */
 function playStage(world: World, hero: Actor, throwGrenade: boolean) {
   const bb = npc(world, 'boombox');
-  const log = { cleared: [] as number[], waves: [] as string[], music: [] as (string | null)[], explosions: 0, gibs: 0, at: 0 };
+  const log = { cleared: [] as number[], waves: [] as string[], music: [] as (string | null)[], explosions: 0, gibs: 0, at: 0, bolts: 0, bossAt: -1 };
   world.events.on('roomCleared', (e) => { log.cleared.push(e.kills); log.at = world.time; });
   world.events.on('waveStart', (e) => log.waves.push(e.wave));
   world.events.on('music', (e) => log.music.push(e.cue));
   world.events.on('explosion', () => log.explosions++);
   world.events.on('gib', () => log.gibs++);
+  world.events.on('lightning', () => log.bolts++);
+  world.events.on('bossArrive', (e) => { if (e.phase === 'descend') log.bossAt = world.time; });
   const mem = { cook: 0 };
   for (let i = 0; i < 60 * 300 && log.cleared.length === 0; i++) {
-    // brawl the boombox NPC, "kill all" whoever walks on screen (as in the M3 wave test), then the grenade
+    // brawl the boombox NPC, "kill all" whoever walks on screen (as in the M3 wave test), the grenade, the boss
     const riotOver = world.director?.state === 'done';
-    world.command = alive(bb) ? brawl(hero, bb, i) : riotOver && throwGrenade ? grenadier(world, hero, mem) : { ...IDLE_COMMAND };
+    world.command = alive(bb) ? brawl(hero, bb, i)
+      : log.bossAt >= 0 ? bossShooter(world, hero)
+        : riotOver && throwGrenade ? grenadier(world, hero, mem) : { ...IDLE_COMMAND };
     world.step();
     hero.hp = hero.maxHp;
     if (!alive(bb)) for (const a of world.actors) if (a.ai && alive(a) && !a.entering) world.hitActor(hero, a, 'wall', 1, 0, a.pos);
@@ -127,20 +154,25 @@ function playStage(world: World, hero: Actor, throwGrenade: boolean) {
 }
 
 describe('stage 1 headless', () => {
-  it('runs from the intro through wave A and the grenade to the end card without deadlocking', () => {
+  it('runs from the intro through wave A, the grenade and the boss to the end card without deadlocking', () => {
     const { world, hero } = setup();
     world.step();
-    let intactBefore = -1;
+    let intactBefore = -1, intactAfter = -1;
     world.events.on('grenadePin', () => (intactBefore = intact(world).length));
+    world.events.on('explosion', () => world.seq.run(function* () { yield 0.2; intactAfter = intact(world).length; }));
     const log = playStage(world, hero, true);
     expect(log.waves).toEqual(['A']);
-    expect(log.music).toEqual(['riot']);
+    expect(log.music).toEqual(['riot', 'boss']);
     expect(log.explosions).toBe(1);
     // the pile went up: fewer bodies left for the boss to raise
     expect(log.gibs).toBeGreaterThan(0);
-    expect(intact(world).length).toBe(intactBefore - log.gibs);
-    // the boombox NPC + wave A's 18 grunts; the dancer lives
-    expect(log.cleared).toEqual([1 + 18]);
+    expect(intactAfter).toBe(intactBefore - log.gibs);
+    // he raised someone, and went down
+    expect(log.bolts).toBeGreaterThan(0);
+    const boss = world.actors.find((a) => a.kind === 'boss')!;
+    expect(alive(boss)).toBe(false);
+    // the boombox NPC + wave A's 18 grunts + the boss + every zombie he raised; the dancer lives
+    expect(log.cleared).toEqual([1 + 18 + 1 + log.bolts]);
     expect(alive(npc(world, 'dancer'))).toBe(true);
     // nothing left hanging once the last caption has run out
     for (let i = 0; i < 60 * 6; i++) world.step();
@@ -160,11 +192,22 @@ describe('stage 1 headless', () => {
   it("moves on after the timeout if nobody throws it, so the stage can't stall", () => {
     const { world, hero } = setup();
     world.step();
-    let riotDone = -1;
-    world.events.on('itemDrop', (e) => { if (world.items.find((i) => i.id === e.itemId)?.kind === 'grenade') riotDone = world.time; });
+    let dropAt = -1;
+    world.events.on('itemDrop', (e) => { if (world.items.find((i) => i.id === e.itemId)?.kind === 'grenade') dropAt = world.time; });
     const log = playStage(world, hero, false);
     expect(log.explosions).toBe(0);
-    expect(log.cleared).toEqual([19]);
-    expect(log.at - riotDone).toBeCloseTo(GRENADE_BEAT.timeout, 1);
+    expect(log.bossAt - dropAt).toBeCloseTo(GRENADE_BEAT.timeout, 1);
+    expect(log.cleared).toHaveLength(1);
+  });
+
+  it('the SMG drops once his first zombie is up', () => {
+    const { world, hero } = setup();
+    world.step();
+    let boltAt = -1, smgAt = -1;
+    world.events.on('lightning', () => { if (boltAt < 0) boltAt = world.time; });
+    world.events.on('itemDrop', (e) => { if (smgAt < 0 && world.items.find((i) => i.id === e.itemId)?.kind === 'smg') smgAt = world.time; });
+    playStage(world, hero, true);
+    expect(boltAt).toBeGreaterThan(0);
+    expect(smgAt - boltAt).toBeCloseTo(BOSS_BEAT.smgAfterBolt, 1);
   });
 });

@@ -3,7 +3,8 @@
 import { BLOOD, INK } from '../data/palettes';
 import type { HitKind } from '../sim/events';
 import type { World } from '../sim/world';
-import { project, scaleAt } from './camera';
+import { project, type ScreenPoint, scaleAt } from './camera';
+import { BOLT_GLOW, boltStroke, jag, mulberry } from './canvas/bossPainter';
 import type { Ctx } from './canvas/draw';
 
 interface Puff { x: number; y: number; vx: number; vy: number; r: number; grow: number; life: number; max: number; z: number }
@@ -20,6 +21,9 @@ const SMEAR_TICKS = 2;
 const STAR_TICKS = 3;
 /** The alert "!" stays 0.7 s. */
 const MARK_TICKS = 42;
+/** boss-halo: the bolt itself shows 2 frames (4 ticks), then an afterglow fades over 0.25 s. */
+const BOLT_TICKS = 4;
+const GLOW_TICKS = 15;
 
 export class Vfx {
   private puffs: Puff[] = [];
@@ -33,6 +37,9 @@ export class Vfx {
   private chunks: Chunk[] = [];
   /** M7: "!" marks over enemies that just noticed something (ticks left). */
   private marks: { actorId: number; left: number }[] = [];
+  /** M8: lightning bolts (screen points) and ward ricochet sparks, ticks left. */
+  private bolts: { from: ScreenPoint; to: ScreenPoint; s: number; seed: number; left: number }[] = [];
+  private sparks: { x: number; y: number; s: number; facing: number; seed: number; left: number }[] = [];
 
   /** `blood()` = the current stage shows blood (off for stage 1). */
   constructor(private world: World, private blood: () => boolean) {
@@ -114,6 +121,16 @@ export class Vfx {
       const [x, y] = project(e.x, e.y, e.z);
       this.stars.push({ x, y, s: scaleAt(e.z) * 0.5, left: STAR_TICKS, big: false });
     });
+    // M8 boss: lightning (2 bright frames + afterglow), ricochet sparks off the ward, landing dust
+    world.events.on('lightning', (e) => {
+      const from = project(e.from.x, e.from.y, e.from.z), to = project(e.to.x, e.to.y, e.to.z);
+      this.bolts.push({ from, to, s: scaleAt(e.to.z), seed: Math.floor(Math.random() * 1e9), left: BOLT_TICKS + GLOW_TICKS });
+    });
+    world.events.on('wardHit', (e) => {
+      const a = world.actorById(e.actorId);
+      this.sparks.push({ x: e.at[0], y: e.at[1], s: a ? scaleAt(a.pos.z) : 200, facing: a?.facing ?? 1, seed: Math.floor(Math.random() * 1e9), left: 4 });
+    });
+    world.events.on('bossArrive', (e) => { if (e.phase === 'land') this.dust(e.x, 0, e.z, 10); });
     world.events.on('tick', () => this.step(world.dt));
   }
 
@@ -143,6 +160,10 @@ export class Vfx {
   private step(dt: number): void {
     for (const m of this.marks) m.left--;
     this.marks = this.marks.filter((m) => m.left > 0);
+    for (const b of this.bolts) b.left--;
+    this.bolts = this.bolts.filter((b) => b.left > 0);
+    for (const sp of this.sparks) sp.left--;
+    this.sparks = this.sparks.filter((sp) => sp.left > 0);
     for (const p of this.puffs) {
       p.life += dt;
       p.x += p.vx * dt;
@@ -224,6 +245,8 @@ export class Vfx {
     }
     ctx.globalAlpha = 1;
     for (const b of this.booms) this.drawBoom(ctx, b);
+    for (const b of this.bolts) this.drawBolt(ctx, b);
+    for (const sp of this.sparks) this.drawSparks(ctx, sp);
     for (const m of this.marks) this.drawMark(ctx, m);
     for (const b of this.blasts) {
       ctx.save();
@@ -294,6 +317,55 @@ export class Vfx {
     ctx.lineWidth = Math.max(2, b.s * 0.012);
     ctx.strokeStyle = INK;
     ctx.stroke();
+    ctx.restore();
+  }
+
+  /**
+   * Lightning (design/art-direction.md M8: jagged, cyan-white, 2 frames + afterglow): a room flash
+   * and the full bolt with forks while it's live, then only a fading cyan trace.
+   */
+  private drawBolt(ctx: Ctx, b: { from: ScreenPoint; to: ScreenPoint; s: number; seed: number; left: number }): void {
+    const live = b.left > GLOW_TICKS, k = live ? 1 : b.left / GLOW_TICKS;
+    const len = Math.hypot(b.to[0] - b.from[0], b.to[1] - b.from[1]);
+    const n = Math.max(6, Math.round(len / (0.12 * b.s))), amp = 0.06 * b.s;
+    if (live) {
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      const g = ctx.createRadialGradient(b.to[0], b.to[1], 0, b.to[0], b.to[1], 900);
+      g.addColorStop(0, 'rgba(170,230,255,0.22)'); g.addColorStop(1, 'rgba(170,230,255,0)');
+      ctx.fillStyle = g; ctx.fillRect(b.to[0] - 900, b.to[1] - 900, 1800, 1800);
+      ctx.restore();
+    }
+    ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    // the same shape every frame of this bolt (seeded), redrawn thinner as it fades
+    const rnd = mulberry(b.seed);
+    jag(ctx, b.from[0], b.from[1], b.to[0], b.to[1], n, amp, rnd);
+    boltStroke(ctx, Math.max(2, 0.018 * b.s) * (live ? 1 : 0.6), live ? 1 : k * 0.7);
+    if (live) for (let f = 0; f < 3; f++) {
+      const u = 0.25 + rnd() * 0.5, px = b.from[0] + (b.to[0] - b.from[0]) * u, py = b.from[1] + (b.to[1] - b.from[1]) * u;
+      const ang = Math.atan2(b.to[1] - b.from[1], b.to[0] - b.from[0]) + (rnd() - 0.5) * 1.6, l = (0.15 + rnd() * 0.25) * b.s;
+      jag(ctx, px, py, px + Math.cos(ang) * l, py + Math.sin(ang) * l, 4, amp * 0.5, rnd);
+      boltStroke(ctx, Math.max(1, 0.008 * b.s));
+    }
+    // impact glow on the corpse
+    const g = ctx.createRadialGradient(b.to[0], b.to[1], 0, b.to[0], b.to[1], 0.35 * b.s);
+    g.addColorStop(0, `${BOLT_GLOW}${(0.6 * k).toFixed(3)})`); g.addColorStop(1, `${BOLT_GLOW}0)`);
+    ctx.fillStyle = g; ctx.fillRect(b.to[0] - 0.35 * b.s, b.to[1] - 0.35 * b.s, 0.7 * b.s, 0.7 * b.s);
+    ctx.restore();
+  }
+
+  /** A bullet stopped on the ward: white sparks fanning back toward the shooter. */
+  private drawSparks(ctx: Ctx, sp: { x: number; y: number; s: number; facing: number; seed: number; left: number }): void {
+    const rnd = mulberry(sp.seed), k = sp.left / 4;
+    ctx.save(); ctx.lineCap = 'round';
+    const g = ctx.createRadialGradient(sp.x, sp.y, 0, sp.x, sp.y, 0.12 * sp.s);
+    g.addColorStop(0, `${BOLT_GLOW}${(0.7 * k).toFixed(3)})`); g.addColorStop(1, `${BOLT_GLOW}0)`);
+    ctx.fillStyle = g; ctx.fillRect(sp.x - 0.12 * sp.s, sp.y - 0.12 * sp.s, 0.24 * sp.s, 0.24 * sp.s);
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1.5, 0.008 * sp.s); ctx.globalAlpha = k;
+    for (let i = 0; i < 6; i++) {
+      // back out of the ward's face, toward whoever fired
+      const a = (sp.facing > 0 ? 0 : Math.PI) + (rnd() - 0.5) * 1.8, l = (0.05 + rnd() * 0.12) * sp.s * (1.6 - k * 0.6);
+      ctx.beginPath(); ctx.moveTo(sp.x + Math.cos(a) * l * 0.4, sp.y + Math.sin(a) * l * 0.4); ctx.lineTo(sp.x + Math.cos(a) * l, sp.y + Math.sin(a) * l); ctx.stroke();
+    }
     ctx.restore();
   }
 

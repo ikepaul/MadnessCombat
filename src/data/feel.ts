@@ -39,6 +39,8 @@ export const FEEL = {
     lightHit: 1.5,
     /** invented: a body slammed into a wall */
     wall: 5,
+    /** M8, invented: a lightning bolt cracking across the room (under the explosion's 14) */
+    lightning: 7,
     /** invented: the player getting hit */
     hurt: 5,
     decayMin: 0.15,

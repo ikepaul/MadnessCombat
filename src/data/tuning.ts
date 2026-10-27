@@ -87,6 +87,40 @@ export const TUNING = {
     /** A melee weapon within this distance is taken up on rising. invented */
     weaponReach: 0.6,
   },
+  /** M8 stage-1 boss, the hovering necromancer (boss-halo, design/art-direction.md). */
+  boss: {
+    /** Drawn and hit 1.1 H tall (style frame "Stage 1 cast"). own design */
+    scale: 1.1,
+    /** boss-halo: floats down from above the frame, ep1 f1420-f1440 (0.67 s). Starts above the screen top. */
+    descend: 0.67,
+    startHeight: 4.8,
+    /** Hover height under his feet and its bob (H, s). style frame, invented */
+    hover: 0.14,
+    hoverBob: 0.03,
+    hoverRate: 2.4,
+    /** Raise telegraph: the hand goes up with a crackle this long before the bolt (s). invented within ep1 f1450-f1480 */
+    castTime: 0.8,
+    /** boss-halo: the bolt shows 2 frames (30 fps). */
+    boltTime: 2 / 30,
+    /** Stage 1 raises 1-2 zombies (ep1: two in all). At most this many alive at once. */
+    maxZombies: 2,
+    /** First raise after landing, then one every... (s). invented */
+    firstRaise: 1.0,
+    raiseEvery: 6,
+    /** Raise targets within this distance of him (H). invented: the whole arena */
+    raiseRange: 8,
+    /** boss-halo: the shield stays up ~1 s (ep1 f1659-f1699), then a window before it can rise again (s). window invented */
+    wardUp: 1.0,
+    wardWindow: 1.5,
+    /** Fade of the ward drawing in / out (s). invented */
+    wardFade: 0.12,
+    /** It comes up when someone with a gun is on its side within this distance (H). invented */
+    wardThreat: 7,
+    /** Ward diamond, boss-local (H, before scale): centre and half sizes (style frame). */
+    ward: { x: 0.54, y: -0.62, hw: 0.25, hh: 0.68 },
+    /** Head hits (any bullet or thrown gun to the head while the ward is down) to kill him. invented */
+    hp: 3,
+  },
   health: {
     /** decided with the user (2026-10-26): 4 light or 2 heavy hits (light 1, heavy 2). */
     grunt: 4,

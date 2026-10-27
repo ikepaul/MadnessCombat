@@ -16,7 +16,7 @@ import type { World } from './world';
 /** One bullet's path for the effects: tracer end, what it hit, blood behind a body hit. */
 export interface ShotRay {
   end: ScreenPoint;
-  surface?: Surface | 'flesh' | 'metal';
+  surface?: Surface | 'flesh' | 'metal' | 'ward';
   /** World point of a wall/floor/prop impact (bullet hole) or of the splatter behind a body hit. `metal` = a weapon shot out of a hand. */
   impact?: { x: number; y: number; z: number; surface: Surface };
 }
@@ -135,6 +135,12 @@ function fire(world: World, a: Actor, i: 0 | 1, h: Hand, w: WeaponDef, dual: boo
     const ang = base + (world.rng() * 2 - 1) * spread;
     const dir: ScreenPoint = [Math.cos(ang), Math.sin(ang)];
     const r = castRay(world, rig.muzzle, dir, a.pos.z, skip);
+    if (r.ward) {
+      // M8: stopped on the boss's ward, sparks fly off it
+      world.events.emit('wardHit', { actorId: r.ward.id, at: r.end });
+      rays.push({ end: r.end, surface: 'ward' });
+      continue;
+    }
     if (r.disarm) {
       // combat-disarm: the shot hit the weapon in the hand before the body
       disarm(world, a, r.disarm, 'shot', Math.sign(dir[0]) || a.facing);

@@ -117,6 +117,18 @@ export interface GameEvents {
   music: { cue: string | null };
   /** A scripted screen shake (a landing boss, a falling cannon). */
   cameraShake: { px: number; seconds: number };
+
+  // M8: the stage-1 boss (src/sim/boss.ts)
+  /** He starts floating down from above the frame, or has settled at his hover height. */
+  bossArrive: At & { phase: 'descend' | 'land' };
+  /** Lightning telegraph: his hand goes up toward a corpse (the bolt follows after TUNING.boss.castTime). */
+  bossCast: At & { targetId: number };
+  /** A lightning bolt from his hand to its target (raise: a corpse). */
+  lightning: { actorId: number; targetId: number; from: { x: number; y: number; z: number }; to: { x: number; y: number; z: number } };
+  /** The ward came up or went down. */
+  ward: At & { up: boolean };
+  /** A ray stopped on the ward: ricochet sparks at that screen point. */
+  wardHit: { actorId: number; at: [number, number] };
 }
 
 export type HitKind =

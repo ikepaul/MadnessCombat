@@ -5,6 +5,7 @@ import { TEST_ROOM } from '../data/rooms/testRoom';
 import { bindDebugKeys } from '../input/debugKeys';
 import { PlayerInput } from '../input/playerInput';
 import '../labs/aiLabs';
+import '../labs/bossLabs';
 import '../labs/enemyLabs';
 import '../labs/gunLabs';
 import '../labs/meleeLabs';
@@ -14,6 +15,7 @@ import { getLab, type Lab } from '../labs/registry';
 import { CanvasLayer } from '../render/canvasLayer';
 import { paintBall, paintCannon } from '../render/canvas/cannonPainter';
 import { paintCharacter } from '../render/canvas/characterPainter';
+import { paintBoss } from '../render/canvas/bossPainter';
 import { paintItem } from '../render/canvas/itemPainter';
 import { paintDoor, paintProp, paintRoom } from '../render/canvas/roomPainter';
 import { Decals } from '../render/decals';
@@ -293,6 +295,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private paintCorpse(a: Actor): void {
+    if (a.kind === 'boss') { paintBoss(this.corpseLayer.ctx, a, { time: 0 }); return; }
     paintCharacter(this.corpseLayer.ctx, a, PALETTES[this.paletteId], 0, { blood: this.blood });
   }
 
@@ -359,7 +362,7 @@ export class GameScene extends Phaser.Scene {
       if (a.corpse?.phase === 'frozen' || a.corpse?.gibbed) continue;
       // at equal depth the attacker draws in front, so the punching fist is visible
       const bias = a.state === 'attack' ? 0.002 : a.state === 'grabbed' ? -0.001 : 0;
-      list.push({ z: a.pos.z - bias, draw: () => paintCharacter(ctx, a, pal, this.world.time, { blood, flashes }) });
+      list.push({ z: a.pos.z - bias, draw: () => (a.kind === 'boss' ? paintBoss(ctx, a, { time: this.world.time, flashes }) : paintCharacter(ctx, a, pal, this.world.time, { blood, flashes })) });
     }
     for (const it of this.world.items) list.push({ z: it.pos.z, draw: () => paintItem(ctx, it, pal, blood, this.world.time) });
     for (const p of this.world.room.props) list.push({ z: p.z0, draw: () => paintProp(ctx, p, pal) });

@@ -1,9 +1,11 @@
 // Stage 1 as one script (PLAN.md M8, research/stages.md Stage 1, research/episodes/ep1-log.md).
 // Beat 1, the intro: the boombox NPC by the pole, the dancer in the background. Walk up to the
 // music, get punched flat (teaches the get-up), then take him out (melee tutorial, low sweep).
-// Then wave A, then a grenade for the body pile. Later M8 steps add the boss, wave B and the ending.
+// Then wave A, a grenade for the body pile, and the boss (entrance, lightning raise, ward so far).
+// Later M8 steps add his other moves, wave B and the ending.
 import { TUNING } from '../tuning';
 import type { Actor } from '../../sim/actor';
+import { spawnBoss } from '../../sim/boss';
 import type { Seq } from '../../sim/sequencer';
 import type { World } from '../../sim/world';
 import { STAGE1 } from './stage1';
@@ -120,6 +122,43 @@ export function* grenadeBeat(s: Seq) {
   if (boom) yield G.after;
 }
 
+/** Beat 4 placement and timings. */
+export const BOSS_BEAT = {
+  /** He comes down on the far side from the hero (ep1: far left of the hero by the tree). */
+  x: 2.4,
+  z: 9.6,
+  /** ep1: the hero pulls the SMG once the first zombie is up (f1599, ~1.6 s after the bolt). Waits this long for a bolt (s). invented */
+  boltWait: 8,
+  /** Bolt -> the SMG lands (s): the zombie is up. ep1 f1500 -> f1599 */
+  smgAfterBolt: 1.6,
+};
+
+/**
+ * Beat 4 (research/stages.md, ep1 0:47-1:24), first part: the boss floats down, raises the dead
+ * with lightning and blocks frontal fire with his ward. An SMG drops in once the first zombie is
+ * up. Shoot him in the head when the ward is down. (His other moves join in later M8 steps.)
+ */
+export function* bossFight(s: Seq) {
+  const world = s.world, B = BOSS_BEAT;
+  const side = (world.player?.pos.x ?? 0) > 0 ? -1 : 1;
+  s.music('boss');
+  const boss = spawnBoss(world, side * B.x, B.z, -side as 1 | -1);
+  yield* s.until(() => boss.boss?.phase === 'fight' || dead(boss));
+
+  let bolted = false;
+  const off = world.events.on('lightning', () => (bolted = true));
+  yield* s.until(() => bolted || dead(boss), B.boltWait);
+  off();
+  if (bolted) yield B.smgAfterBolt;
+  const lim = world.room.halfWidth - 0.3;
+  for (const p of world.activePlayers) s.drop('smg', Math.max(-lim, Math.min(lim, p.pos.x + p.facing * 0.6)), p.pos.z, GRENADE_BEAT.dropHeight);
+  s.run(function* caption(q: Seq) { yield* q.card('An SMG. His ward stops shots from the front: hit him in the head when it drops.', 5, 'caption'); });
+
+  yield* s.until(() => dead(boss));
+  // whatever he raised still has to go down
+  yield* s.until(() => !world.actors.some((a) => a.kind === 'zombie' && !dead(a)));
+}
+
 /** The whole stage, beat by beat. */
 export function* stage1(s: Seq) {
   const cast = placeIntroCast(s);
@@ -134,5 +173,8 @@ export function* stage1(s: Seq) {
 
   // beat 3: blow up the pile
   yield* grenadeBeat(s);
+
+  // beat 4: the boss
+  yield* bossFight(s);
   s.clear();
 }

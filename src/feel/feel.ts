@@ -50,7 +50,9 @@ export class FeelDirector {
       this.kills.push(t);
       const multi = this.kills.length >= FEEL.killCam.comboKills;
       const lastOfWave = world.director?.waveFinished(world) ?? false;
-      if (multi || lastOfWave) {
+      // art direction: a boss phase ending gets the kill cam too
+      const boss = world.actorById(e.actorId)?.kind === 'boss';
+      if (multi || lastOfWave || boss) {
         this.kills = [];
         this.sink.killCam();
       }
@@ -63,8 +65,12 @@ export class FeelDirector {
       this.sink.shake(FEEL.shake.explosion, FEEL.shake.decayMax);
       this.sink.chromatic(FEEL.chromatic.kill.px, FEEL.chromatic.kill.frames);
     });
-    // M8: scripted shakes (a landing boss, a falling cannon)
+    // M8: scripted shakes (a landing boss, a falling cannon); the boss's lightning cracks the screen
     world.events.on('cameraShake', (e) => this.sink.shake(e.px, e.seconds));
+    world.events.on('lightning', () => {
+      this.sink.shake(FEEL.shake.lightning, FEEL.shake.decayMin + 0.1);
+      this.sink.chromatic(FEEL.chromatic.kill.px, FEEL.chromatic.kill.frames);
+    });
     world.events.on('wallHit', (e) => {
       if (e.speed > 2) this.sink.shake(FEEL.shake.wall, FEEL.shake.decayMin + 0.1);
     });

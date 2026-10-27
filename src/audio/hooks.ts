@@ -130,6 +130,15 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
       play('moan', at(a.pos.x, a.pos.y + 0.8, a.pos.z));
     }
   });
+  // M8: the stage-1 boss
+  world.events.on('bossArrive', (e) => { if (e.phase === 'descend') play('rumble', at(e.x, 1, e.z)); });
+  world.events.on('bossCast', (e) => play('crackle', at(e.x, e.y + 1.2, e.z)));
+  world.events.on('lightning', (e) => { play('thunder', at(e.to.x, e.to.y, e.to.z)); engine.duck(0.3); });
+  world.events.on('ward', (e) => { if (e.up) play('wardHum', at(e.x, e.y + 0.7, e.z)); });
+  world.events.on('wardHit', (e) => {
+    const a = world.actorById(e.actorId);
+    if (a) play('ricochet', at(a.pos.x + a.facing * 0.6, a.pos.y + 0.7, a.pos.z));
+  });
   world.events.on('doorOpen', (e) => {
     const d = world.room.doors[e.door];
     if (d) play('door', at(d.wall === 'left' ? -world.room.halfWidth : world.room.halfWidth, 1, (d.z0 + d.z1) / 2));

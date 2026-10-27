@@ -5,7 +5,8 @@ import { TUNING } from '../data/tuning';
 import type { MeleeId } from '../data/melee';
 import { isWeapon, WEAPONS, type WeaponId } from '../data/weapons';
 
-export type ActorKind = 'hero' | 'grunt' | 'zombie';
+/** `boss` = the stage-1 necromancer (M8, src/sim/boss.ts): hovers, stepped by its own state machine. */
+export type ActorKind = 'hero' | 'grunt' | 'zombie' | 'boss';
 /** M8 stage 1 NPCs (design/art-direction.md, style frame "Stage 1 cast"): no AI, driven by scripts. */
 export type NpcVariant = 'boombox' | 'dancer';
 /** What a hand holds: a gun (src/data/weapons.ts) or a melee weapon / throwable (src/data/melee.ts). */
@@ -82,6 +83,9 @@ export interface Pose {
   green?: number;
   /** enemy-behaviours: the last enemy of a wave sweats (M7). */
   sweat?: boolean;
+  /** M8 boss: ward strength 0..1 (drawn in front of him), lightning telegraph progress 0..1 (hand up). */
+  ward?: number;
+  cast?: number;
 }
 
 export type MoveState = 'ground' | 'air' | 'goingProne' | 'diving' | 'prone' | 'standingUp';
@@ -241,6 +245,8 @@ export interface Actor {
   takenBy?: number;
   /** Enemy AI memory (src/sim/ai.ts). */
   ai?: import('./ai').AiState;
+  /** M8 boss state machine (src/sim/boss.ts). */
+  boss?: import('./boss').BossState;
   /** Lab/AI controller; the player is driven by World.command instead. */
   brain?: Brain;
 }

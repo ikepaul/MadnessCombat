@@ -11,6 +11,7 @@ import type { RoomDef } from './room';
 import type { WaveDirector } from './waves';
 import { stepProps } from './cover';
 import { Seq } from './sequencer';
+import { isBoss, stepBoss } from './boss';
 import { installAlertRules } from './stealth';
 
 /** Props can change in play (a kicked-over table), so each World gets its own copies. */
@@ -182,6 +183,7 @@ export class World {
     assignTokens(this);
     for (const a of this.actors) {
       if (a.corpse?.phase === 'frozen') continue;
+      if (isBoss(a)) { stepBoss(this, a, this.dt); continue; }
       stepActor(this, a, this.commandFor(a), this.dt);
     }
     this.commands = this.commands.map(clearEdges);
@@ -246,7 +248,7 @@ export class World {
   /** Soft push-apart between standing actors on the same depth band. */
   private separate(): void {
     const S = TUNING.separation;
-    const list = this.actors.filter((a) => (a.state === 'free' || a.state === 'stun' || a.state === 'attack') && a.body.height > 0.9 && a.body.state !== 'diving');
+    const list = this.actors.filter((a) => (a.state === 'free' || a.state === 'stun' || a.state === 'attack') && a.body.height > 0.9 && a.body.state !== 'diving' && a.kind !== 'boss');
     for (let i = 0; i < list.length; i++) {
       for (let j = i + 1; j < list.length; j++) {
         const a = list[i], b = list[j];
