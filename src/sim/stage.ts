@@ -153,11 +153,13 @@ export function enterRoom(world: World, def: StageDef, roomId: string, entryId: 
   const r = def.rooms[roomId];
   if (!r) throw new Error(`unknown room ${roomId}`);
   const entry = r.entries[entryId] ?? Object.values(r.entries)[0];
-  world.setRoom(r.room);
+  // the old room's bodies and items go first: setRoom announces the change, and the scene
+  // re-bakes the frozen corpses right then (they used to be painted into the next room)
   world.actors.splice(0, world.actors.length, ...world.players);
   world.items = [];
   world.cannons = [];
   world.balls = [];
+  world.setRoom(r.room);
   world.tokens.clear();
   world.tokenFreeAt = [];
   world.director = undefined;
