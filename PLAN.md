@@ -20,6 +20,7 @@ Decisions live in `research/design-decisions.md` (gameplay), `design/art-directi
 | M8 | **Stage 1 complete** | Episode 1 start to finish incl. the boss (own design) and stage music hooks | L |
 | M9 | Room chaining & Stage 2 (first half) | Stage 2 rooms 1–6, cool palette, infiltration ambience | L |
 | M10 | **Stage 2 complete** | Elevator, remaining rooms, ending | L |
+| M10b | Combos & fatalities, first slice (added 2026-10-27) | Juggles, wall bounces, pop-and-catch disarms, thrown-gun links, the head punt and the over-the-shoulder shot, on every stage built so far | M |
 | M11 | Stage 3 (first half) | Stage 3 rooms 1–6 incl. improbability mode | XL (split in two if needed) |
 | M12 | **Stage 3 complete** | Desert, vending room, final room, last stand | L |
 | M13 | Game shell & final polish | Title, stage select, settings (incl. effect intensity), checkpoints, final art/audio pass | M |
@@ -337,6 +338,33 @@ Look & sound:
 Acceptance: elevator scripted events fire in order, and the cables only break after the door ambush · the hold-up only triggers on the last unarmed enemy · the stage completes with a scripted bot.
 Labs: `world-elevator-fight`, `enemy-welder`, `world-destructible` (clip 1), `world-interrogate-knockout`, `boss-target` (clip 2).
 
+## M10b: Combos & fatalities, first slice (M)
+**Goal:** reward chaining *different* verbs (launch → shoot, disarm → catch → use, throw → punch) and add context kills, using systems that already exist. Six moves; the rest of the brainstorm waits.
+**Read first:** `design/combos-and-fatalities.md` (the brainstorm, sections 2 and 6), `research/design-decisions.md` ("Combos", "Fatalities"), `melee-punch-knockback`, `melee-hitstun-finisher`, `melee-decapitation`, `combat-disarm`, `gun-empty-throw`, `throw-catch-return`, `world-last-stand`, `src/sim/combat.ts`, `TUNING.combo`.
+
+Rules for every move (decided):
+- **Chains**: the existing 0.8 s window and +1 damage stay. New: a chain hit can come from any of the hero's verbs (punch, thrown gun, caught weapon, shot), not only punches. Chains are per attacker and target, as now.
+- **Fatalities are contextual**: no extra input, triggered by how and where the kill happens. ≤ 0.8 s of special animation, the world keeps running, the kill-cam stays within the feel budget. Never a cutscene.
+- **Reward is feel only** (hit-stop, pitch-up, kill-cam). No score, no meter.
+- Stage 1 stays bloodless: fatalities there are decaps and launches.
+
+Build:
+- [ ] **Launcher → juggle.** A heavy uppercut on a stunned grunt launches him (≈ 1 H, ≈ 0.5 s airtime, invented). While airborne: LMB jabs add ≈ 0.15 s airtime each (max 3), RMB spikes him into the floor (knockdown + floor bounce), F grabs him out of the air (allowed while he's airborne, the hero stays grounded). Shots at an airborne grunt count as head hits. Reference: ep2 f3310, ep1 f1929.
+- [ ] **Wall bounce.** A heavy/thrown-body slam into a wall or a solid prop (cannon, crates, tables) below the 4 H/s kill speed bounces the grunt back airborne toward the attacker instead of stopping him: a juggle starter. Outdoor bounds don't bounce. M11's improbability mode multiplies this (keep one code path). Reference: ep3 f2350–f2510.
+- [ ] **Pop & catch.** A light-punch disarm (and a steal that misses) sends the weapon spinning *up* (≈ 1 H, invented) instead of to the floor. The existing F snatch catches it; the first attack with a caught weapon within the window is a chain hit. Enemies don't catch. Reference: ep2 f3060–f3140, f5310–f5360.
+- [ ] **Click → throw → punch.** A thrown empty gun that hits a head stuns (as a light punch) and counts as a chain hit, so the next punch inside the window is chain hit 2 (a heavy kills). Reference: ep3 f1210–f1230, f3220.
+- [ ] **Head punt (fatality).** A heavy at a stunned **airborne** grunt that kills him decapitates and shoots the head along the hit direction at ≈ 6 H/s (invented). The head knocks down the first grunt it hits (instead of the usual stagger for thrown heads). Short kill-cam on the head. Reference: ep1 f1929.
+- [ ] **Over-the-shoulder shot (fatality + counter).** Holding a gun, with an enemy in melee contact behind you (≤ 0.6 H, invented): RMB fires the back hand backward without turning. A kill this way is a head burst (stage 2+) / decap (stage 1) with a kill-cam. It replaces the "allowed only in the last stand" rule in M12; the last stand uses this same move. Reference: ep3 f6660–f6710.
+
+Look & sound:
+- [ ] Juggle: launch whoosh + dust puff, airtime motion smear, spike floor-crack ring + thud. Wall bounce: squash on contact (small, rubbery only in improbability mode), wall dust, low bump.
+- [ ] Pop & catch: spinning weapon with a short glint at the top of the arc, a crisp catch slap. Thrown gun: metal-on-skull clonk.
+- [ ] Head punt: head trail, kill-cam follows the head. Over-the-shoulder: backward muzzle flash from the back hand, dry close-mic shot, kill-cam.
+- [ ] Combo feel: chain hit 3+ and every fatality pitch the kill tick up further (existing behaviour, extend to the new chain sources).
+
+Acceptance: a launched grunt can be kept airborne for at most 3 jabs · walls bounce, outdoor bounds don't · a popped weapon can be caught by either player in co-op · a thrown empty gun + one heavy kills a grunt · the head punt knocks down the grunt it hits · the backward shot only fires at an enemy in contact behind the hero · the balance bot (`tests/balance.test.ts`) with 0.35 s reactions still loses wave A (the new moves mustn't make it trivial) · co-op guests see all six via replayed events (no sim rules run on puppets).
+Labs: `combo-juggle`, `combo-wall-bounce`, `combo-pop-catch`, `combo-gun-throw`, `fatality-head-punt`, `fatality-over-shoulder`.
+
 ## M11: Stage 3, first half (XL: split into 11a rooms 1–5 and 11b street if needed)
 **Goal:** the knife-run opening, improbability mode, the collapsing room and the surreal street.
 **Read first:** `research/stages.md` (Stage 3 rooms 1–6), `world-improbability-mode`, `world-arena-collapse`, `world-falling-hazard`, `move-fall-transition`, `boss-clown` (clips 2–3), `enemy-sun-brute`, `melee-environment-weapon`, `world-kill-counter`.
@@ -366,7 +394,7 @@ Build:
 - [ ] Boss: mass raise ≈ 5, bullet-sponge (no damage here), **wall blast** = transition through a destructible wall into the next room.
 - [ ] Vending room: knife-throwing grunt (catch-and-return), the empty-pistol gag, throw into the vending machine, the boss flies in, raises 2 zombies, **sword dive**, damage → **teleport away**.
 - [ ] Console room (the target flees, door waves).
-- [ ] Final lift room: the target + 2 elite bodyguards → **last stand** (decided): red bars, can't move, aim/fire for ≈ 5 s (the backward over-the-shoulder shot is allowed only here), kill the boss and the target → death → credits card with body count vs. 91.
+- [ ] Final lift room: the target + 2 elite bodyguards → **last stand** (decided): red bars, can't move, aim/fire for ≈ 5 s (the backward over-the-shoulder shot from M10b is how the boss behind you is hit), kill the boss and the target → death → credits card with body count vs. 91.
 
 Look & sound:
 - [ ] Wall drops with dust and impact shake, the blood flood spreading, the wall-blast hole, teleport implosion VFX, last-stand red bars + heartbeat + desaturation fade.
