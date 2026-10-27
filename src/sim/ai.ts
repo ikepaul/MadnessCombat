@@ -443,8 +443,10 @@ function meleeStep(world: World, a: Actor, p: Actor, face: 1 | -1, dt: number): 
   const stand = weapon ? Math.max(AI.punchDistance, weapon.reach - AI.weaponMargin) : AI.punchDistance;
 
   // enemy-behaviours: a knife grunt throws it from range now and then (then fights barehanded)
-  // M11: axe grunts throw theirs too (research/stages.md stage 3 room 4: an axe thrown round the corner)
-  if ((weapon?.id === 'knife' || weapon?.id === 'axe') && a.state === 'free' && a.kind !== 'zombie') {
+  // M11: axe grunts throw theirs too where a room allows it (research/stages.md stage 3 room 4:
+  // an axe thrown round the corner); elsewhere they keep it, as before
+  const throws = weapon?.id === 'knife' || (weapon?.id === 'axe' && world.flags.has('axeThrows'));
+  if (throws && a.state === 'free' && a.kind !== 'zombie') {
     ai.throwT = (ai.throwT ?? AI.knifeThrowEvery * world.rng()) - dt;
     const dx = Math.abs(p.pos.x - a.pos.x), dz = Math.abs(p.pos.z - a.pos.z);
     const [r0, r1] = AI.knifeThrowRange;

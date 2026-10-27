@@ -112,6 +112,7 @@ export function cameraWaves(): RoomScript {
  */
 function* camera(s: Seq, _entry: string): Beat {
   const world = s.world;
+  world.flags.add('axeThrows');
   yield* s.waves(cameraWaves());
   yield* s.until(() => foesLeft(world) === 0);
 
