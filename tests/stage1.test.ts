@@ -1,6 +1,6 @@
 // M8 stage 1 script (PLAN.md): the intro beat, and the stage running headless to its end card
 // with a scripted bot (sequencer + waves don't deadlock).
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, onTestFinished } from 'vitest';
 import { STAGE1 } from '../src/data/stages/stage1';
 import { BOSS_BEAT, ENDING, GRENADE_BEAT, INTRO, stage1, stage1From } from '../src/data/stages/stage1Script';
 import { isBoss } from '../src/sim/boss';
@@ -200,6 +200,12 @@ function playStage(world: World, hero: Actor, throwGrenade: boolean) {
 
 describe('stage 1 headless', () => {
   it('runs from the intro through wave A, the grenade and the boss to the end card without deadlocking', () => {
+    // the bot's grenade and SMG budget is tuned to the scripted arrivals (where the bodies pile up);
+    // spawn variety is covered by tests/spawns.test.ts
+    const variety = TUNING.waves.variety.on;
+    const V = TUNING.waves.variety as { on: number };
+    V.on = 0;
+    onTestFinished(() => { V.on = variety; });
     const { world, hero } = setup();
     world.step();
     let intactBefore = -1, intactAfter = -1;

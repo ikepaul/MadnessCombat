@@ -318,6 +318,8 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
     const a = world.actorById(e.actorId);
     if (a) play('ricochet', at(a.pos.x + a.facing * 0.6, a.pos.y + 0.7, a.pos.z));
   });
+  // spawn variety: someone's coming in behind the player (a door also plays its own sound)
+  world.events.on('flank', (e) => play('whistle', at(e.x, e.y, e.z, { gain: 0.7, rate: 1.15 })));
   world.events.on('doorOpen', (e) => {
     const d = world.room.doors[e.door];
     if (d) play('door', at(d.wall === 'left' ? -world.room.halfWidth : world.room.halfWidth, 1, (d.z0 + d.z1) / 2));
