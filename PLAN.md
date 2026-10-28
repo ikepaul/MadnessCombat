@@ -575,18 +575,18 @@ Done (2026-10-28, branch `m19-rage`), the gameplay and the presentation layer; t
 **Goal:** two full bars and a press each = a team super, without precise timing.
 **Read first:** `design/rage.md` (sections 4–8), M18 and M19 above.
 
-Decided: both bars full; Tab near your partner (≤ 3 H, their bar full) sends a request instead of firing your solo move; their Tab within 4 s accepts; your second Tab withdraws and fires your solo move; nothing spent on a timeout.
+Decided: **team supers kill every eligible enemy on screen (no cap; solo stays at 6), so they're clearly stronger** (2026-10-28); both bars full; Tab near your partner (≤ 3 H, their bar full) sends a request instead of firing your solo move; their Tab within 4 s accepts; your second Tab withdraws and fires your solo move; nothing spent on a timeout.
 
 Build:
 - [ ] **The request** (`world.rageRequest`): open / accept / withdraw / expire rules, the near-simultaneous accept, cancels (down, boss grab, traversal, cutscene); HUD glyph with the countdown ring, waiting ring, the call sound; the `TEAM` tag and floor tether when both are full.
-- [ ] **Back to back** (both hold a gun): gather, back-to-back 180° spin killing as barrels pass (cap 10), the crossing-shot finale, guns refilled.
-- [ ] **Ping-pong rampage** (otherwise): positions, the scripted volley striking one victim per pass (cap 8), the sandwich punch, all drop at the fist bump.
+- [ ] **Back to back** (both hold a gun): gather, back-to-back 180° spin killing as barrels pass (no cap: every eligible enemy on screen), the crossing-shot finale, guns refilled.
+- [ ] **Ping-pong rampage** (otherwise): positions, the scripted volley striking one victim per pass (no cap; passes speed up with the count so it stays under ~2.7 s), the sandwich punch, all drop at the fist bump.
 - [ ] Partner bot answers requests (labs: N).
 
 Look & sound:
 - [ ] Poses `b2bReady`, `b2bFinish`, `sandwichHit`, `fistBump` through the 5.3 checklist; the tether snap, crossing tracers, fist-bump star. SFX: `rageRequest`, `rageAccept`, `b2bClink`, `fistBump`.
 
-Acceptance: the request and team-move tests in `design/rage.md` 7 · a two-laptop playtest note (or the bot route) showing a team move reached with no timing practice · 60 fps during Back to back with 10 victims.
+Acceptance: the request and team-move tests in `design/rage.md` 7 · a two-laptop playtest note (or the bot route) showing a team move reached with no timing practice · 60 fps during Back to back with 30 victims (stage 4's crowd sizes).
 Labs: `rage-request`, `rage-back-to-back`, `rage-ping-pong`.
 
 ---

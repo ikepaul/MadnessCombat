@@ -102,7 +102,7 @@ A hero can fire when: `rage.value >= 1`; alive, `state` `free` or `attack` (an a
 
 ### 2.3 Victims
 - Eligible: living enemies (`ai` set) of kind `grunt` or `zombie`, on screen (projected x within the frame with a 0.3 H margin), not `entering`, not `invulnerable` / `protected`, not `koed`, not `surrendered` (the stage 2 hold-up story stays intact), not in a stealth takedown (`takenBy`). Variants excluded: `riot`, `target`, `vending`, `vip`, and anything hovering (the jetpack). Bosses never. A grunt held by a hero (hold & hit) is released and included. Stage 4's agent (M14): decide when that branch is merged (proposal: included).
-- Cap: solo **6**, team back to back **10**, team ping-pong **8**. Order per move (below). Beyond the cap, enemies are bystanders.
+- Cap: solo **6**. **Team supers have no cap: every eligible enemy on screen dies** (decided with the user 2026-10-28: the team super must be clearly stronger than a solo one, and this is what makes it so). Order per move (below). Beyond the solo cap, enemies are bystanders.
 
 ### 2.4 While it runs (`world.rage`)
 ```ts
@@ -219,7 +219,7 @@ Victim order: by distance from the hero.
 Both heroes hold at least one gun → **Back to back**. Otherwise → **Ping-pong rampage**.
 
 ### 4.3 Back to back: each dies as a barrel passes
-Victim order: by angle around the meeting point M; cap 10, the farthest saved for the finale.
+Victim order: by angle around the meeting point M; no cap (everyone eligible on screen), the farthest saved for the finale. With more victims the barrels just meet more of them in the same 1.2 s turn.
 
 | Beat | Frames | Heroes | Victims | VFX / feel | Sound |
 |---|---|---|---|---|---|
@@ -232,7 +232,7 @@ Victim order: by angle around the meeting point M; cap 10, the farthest saved fo
 Every held gun refilled at the end. Length: about **2.5 s**.
 
 ### 4.4 Ping-pong rampage: strike all, then all drop
-Built on M18's ping-pong and body bat, scripted so it always reads. Victims sorted by x; cap 8. Victim 0 (nearest the left hero) is **the ball**.
+Built on M18's ping-pong and body bat, scripted so it always reads. Victims sorted by x; no cap. Victim 0 (nearest the left hero) is **the ball**. So a big crowd doesn't drag it out, the volley's pass time shrinks with the count: each pass takes `min(0.32, 2.6 / n)` s (never under 0.12 s), keeping the volley at about 2.6 s at most; above ~20 victims, each pass strikes everyone within 0.5 H of the ball's path instead of one.
 
 | Beat | Frames | Heroes | Victims | VFX / feel | Sound |
 |---|---|---|---|---|---|
@@ -289,7 +289,7 @@ Synthesized placeholders in `src/audio/synth.ts`, ids in `src/data/audio.ts`; re
 - Gain: gun, gun → +0.10, +0 · gun, fists, gun → +0.10, +0.15, +0 · gun, fists, thrown, gun → 0.10, 0.15, 0.20, 0.25 · a repeat resets the streak · `style` / `team` bonuses · a grenade killing 3 → the type gain + 2 × `multi` · kills by enemies, during a run, or of corpses give nothing · capped at 1 · a checkpoint restart restores the room-entry value · a new stage starts at 0.
 - Activation: Tab with a full bar and 3 grunts → all 3 dead by the end, bar 0, the hero unharmed though an enemy was mid-telegraph (frozen) · no victims → fizzle, bar kept · `inputLocked` → nothing · bosses, the riot mini-boss, the target, the brute, the jetpack are never victims · 9 grunts → 6 victims, 3 bystanders stunned 0.4 s after · bystanders don't move during the run (positions equal before and after, up to the release tick) · a live grenade's fuse doesn't burn during the run · cooking when Tab is pressed lobs the grenade.
 - Each move: victims struck in the documented order, pending until the release tick for Rampage / Cut line / Home run (all `kill` events on one tick, or 2 ticks apart for Home run), one kill per barrel pass for Spin shot; guns refilled after Spin shot; stage 1 Cut line kills are decaps with no blood events.
-- Request (M20): near + both full → `rageRequest open`, nothing spent, no slow-mo · B's Tab within 4 s → the team move, both bars 0 · A's second Tab → withdraw + A's solo move · timeout → expire, nothing spent · 3.5 H apart → A's solo move · B not full → A's solo move · B downed during the request → withdrawn · both guns → Back to back; else Ping-pong rampage · 12 grunts → 10 victims (Back to back) / 8 (Ping-pong).
+- Request (M20): near + both full → `rageRequest open`, nothing spent, no slow-mo · B's Tab within 4 s → the team move, both bars 0 · A's second Tab → withdraw + A's solo move · timeout → expire, nothing spent · 3.5 H apart → A's solo move · B not full → A's solo move · B downed during the request → withdrawn · both guns → Back to back; else Ping-pong rampage · 12 grunts on screen → all 12 die (both moves); 30 grunts → all 30 die and the Ping-pong volley stays ≤ 2.7 s · a boss or mini-boss on screen is never a victim.
 - Net: the puppet world replays `rage*` events; `ActorSnap.rage` and `Snapshot.rage` round-trip; the guest's Tab reaches the host.
 
 ## 8. Labs
