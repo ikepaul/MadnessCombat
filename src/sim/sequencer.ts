@@ -6,6 +6,7 @@
 import { isWeapon, WEAPONS } from '../data/weapons';
 import { type Actor, type ActorKind, createActor, type HeldItem, newHand } from './actor';
 import { IDLE_COMMAND, type PlayerCommand } from './command';
+import { spawnCount } from './difficulty';
 import type { GameEvents } from './events';
 import type { Item, ItemKind } from './items';
 import { type RoomScript, type SpawnOpts, spawnEnemy, WaveDirector } from './waves';
@@ -34,6 +35,9 @@ const ARRIVE = 0.08;
 const MOVE_TIMEOUT = 6;
 
 /** The commands a script can use. One per World (`world.seq`). */
+/** Difficulty: plain scripted spawns so far in each world (spreads the copies evenly). */
+const plainSpawns = new WeakMap<World, number>();
+
 export class Seq {
   private tasks: TaskState[] = [];
 
@@ -141,7 +145,20 @@ export class Seq {
 
   /** An enemy with the grunt AI, standing at (x, z) or walking in if x is off-screen. */
   spawn(kind: ActorKind, held: HeldItem, x: number, z: number, opts?: SpawnOpts): Actor {
-    return spawnEnemy(this.world, kind, held, x, z, opts);
+    const a = spawnEnemy(this.world, kind, held, x, z, opts);
+    // difficulty: harder settings add copies of plain, aware enemies beside him (scripts may hold
+    // on to the one returned, so nobody is ever left out on the easy settings)
+    if (opts?.variant || opts?.role || opts?.aware === false) return a;
+    const i = plainSpawns.get(this.world) ?? 0;
+    plainSpawns.set(this.world, i + 1);
+    const n = spawnCount(this.world, i);
+    const r = this.world.room;
+    const zLo = Math.min(r.zFront, r.zBack) + 0.2, zHi = Math.max(r.zFront, r.zBack) - 0.2;
+    for (let k = 1; k < n; k++) {
+      const zk = Math.max(zLo, Math.min(zHi, z + (k % 2 ? 0.45 : -0.45) * Math.ceil(k / 2)));
+      spawnEnemy(this.world, kind, held, x + Math.sign(x || 1) * 0.5 * k, zk, { ...opts, face: opts?.face ?? (x > 0 ? -1 : 1) });
+    }
+    return a;
   }
 
   /** A scripted character without AI (NPCs, the boss's puppet moves): only scripts drive it. */

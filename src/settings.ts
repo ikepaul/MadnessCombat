@@ -2,6 +2,7 @@
 // blood, key bindings. Kept in localStorage, which may be unavailable (private windows): every
 // access is guarded.
 import type { EffectIntensity } from './data/feel';
+import type { Difficulty } from './sim/difficulty';
 
 /** Rebindable actions (M13 settings); mouse buttons stay LMB / RMB. */
 export type Action = 'up' | 'down' | 'left' | 'right' | 'jump' | 'dive' | 'grab' | 'use' | 'reload' | 'throw' | 'grenade' | 'split' | 'rage' | 'fireMode';
@@ -35,11 +36,13 @@ export interface Settings {
   friendlyFire: FriendlyFire;
   /** M18: the key glyphs that teach the co-op moves (lift, pass, tear, spin...). */
   coopHints: boolean;
+  /** Enemies per room and boss health: Noob, Pro (as designed), Hacker, Notch. */
+  difficulty: Difficulty;
   keys: Record<Action, string>;
 }
 
 const KEY = 'madness-like.settings';
-const DEFAULTS: Settings = { master: 0.8, music: 0.7, sfx: 0.9, effects: 'full', reducedMotion: false, blood: 'stage', friendlyFire: 'damage', coopHints: true, keys: { ...DEFAULT_KEYS } };
+const DEFAULTS: Settings = { master: 0.8, music: 0.7, sfx: 0.9, effects: 'full', reducedMotion: false, blood: 'stage', friendlyFire: 'damage', coopHints: true, difficulty: 'pro', keys: { ...DEFAULT_KEYS } };
 
 function load(): Settings {
   try {

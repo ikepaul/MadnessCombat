@@ -13,6 +13,7 @@ import { project, type ScreenPoint, scaleAt } from '../render/camera';
 import { type Actor, alive, createActor } from './actor';
 import { type Cannon, dropCannon, landCannon } from './cannon';
 import { applyHit, die, dropBody, setClip } from './combat';
+import { bossHp } from './difficulty';
 import type { HitKind } from './events';
 import { canRaise, raiseCorpse } from './zombies';
 import type { World } from './world';
@@ -60,7 +61,7 @@ export const isBoss = (a: Actor | undefined): a is Actor & { boss: BossState } =
 /** The boss arrives: above the frame at (x, z), floating down over B.descend. */
 export function spawnBoss(world: World, x: number, z: number, facing: 1 | -1): Actor {
   const a = createActor('boss', x, z, facing);
-  a.hp = a.maxHp = B.hp;
+  a.hp = a.maxHp = bossHp(world, B.hp);
   a.pos.y = B.startHeight;
   a.pose.root = { r: 0, tx: 0, ty: 0, sx: B.scale, sy: B.scale };
   a.pose.ward = 0;

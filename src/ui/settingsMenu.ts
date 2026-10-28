@@ -4,6 +4,7 @@ import Phaser from 'phaser';
 import { audio } from '../audio/mixer';
 import { resetProgress } from '../progress';
 import { type Action, ACTION_LABELS, DEFAULT_KEYS, FRIENDLY_FIRE_LABELS, type FriendlyFire, SETTINGS, saveSettings } from '../settings';
+import { DIFFICULTIES, DIFFICULTY_LABELS } from '../sim/difficulty';
 import type { MenuItem } from './menu';
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
@@ -18,7 +19,9 @@ export function settingsItems(onControls: () => void, onBack: () => void): MenuI
   const effects = ['full', 'reduced', 'off'] as const;
   const ff: FriendlyFire[] = ['damage', 'knockdown', 'through'];
   const cycleFriendly = (d: number) => { SETTINGS.friendlyFire = ff[(ff.indexOf(SETTINGS.friendlyFire) + d + 3) % 3]; apply(); };
+  const cycleDifficulty = (d: number) => { SETTINGS.difficulty = DIFFICULTIES[(DIFFICULTIES.indexOf(SETTINGS.difficulty) + d + 4) % 4]; apply(); };
   return [
+    { label: () => `Difficulty   ◀ ${DIFFICULTY_LABELS[SETTINGS.difficulty]} ▶`, action: () => cycleDifficulty(1), adjust: (d) => cycleDifficulty(d) },
     vol('Master volume', 'master'),
     vol('Music', 'music'),
     vol('Sound effects', 'sfx'),

@@ -6,6 +6,7 @@
 import { TUNING } from '../tuning';
 import { project } from '../../render/camera';
 import { type Actor, alive, newHand } from '../../sim/actor';
+import { bossHp } from '../../sim/difficulty';
 import { dropBlock, flyIn, overVoid, setImprobable, startCollapse } from '../../sim/improbability';
 import type { Beat, Seq } from '../../sim/sequencer';
 import { openExit, takeExit } from '../../sim/stage';
@@ -250,7 +251,7 @@ function* street(s: Seq, _entry: string): Beat {
   world.events.emit('bruteWake', { x: v.x, y: 0, z: v.z });
   const brute = s.spawn('grunt', null, v.x, v.z - 0.05, { face: -1 });
   brute.variant = 'vending';
-  brute.hp = brute.maxHp = TUNING.brute.hp;
+  brute.hp = brute.maxHp = bossHp(world, TUNING.brute.hp);
   caption(s, 'The vending machine is getting up. The street sign has reach: pull it out (E).', 5);
   yield* s.until(() => dead(brute));
 
