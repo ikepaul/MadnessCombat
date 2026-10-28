@@ -73,8 +73,9 @@ describe('wave script (enemy-spawning)', () => {
     const script: RoomScript = {
       spawns: [{ id: 'L', kind: 'edge', side: -1, z: 9.2 }],
       waves: [
-        { id: 'A', threshold: 0, maxAlive: 9, entries: [[0, 'L', 'grunt', null], [0, 'L', 'grunt', null], [0, 'L', 'grunt', null]] },
-        { id: 'B', threshold: 2, maxAlive: 9, entries: [[0, 'L', 'grunt', null]] },
+        // exact: this checks the threshold rule tick by tick (no spawn variety)
+        { id: 'A', threshold: 0, maxAlive: 9, exact: true, entries: [[0, 'L', 'grunt', null], [0, 'L', 'grunt', null], [0, 'L', 'grunt', null]] },
+        { id: 'B', threshold: 2, maxAlive: 9, exact: true, entries: [[0, 'L', 'grunt', null]] },
       ],
     };
     const world = new World(ARENA.room);

@@ -15,6 +15,9 @@ export class StageHud {
   private wipe: Phaser.GameObjects.Graphics;
   private radar: Phaser.GameObjects.Graphics;
   private stand: Phaser.GameObjects.Graphics;
+  /** Spawn variety: a red chevron at the screen side someone is about to come in from (behind you). */
+  private flankG: Phaser.GameObjects.Graphics;
+  private flank?: { side: -1 | 1; t0: number };
   /** Wipe: phase and the world time it started. */
   private phase?: { kind: 'out' | 'in'; t0: number };
 
@@ -22,6 +25,8 @@ export class StageHud {
     this.radar = scene.add.graphics().setDepth(60);
     this.wipe = scene.add.graphics().setDepth(95);
     this.stand = scene.add.graphics().setDepth(80);
+    this.flankG = scene.add.graphics().setDepth(61);
+    world.events.on('flank', (e) => (this.flank = { side: e.side, t0: world.time }));
     world.events.on('roomTransition', (e) => (this.phase = { kind: e.phase, t0: world.time }));
     // a new room is there: if the wipe is still covering the screen, uncover it (co-op guests can
     // miss the 'in' event; never leave the screen black)
@@ -32,6 +37,33 @@ export class StageHud {
     this.drawWipe();
     this.drawRadar();
     this.drawLastStand();
+    this.drawFlank();
+  }
+
+  /** Two blinking chevrons pointing out of the screen edge, ~1 s (invented). */
+  private drawFlank(): void {
+    const g = this.flankG;
+    g.clear();
+    const f = this.flank;
+    if (!f) return;
+    const u = (this.world.time - f.t0) / 1.0;
+    if (u >= 1) { this.flank = undefined; return; }
+    const alpha = (1 - u) * (0.55 + 0.45 * Math.abs(Math.sin(u * Math.PI * 4)));
+    const s = f.side, cy = H * 0.5;
+    g.fillStyle(0xd62620, alpha);
+    g.lineStyle(5, INK_HEX, alpha);
+    for (const k of [0, 1]) {
+      const tip = s < 0 ? 28 + k * 46 : W - 28 - k * 46;
+      const back = tip - s * 34;
+      g.beginPath();
+      g.moveTo(tip, cy);
+      g.lineTo(back, cy - 44);
+      g.lineTo(back + s * 14, cy);
+      g.lineTo(back, cy + 44);
+      g.closePath();
+      g.fillPath();
+      g.strokePath();
+    }
   }
 
   /** M12 world-last-stand: red bars close in, the colour drains, a pulse with the heartbeat. */

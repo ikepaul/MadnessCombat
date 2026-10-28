@@ -158,7 +158,7 @@ export function corridorSquad(): RoomScript {
     [0.5, 'left', 'grunt', 'baton', { squad: 'riot' }],
     [0.5, 'left', 'grunt', 'knife', { squad: 'riot' }],
   ];
-  return { spawns: CORRIDOR_SPAWNS, waves: [{ id: 'squad', threshold: 0, maxAlive: 5, entries }] };
+  return { spawns: CORRIDOR_SPAWNS, waves: [{ id: 'squad', threshold: 0, maxAlive: 5, exact: true, entries }] };
 }
 export function corridorStragglers(): RoomScript {
   return { spawns: CORRIDOR_SPAWNS, waves: [{ id: 'more', threshold: 0, maxAlive: 3, entries: [[1.0, 'left', 'grunt', 'pistol'], [0.9, 'left', 'grunt', 'baton'], [0.9, 'left', 'grunt', 'pistol']] }] };

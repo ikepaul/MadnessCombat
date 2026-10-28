@@ -597,6 +597,40 @@ export const TUNING = {
     doorHold: 1.0,
     /** Off-screen distance past the side bounds where edge entries start. invented */
     edgeOffset: 1.6,
+    /**
+     * Spawn variety (playtest 2026-10-27: "they come in one at a time and I spam head shots"):
+     * a wave's entries arrive in seeded groups, spread over the room's spawn points, now and then
+     * one from behind the player; low alive counts bring the next group sooner. Waves marked
+     * `exact` keep their scripted order. Not from the show. All invented.
+     */
+    variety: {
+      /** 1 = groups/spread/flanks; 0 = the old single-file trickle (A/B switch). invented */
+      on: 1,
+      /** Group size (members), seeded per group; capped by the wave's maxAlive. invented */
+      groupMin: 2,
+      groupMax: 3,
+      /** Seconds between members of one group (seeded each). invented */
+      jitterMin: 0.15,
+      jitterMax: 0.45,
+      /** Seconds between groups, seeded; scaled by the wave's own mean entry delay / 1 s. invented */
+      gapMin: 1.2,
+      gapMax: 2.6,
+      /** Chance a group splits over several spawn points (else all through one, a step apart). invented */
+      split: 0.7,
+      /** Chance a group sends one member in from the side behind the player (with a cue). invented */
+      flank: 0.3,
+      /** A flanker arrives at least this long after his cue (door sound / whistle + HUD arrow). invented */
+      flankLead: 0.7,
+      /** Pressure: with this many or fewer alive, the gap to the next group runs pressureRate x faster. invented */
+      pressureAlive: 1,
+      pressureRate: 3,
+      /** A ready group that doesn't fit under maxAlive waits this long, then sends whoever fits. invented */
+      holdMax: 1.2,
+      /** No entry this close (H in x, and 1 H in depth) to a player while another point is free. invented */
+      safeDist: 1.3,
+      /** Group members' first shot / swing waits this much longer per place in the group. invented */
+      settleStep: 0.3,
+    },
   },
 
   /** Co-op (decided with the user 2026-10-26): 2 players on the same Wi-Fi, revive by standing in the circle. */

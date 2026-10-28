@@ -70,6 +70,8 @@ export interface GameEvents {
   /** A door started opening (spawn telegraph) or closing. */
   doorOpen: { door: number };
   doorClose: { door: number };
+  /** Spawn variety: someone is about to come in from the side behind the player (-1 = left). Cue: a whistle + a HUD arrow. */
+  flank: { side: -1 | 1; x: number; y: number; z: number };
   waveStart: { wave: string };
   /** Every wave of the room's script ran and every enemy is dead. */
   roomCleared: { kills: number };
