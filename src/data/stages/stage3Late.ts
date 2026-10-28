@@ -9,6 +9,7 @@ import { type Actor, alive } from '../../sim/actor';
 import { dropWall, startLastStand } from '../../sim/arena';
 import { type BossState, spawnBossCameo } from '../../sim/boss';
 import { die } from '../../sim/combat';
+import { bossHp } from '../../sim/difficulty';
 import type { Beat, Seq } from '../../sim/sequencer';
 import { openExit, takeExit } from '../../sim/stage';
 import type { RoomScript, WaveEntry } from '../../sim/waves';
@@ -77,7 +78,7 @@ function* desert(s: Seq, _entry: string): Beat {
   // boss-clown clip 4: the zombie mini-boss, back on his jetpack with the street sign
   yield 1.0;
   const zb = s.spawn('zombie', 'sign', 0.6, 9.4, { variant: 'riot', face: -1 });
-  zb.hp = zb.maxHp = TUNING.zombie.hp;
+  zb.hp = zb.maxHp = bossHp(world, TUNING.zombie.hp);
   zb.pose.green = 1;
   zb.pose.jetpack = true;
   zb.damageScale = D.signArmour;

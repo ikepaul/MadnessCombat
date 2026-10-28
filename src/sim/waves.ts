@@ -4,6 +4,7 @@
 import { TUNING } from '../data/tuning';
 import { type Actor, type ActorKind, alive, createActor, type HeldItem } from './actor';
 import { type AiState, gruntBrain, newAiState } from './ai';
+import { bossHp, DIFFICULTY, type Difficulty } from './difficulty';
 import type { World } from './world';
 
 const W = TUNING.waves;
@@ -44,9 +45,46 @@ export interface WaveDef {
   coop?: { maxAlive: number; entries: WaveEntry[] };
 }
 
-/** The wave as played with this many players. */
-function forPlayers(w: WaveDef, players: number): { maxAlive: number; entries: WaveEntry[] } {
-  return players > 1 && w.coop ? w.coop : w;
+type PlayedWave = { maxAlive: number; entries: WaveEntry[] };
+
+/** The wave as played with this many players, at the world's difficulty. */
+function forPlayers(w: WaveDef, world: World): PlayedWave {
+  const base = world.players.length > 1 && w.coop ? w.coop : w;
+  return scaled(base, world.difficulty);
+}
+
+const scaledWaves = new WeakMap<PlayedWave, Map<Difficulty, PlayedWave>>();
+
+/**
+ * Difficulty: entries thinned out or repeated (src/sim/difficulty.ts). Leaders, VIPs, mini-bosses
+ * and jobs (variant or role) always come once; unaware guards are never doubled (they'd stand in
+ * each other). A dropped entry's delay carries over to the next one; copies follow 0.4 s apart.
+ */
+function scaled(w: PlayedWave, d: Difficulty): PlayedWave {
+  if (d === 'pro') return w;
+  let byD = scaledWaves.get(w);
+  if (!byD) scaledWaves.set(w, (byD = new Map()));
+  let out = byD.get(d);
+  if (out) return out;
+  const m = DIFFICULTY[d].enemies;
+  const entries: WaveEntry[] = [];
+  let carry = 0;
+  let plain = 0;
+  for (const e of w.entries) {
+    const [delay, , , , opts] = e;
+    const key = !!(opts?.variant || opts?.role);
+    let n = key ? 1 : Math.round((plain + 1) * m) - Math.round(plain * m);
+    if (!key) plain++;
+    if (opts?.aware === false) n = Math.min(n, 1);
+    if (n === 0) { carry += delay; continue; }
+    entries.push([delay + carry, ...e.slice(1)] as WaveEntry);
+    carry = 0;
+    for (let k = 1; k < n; k++) entries.push([0.4, ...e.slice(1)] as WaveEntry); // invented
+  }
+  // more at once on the harder settings
+  out = { maxAlive: m > 1 ? Math.ceil(w.maxAlive * Math.sqrt(m)) : w.maxAlive, entries };
+  byD.set(d, out);
+  return out;
 }
 
 export interface RoomScript {
@@ -75,14 +113,14 @@ export class WaveDirector {
   allSpawned(world: World): boolean {
     const def = this.script.waves[this.wave];
     if (!def || this.pendingDoors.length > 0) return false;
-    return this.entry >= forPlayers(def, world.players.length).entries.length;
+    return this.entry >= forPlayers(def, world).entries.length;
   }
 
   /** Every enemy of the current wave has spawned and none is left alive (the kill cam's "last kill of a wave"). */
   waveFinished(world: World): boolean {
     const def = this.script.waves[this.wave];
     if (!def) return false;
-    const w = forPlayers(def, world.players.length);
+    const w = forPlayers(def, world);
     if (this.entry < w.entries.length || this.pendingDoors.length > 0) return false;
     return !world.actors.some((a) => a.ai && alive(a));
   }
@@ -104,12 +142,12 @@ export class WaveDirector {
       if (this.wave >= 0 && aliveEnemies >= next.threshold) return;
       this.wave++;
       this.entry = 0;
-      this.timer = forPlayers(next, world.players.length).entries[0]?.[0] ?? 0;
+      this.timer = forPlayers(next, world).entries[0]?.[0] ?? 0;
       this.state = 'running';
       world.events.emit('waveStart', { wave: next.id });
       return;
     }
-    const w = forPlayers(waves[this.wave], world.players.length);
+    const w = forPlayers(waves[this.wave], world);
     if (this.entry >= w.entries.length) {
       this.state = 'waiting';
       return;
@@ -171,7 +209,7 @@ export function applySpawnOpts(world: World, a: Actor, opts: SpawnOpts): void {
   // enemy-elite-bodyguard: 2 hits (a head shot: 1)
   if (opts.variant === 'bodyguard') a.hp = a.maxHp = TUNING.ai.bodyguardHits;
   // M9 the mini-boss (riot helmet): tougher than a grunt; the steal is the way in (boss-clown)
-  if (opts.variant === 'riot') a.hp = a.maxHp = TUNING.ai.riotHp;
+  if (opts.variant === 'riot') a.hp = a.maxHp = bossHp(world, TUNING.ai.riotHp);
   // M14 enemy-agent: three head shots
   if (opts.variant === 'agent') {
     a.hp = a.maxHp = TUNING.ai.agent.hp;

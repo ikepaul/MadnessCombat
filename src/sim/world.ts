@@ -21,6 +21,7 @@ import { installAlertRules } from './stealth';
 import { stepSpin } from './coop';
 import { installRage } from './rage';
 import { stepRageRun } from './rageMoves';
+import type { Difficulty } from './difficulty';
 
 /** Props can change in play (a kicked-over table), so each World gets its own copies. */
 function ownProps(room: RoomDef): RoomDef {
@@ -70,6 +71,8 @@ export class World {
   physics: 'normal' | 'improbable' = 'normal';
   /** Thrown weapons hitting a co-op ally (the friendly-fire setting): full damage, a knockdown only, or nothing. */
   friendlyThrow: 'damage' | 'knockdown' | 'through' = 'damage';
+  /** The difficulty setting (src/sim/difficulty.ts): enemies per room, boss health. */
+  difficulty: Difficulty = 'pro';
   /** M19: a rage fatality under way (src/sim/rageMoves.ts); everyone else is frozen. */
   rage?: import('./rage').RageRun;
   /** M19: set around a hit that comes from an M10b fatality (the over-the-shoulder shot): its kill type is `style`. */

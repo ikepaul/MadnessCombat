@@ -510,6 +510,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.world.friendlyThrow = SETTINGS.friendlyFire;
+    this.world.difficulty = SETTINGS.difficulty;
     // M18: the wishbone tears only where the stage shows blood
     this.world.blood = this.blood;
     // keep an edge latched until a tick actually consumes it
