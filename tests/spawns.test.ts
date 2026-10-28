@@ -5,16 +5,18 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { STAGE1 } from '../src/data/stages/stage1';
 import { waveB } from '../src/data/stages/stage1Script';
-import { LOBBY, OFFICE } from '../src/data/stages/stage2';
+import { LOBBY, OFFICE, STAGE2 } from '../src/data/stages/stage2';
 import { lobbyWaves } from '../src/data/stages/stage2Late';
 import { officeWaves } from '../src/data/stages/stage2Script';
 import { CONSOLE, STREET } from '../src/data/stages/stage3';
 import { consoleWaves } from '../src/data/stages/stage3Late';
 import { streetAmbush } from '../src/data/stages/stage3Script';
 import { TUNING } from '../src/data/tuning';
-import { alive, createActor } from '../src/sim/actor';
-import { IDLE_COMMAND } from '../src/sim/command';
+import { type Actor, alive, createActor, newHand } from '../src/sim/actor';
+import { IDLE_COMMAND, type PlayerCommand } from '../src/sim/command';
+import type { Difficulty } from '../src/sim/difficulty';
 import type { RoomDef } from '../src/sim/room';
+import { stageRunner } from '../src/sim/stage';
 import { type RoomScript, WaveDirector } from '../src/sim/waves';
 import { World } from '../src/sim/world';
 
@@ -209,7 +211,103 @@ describe('spawn variety', () => {
     V.on = 0;
     expect(run()).toEqual(on);
   });
+});
 
+// ENC-07: scripts that depend on arrival order, checked with spawn variety on at every difficulty
+const LEVELS: Difficulty[] = ['noob', 'pro', 'hacker', 'notch'];
+
+/**
+ * A stage 2 room from its script with an invulnerable hero. `init` hooks events first; `each`
+ * runs before every tick and returns the hero's command, or true to stop.
+ */
+function stage2Room(room: keyof typeof STAGE2.rooms, d: Difficulty, seed: number, init: (world: World) => void, each: (world: World, hero: Actor) => Partial<PlayerCommand> | true) {
+  const world = new World(STAGE2.rooms[room].room);
+  (world as unknown as { seed: number }).seed = seed;
+  world.difficulty = d;
+  const hero = createActor('hero', 0, 9.2, 1);
+  world.addPlayer(hero);
+  STAGE2.loadout(hero);
+  init(world);
+  world.seq.run(stageRunner(STAGE2, room, Object.keys(STAGE2.rooms[room].entries)[0]), 'stage');
+  for (let i = 0; i < 60 * 120; i++) {
+    const c = each(world, hero);
+    if (c === true) break;
+    world.command = { ...IDLE_COMMAND, ...c };
+    world.step();
+    hero.hp = hero.maxHp;
+  }
+  return world;
+}
+
+describe('spawn variety keeps what the scripts count on (ENC-07)', () => {
+  it("the sword room's dazed grunt is the fifth one in, whatever the grouping or difficulty", () => {
+    for (const d of LEVELS) {
+      for (const seed of [1, 2]) {
+        const order: number[] = [];
+        let dazed: number[] = [];
+        stage2Room('swords', d, seed, (world) => world.events.on('spawn', (e) => order.push(e.actorId)), (world, hero) => {
+          for (const a of world.actors) if (a.ai && alive(a) && !a.entering && !a.dazeOnDefeat) world.hitActor(hero, a, 'wall', 1, 0, a.pos);
+          dazed = world.actors.filter((a) => a.dazeOnDefeat).map((a) => a.id);
+          return world.director?.allSpawned(world) && order.length >= 5 ? true : {};
+        });
+        expect(dazed, `${d} seed ${seed}`).toEqual([order[4]]);
+      }
+    }
+  });
+
+  it('the lobby ends on its unarmed grunt alone: the hold-up happens at every difficulty', () => {
+    for (const d of LEVELS) {
+      for (const seed of [1, 2]) {
+        let ups = 0;
+        const ins: { id: number; t: number; armed: boolean }[] = [];
+        const world = stage2Room('lobby', d, seed, (w) => {
+          w.events.on('holdUp', () => ups++);
+          w.events.on('spawn', (e) => { const a = w.actorById(e.actorId)!; ins.push({ id: a.id, t: w.time, armed: !!(a.hands[0] || a.hands[1]) }); });
+        }, (w, hero) => {
+          if (ups > 0) return true;
+          hero.hands[0] ??= newHand('pistol');
+          // shoot the armed ones; their dropped guns are taken off the floor (no scavenging)
+          for (const a of w.actors) if (a.ai && alive(a) && !a.entering && (a.hands[0] || a.hands[1])) w.hitActor(hero, a, 'blast', 1, 0, { ...a.pos });
+          w.items = w.items.filter((it) => it.state !== 'floor');
+          // the last one standing: walk up with the gun on him
+          const left = w.actors.filter((a) => a.ai && alive(a) && !a.entering && !a.koed);
+          if (left.length !== 1 || !w.director?.allSpawned(w)) return {};
+          const o = left[0], side = o.pos.x > 0 ? -1 : 1;
+          hero.pos.x = o.pos.x + side * 1.4;
+          hero.pos.z = o.pos.z;
+          return { face: (-side) as 1 | -1 };
+        });
+        expect(ups, `${d} seed ${seed}`).toBe(1);
+        // the script's last entry: the last one in, unarmed, alone (his scripted 1.6 s after the rest)
+        const last = ins.at(-1)!, before = ins.at(-2)!;
+        expect(last.armed, `${d} seed ${seed}`).toBe(false);
+        expect(last.t - before.t, `${d} seed ${seed}`).toBeGreaterThanOrEqual(1.5);
+        expect(ins.filter((s) => !s.armed).length, `${d} seed ${seed}`).toBe(1);
+        expect(world.actors.find((a) => a.surrendered)?.id, `${d} seed ${seed}`).toBe(last.id);
+      }
+    }
+  });
+
+  it("wave B's first one in is the cannoneer, on the cannon's side", () => {
+    for (const d of LEVELS) {
+      for (const seed of [1, 2, 3]) {
+        const world = new World(STAGE1.rooms.arena.room);
+        (world as unknown as { seed: number }).seed = seed;
+        world.difficulty = d;
+        world.addPlayer(createActor('hero', 0, 9.3, 1));
+        world.director = new WaveDirector(waveB(1));
+        let first: { role?: string; x: number; z: number } | undefined;
+        world.events.on('spawn', (e) => { first ??= { role: world.actorById(e.actorId)?.ai?.role, x: e.x, z: e.z }; });
+        for (let i = 0; i < 60 * 4 && !first; i++) { world.command = { ...IDLE_COMMAND }; world.step(); }
+        expect(first?.role, `${d} seed ${seed}`).toBe('cannon');
+        expect(first!.x).toBeGreaterThan(0);
+        expect(first!.z).toBeCloseTo(9.3, 0);
+      }
+    }
+  });
+});
+
+describe('spawn variety probe', () => {
   it.skipIf(!process.env.PROBE)('report', () => {
     const rows: string[] = [];
     for (const on of [0, 1]) {

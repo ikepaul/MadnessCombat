@@ -142,7 +142,7 @@ function* elevator(s: Seq, _entry: string): Beat {
 /** The door ambush (world-elevator-fight step 5): gunmen stepping into the cab. */
 export function elevatorAmbush(): RoomScript {
   const entries: WaveEntry[] = [[0.3, 'door', 'grunt', 'pistol'], [0.5, 'door', 'grunt', 'smg'], [0.6, 'door', 'grunt', 'pistol'], [0.6, 'door', 'grunt', 'baton'], [0.7, 'door', 'grunt', 'pistol']];
-  return { spawns: [{ id: 'door', kind: 'door', door: 0 }], waves: [{ id: 'ambush', threshold: 0, maxAlive: 5, entries }] };
+  return { spawns: [{ id: 'door', kind: 'door', door: 0 }], waves: [{ id: 'ambush', threshold: 0, maxAlive: 5, exact: true, entries }] };
 }
 
 // ---------- room 8: the sword room ----------
@@ -161,10 +161,11 @@ function* swords(s: Seq, _entry: string): Beat {
   const world = s.world;
   caption(s, 'Blades. A punch can knock one out of a hand.', 4);
   const kills0 = world.kills;
-  let dazedSet = false;
+  let dazedSet = false, inSoFar = 0;
   const off = world.events.on('spawn', (e) => {
-    // the fifth one in gets knocked silly instead of killed (research/stages.md: one grunt left dazed)
-    if (dazedSet || world.director?.spawned !== 5) return;
+    // the fifth one in gets knocked silly instead of killed (research/stages.md: one grunt left dazed);
+    // counted here, by arrival, so groups and the difficulty's copies don't move it (ENC-07)
+    if (dazedSet || ++inSoFar !== 5) return;
     const a = world.actorById(e.actorId);
     if (a) { a.dazeOnDefeat = true; dazedSet = true; }
   });
@@ -190,7 +191,7 @@ export function lobbyWaves(): RoomScript {
     [0.4, 'left', 'grunt', 'pistol'], [0.1, 'right', 'grunt', 'pistol'], [1.0, 'left', 'grunt', 'baton'], [0.3, 'right', 'grunt', 'smg'],
     [1.2, 'left', 'grunt', 'pistol'], [0.4, 'right', 'grunt', 'baton'], [1.0, 'left', 'grunt', 'shotgun'],
     // the last one in carries nothing: hold him up
-    [1.6, 'right', 'grunt', null],
+    [1.6, 'right', 'grunt', null, { keep: true }],
   ];
   return {
     spawns: [{ id: 'left', kind: 'door', door: 0 }, { id: 'right', kind: 'door', door: 1 }],

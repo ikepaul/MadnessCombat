@@ -31,6 +31,11 @@ export interface SpawnOpts {
   crowd?: string;
   /** M8: a job instead of the usual fight (wave B's cannoneer). */
   role?: AiState['role'];
+  /**
+   * A script depends on this entry's place (the lobby's unarmed last grunt): spawn variety never
+   * groups or moves it, and the difficulty setting always spawns it exactly once (ENC-07/08).
+   */
+  keep?: true;
 }
 
 /** [delay after the previous entry (s), spawn point id, enemy type, weapon, options] */
@@ -60,8 +65,8 @@ function forPlayers(w: WaveDef, world: World): PlayedWave {
 const scaledWaves = new WeakMap<PlayedWave, Map<Difficulty, PlayedWave>>();
 
 /**
- * Difficulty: entries thinned out or repeated (src/sim/difficulty.ts). Leaders, VIPs, mini-bosses
- * and jobs (variant or role) always come once; unaware guards are never doubled (they'd stand in
+ * Difficulty: entries thinned out or repeated (src/sim/difficulty.ts). Leaders, VIPs, mini-bosses,
+ * jobs and kept entries (variant, role or keep) always come once; unaware guards are never doubled (they'd stand in
  * each other). A dropped entry's delay carries over to the next one; copies follow 0.4 s apart.
  */
 function scaled(w: PlayedWave, d: Difficulty): PlayedWave {
@@ -76,7 +81,7 @@ function scaled(w: PlayedWave, d: Difficulty): PlayedWave {
   let plain = 0;
   for (const e of w.entries) {
     const [delay, , , , opts] = e;
-    const key = !!(opts?.variant || opts?.role);
+    const key = !!(opts?.variant || opts?.role || opts?.keep);
     let n = key ? 1 : Math.round((plain + 1) * m) - Math.round(plain * m);
     if (!key) plain++;
     if (opts?.aware === false) n = Math.min(n, 1);
@@ -206,7 +211,11 @@ export class WaveDirector {
     const hi = Math.max(1, Math.min(V.groupMax, maxAlive)), lo = Math.min(hi, V.groupMin);
     const groups: { members: WaveEntry[]; gap: number }[] = [];
     for (let i = 0; i < entries.length;) {
-      const n = Math.min(entries.length - i, lo + Math.floor(this.rand() * (hi - lo + 1)));
+      // a kept entry (the lobby's hold-up) comes alone, at its scripted delay and point
+      if (entries[i][4]?.keep) { groups.push({ members: [entries[i]], gap: entries[i][0] }); i++; continue; }
+      const nextKeep = entries.findIndex((e, k) => k > i && e[4]?.keep);
+      const room = (nextKeep < 0 ? entries.length : nextKeep) - i;
+      const n = Math.min(room, lo + Math.floor(this.rand() * (hi - lo + 1)));
       const members = entries.slice(i, i + n);
       const free = members.map((e, k) => (plain(e) && i + k !== entries.length - 1 ? k : -1)).filter((k) => k >= 0);
       for (let k = free.length - 1; k > 0; k--) {
@@ -223,8 +232,11 @@ export class WaveDirector {
     const V = TUNING.waves.variety;
     const g = this.groups![this.group];
     if (!g) { this.groups = undefined; this.state = 'waiting'; return; }
+    // a kept entry keeps its scripted delay after the last one is actually in, no hurrying
+    const kept = !!g.members[0]?.[4]?.keep;
+    if (kept && this.queued.length > 0) return;
     // pressure: (nearly) nobody left standing, the next group hurries
-    this.timer -= dt * (aliveEnemies <= V.pressureAlive ? V.pressureRate : 1);
+    this.timer -= dt * (!kept && aliveEnemies <= V.pressureAlive ? V.pressureRate : 1);
     if (this.timer > 0) return;
     const room = maxAlive - aliveEnemies;
     // the group comes in together: wait for room for all of it, then send whoever fits
