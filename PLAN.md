@@ -550,23 +550,26 @@ Done (2026-10-28, branch `m18-coop-moves`): all nine moves and the partner bot, 
 Decided: last 2 kill types block a gain; 10% a new kind, +5% per varied kill in a row up to 25%; the bar never drains, saved with the checkpoint, reset per stage; white and ink look with only the eye slit red; Tab; strike-all-then-drop for fists, blade and club, kill-as-the-barrel-passes for guns. These supers are the one exception to "fatalities ≤ 0.8 s, never take control" and to "no meter".
 
 Build (numbers in `TUNING.rage` and `FEEL.rage`, invented):
-- [ ] **Pose editor upgrades first** (revamp A11): onion skin, a scrubbable 30 fps timeline with 0.25×/1× playback, per-key easing, copy/paste/mirror, a **pair view** for two-actor poses with a saved offset, preview with smears/stars/ghosts.
-- [ ] **Kill types** (14, `killType()` in `src/sim/rage.ts`) on every `kill` event (`type`), `applyHit(..., via)` for kicks, style and team kills.
-- [ ] **The meter**: `Actor.rage` (value, recent, streak), gains with streak, style/team bonuses, multi-kills, boss bonus; no gain from enemies' kills, kills during a rage move or corpses; cap 1; checkpoint save/restore; reset on a new stage.
-- [ ] **HUD** (`src/ui/rageBar.ts`, `src/ui/killIcons.ts`): bar per player beside the life heads with 10% ticks, rising gain numbers, the last-2 variety strip (repeats shake and grey), the full pulse + red eye-slit icon + the key.
-- [ ] **Full-rage look**: hotter pulsing rim, red eye slit, ink wisps off the shoulders, the ready stinger and the low loop; effect-intensity aware.
-- [ ] **Firing**: `rage` action (Tab, `addCapture`), `PlayerCommand.rage`; the eligibility rules; the victim rules and cap 6; fizzle with no victims.
-- [ ] **The run** (`world.rage`, `src/sim/rageMoves.ts`): time stops for everyone but the participants (actors, items, fuses, director, scripts, exits), heroes invulnerable, release = the world resumes, bystanders stunned 0.4 s; own hit-stops outside the budget, kill-cam off, `FeelSink.slowMo`.
-- [ ] **Cinematic layer**: letterbox, the dimmed/desaturated stopped world with participants on a new rage layer, camera punch-ins, music duck / silence / un-duck, the release flash.
-- [ ] **Rampage** (empty hands), **Spin shot** (a gun; refills held guns), **Cut line** (a blade; the split render), **Home run** (a club or the sign): every beat as in `design/rage.md` section 3.
-- [ ] Co-op net: `ActorSnap.rage`, `Snapshot.rage`, the `rage*` events replayed.
+- [ ] **Pose editor upgrades first** (revamp A11), **not done yet**: onion skin, a scrubbable 30 fps timeline with 0.25×/1× playback, per-key easing, copy/paste/mirror, a **pair view** for two-actor poses with a saved offset, preview with smears/stars/ghosts.
+- [x] **Kill types** (14, `killType()` in `src/sim/rage.ts`) on every `kill` event (`type`), `applyHit(..., via)` for kicks, style and team kills.
+- [x] **The meter**: `Actor.rage` (value, recent, streak), gains with streak, style/team bonuses, multi-kills, boss bonus; no gain from enemies' kills, kills during a rage move or corpses; cap 1; checkpoint save/restore; reset on a new stage.
+- [x] **HUD** (`src/ui/rageBar.ts`, `src/ui/killIcons.ts`): bar per player beside the life heads with 10% ticks, rising gain numbers, the last-2 variety strip (repeats shake and grey), the full pulse + red eye-slit icon + the key.
+- [x] **Full-rage look**: hotter pulsing rim, red eye slit, ink wisps off the shoulders, the ready stinger and the low loop; effect-intensity aware.
+- [x] **Firing**: `rage` action (Tab, `addCapture`), `PlayerCommand.rage`; the eligibility rules; the victim rules and cap 6; fizzle with no victims.
+- [x] **The run** (`world.rage`, `src/sim/rageMoves.ts`): time stops for everyone but the participants (actors, items, fuses, director, scripts, exits), heroes invulnerable, release = the world resumes, bystanders stunned 0.4 s; own hit-stops outside the budget, kill-cam off, `FeelSink.slowMo`.
+- [x] **Cinematic layer**: letterbox, the dimmed/desaturated stopped world with participants on a new rage layer, camera punch-ins, music duck / silence / un-duck, the release flash.
+- [x] **Rampage** (empty hands), **Spin shot** (a gun; refills held guns), **Cut line** (a blade; the split render), **Home run** (a club or the sign): every beat as in `design/rage.md` section 3.
+- [x] Co-op net: `ActorSnap.rage`, `Snapshot.rage`, the `rage*` events replayed.
 
 Look & sound:
-- [ ] Every pose in `design/rage.md` 5.2 (M19 list), each through the 12-point checklist in 5.3 with a key-screenshot strip in the PR.
-- [ ] VFX: ignite ring + floor shockwave, marks, dash smears and ghosts, ink-negative impact frames, stuck impact stars, white slash lines, smoke from barrels, casing rain in slow-mo, the release flash. SFX: the M19 list in `design/rage.md` 6.
+- [ ] Every pose in `design/rage.md` 5.2 (M19 list), each through the 12-point checklist in 5.3 with a key-screenshot strip in the PR. **Not done**: the moves use existing clips (uppercut, punchHeavy, kick, swing...) plus root transforms for the frozen reactions.
+- [x] VFX built: ignite ring, ink dash streaks, white slash lines, the release flash, the letterbox and the dimmed world, punch smears and stars on strikes, tracers and casings from the spin. SFX from the synth placeholders (existing ids): gain ticks, repeat tick, ready stinger, ignite, dashes, pitched strikes, release crash, landing; the music ducks.
+- [ ] VFX still to do: the floor shockwave, victim marks, ink ghosts on dashes, ink-negative impact frames, impact stars that stay on the frozen victims, barrel smoke, camera punch-ins; the low ready loop.
 
 Acceptance: the rage tests in `design/rage.md` 7 (M19 part) · each move's lab played at 0.25× and 1× against its beat sheet, deviations noted · 60 fps during a Rampage with 6 victims and 20 bodies in the room (full effects) · the balance bot unchanged when it never presses Tab.
 Labs: `rage-meter`, `rage-rampage`, `rage-spin-shot`, `rage-cut-line`, `rage-home-run`.
+
+Done (2026-10-28, branch `m19-rage`), the gameplay and the presentation layer; the animation craft is still to do. Code: `src/sim/rage.ts` (kill types, the meter), `src/sim/rageMoves.ts` (Tab, victims, the time stop, the four moves), `src/ui/rageBar.ts` (bar and pictograms), the cinematic layer in `GameScene` / `UIScene` / `vfx.ts` / `feel.ts`. Tests in `tests/rage.test.ts` (16). Deviations: the sign uses Home run's dashes (no 360° sweep); Home run launches every victim on the same tick (planned: 2 frames apart); the strikes reuse existing clips; the meter is saved with the checkpoint (`Checkpoint.players[i].rage`) and a new stage starts at 0 because it builds a new world. Still to do, in this order: the pose editor upgrades (A11), the authored poses with the 5.3 checklist, the missing VFX above; the 60 fps check with 6 victims and 20 bodies.
 
 ## M20: Team rage fatalities (M)
 **Goal:** two full bars and a press each = a team super, without precise timing.

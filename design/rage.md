@@ -1,6 +1,6 @@
 # Rage meter & rage fatalities (M19, M20)
 
-Status: **planned** (2026-10-27, with the user). **M19** = the meter, its HUD and look, and the four solo rage fatalities. **M20** = the team request and the two team rage fatalities. The co-op moves they build on are M18 (`design/coop-moves.md`).
+Status: M19 **built in part** (2026-10-28, branch `m19-rage`: the meter, the moves, the HUD and the cinematic layer; the authored animation is still to do, see the M19 "Done" note in `PLAN.md`). M20 planned. Planned 2026-10-27 with the user. **M19** = the meter, its HUD and look, and the four solo rage fatalities. **M20** = the team request and the two team rage fatalities. The co-op moves they build on are M18 (`design/coop-moves.md`).
 
 This **reverses two earlier decisions**, at the user's request (recorded in `research/design-decisions.md`):
 - "Combo reward: feel only, no score, no style meter" (2026-10-27): the rage meter is a meter, on the HUD. Combos and M10b fatalities keep their feel-only reward; rage is a separate system that rewards *variety of kills*.
