@@ -114,6 +114,7 @@ export function startRage(world: World, a: Actor, victims: Actor[]): void {
     o.pose.telegraph = undefined;
   }
   setClip(a, 'idle');
+  a.pose.raging = true;
   world.events.emit('rageStart', { kind, heroes: [a.id], victims: run.victims });
   world.events.emit('rageBeat', { kind, beat: 'ignite', actorId: a.id, ...a.pos });
 }
@@ -371,6 +372,7 @@ export function endRage(world: World): void {
     a.stateT = 0;
     a.body.state = 'ground';
     a.pos.y = a.pose.groundY;
+    a.pose.raging = undefined;
     setClip(a, 'idle');
   }
   world.events.emit('rageEnd', { kind: run.kind });

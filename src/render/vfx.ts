@@ -1,5 +1,6 @@
 // Screen-space particles and 1-2 frame effects driven by sim events (design/art-direction.md).
 // Advanced on sim ticks, so slow-mo, hit-stop and pause apply to them too.
+import { effectLevel } from '../settings';
 import { isMelee, MELEE } from '../data/melee';
 import { BLOOD, INK } from '../data/palettes';
 import type { HitKind } from '../sim/events';
@@ -298,6 +299,16 @@ export class Vfx {
   }
 
   private step(dt: number): void {
+    // M19 full rage: ink wisps rise off the hero's shoulders (3-4 a second; half at reduced effects, none off)
+    const level = effectLevel();
+    if (level !== 'off') {
+      for (const p of this.world.players) {
+        if (p.pose.dead || ((p.rage?.value ?? 0) < 1 && !p.pose.raging)) continue;
+        if (Math.random() > dt * (level === 'reduced' ? 1.8 : 3.6)) continue;
+        const s = scaleAt(p.pos.z), [x, y] = project(p.pos.x + (Math.random() - 0.5) * 0.3, p.pos.y + 0.55, p.pos.z);
+        this.smoke.push({ x, y, vx: (Math.random() - 0.5) * 0.1 * s, vy: -0.45 * s, r: 0.035 * s, grow: 0.06 * s, life: 0, max: 0.6, shade: 24 });
+      }
+    }
     for (const r of this.rings) r.t += dt;
     this.rings = this.rings.filter((r) => r.t < 0.35);
     // popped weapons: a glint once they stop rising

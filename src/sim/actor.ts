@@ -123,6 +123,8 @@ export interface Pose {
   grip?: number;
   /** M8 boss: 0..1 the telekinetic sweep gesture (front hand swept out flat). */
   push?: number;
+  /** M19: a rage fatality under way for this hero (the red eye slit, the hot rim). */
+  raging?: boolean;
   /** M8 ending: the dance emote (the dancer NPC's loop: bounce, sway, hands pumping). */
   dancing?: boolean;
 }

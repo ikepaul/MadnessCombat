@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { RageBars } from '../ui/rageBar';
 import { rootToWorld } from '../anim/skeleton';
 import { INK } from '../data/palettes';
 import { project } from '../render/camera';
@@ -18,6 +19,7 @@ export class UIScene extends Phaser.Scene {
   private grid!: Phaser.GameObjects.Graphics;
   private hurt!: Phaser.GameObjects.Graphics;
   private pips!: Phaser.GameObjects.Graphics;
+  private rageBars!: RageBars;
   private info!: Phaser.GameObjects.Text;
   private labText!: Phaser.GameObjects.Text;
   private rulers: Phaser.GameObjects.Text[] = [];
@@ -51,6 +53,8 @@ export class UIScene extends Phaser.Scene {
     this.grid = this.add.graphics();
     this.hurt = this.add.graphics();
     this.pips = this.add.graphics();
+    // M19: a rage bar beside each life row
+    this.rageBars = new RageBars(this, game.world);
     drawDebugGrid(this.grid, game.world.room);
     this.rulers = rulerLabels(game.world.room).map((l) =>
       this.add.text(l.x, l.y, l.text, { fontFamily: 'Inter', fontSize: '18px', color: '#ff8c00' }),
@@ -207,6 +211,7 @@ export class UIScene extends Phaser.Scene {
 
   /** One row of life pips per player, bottom-left (P1 lowest). Co-op rows are labelled. */
   private drawPips(game: GameScene, dt: number): void {
+    this.rageBars.begin(dt);
     const g = this.pips;
     g.clear();
     const players = game.world.players;
@@ -215,6 +220,7 @@ export class UIScene extends Phaser.Scene {
     players.forEach((p, row) => {
       const y = 1080 - 120 - row * 56;
       this.drawPipRow(g, row, p, coop ? 190 : 48, y, dt);
+      this.rageBars.draw(row, p, (coop ? 190 : 48) + p.maxHp * 52 + 6, y, dt);
       if (!coop) return;
       const you = row === game.localPlayer ? ' · you' : '';
       // a downed player's row turns grey (their pips are empty anyway)
