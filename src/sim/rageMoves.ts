@@ -127,6 +127,8 @@ export function stepRageRun(world: World, dt: number): void {
   run.t += dt;
   if (!a) { endRage(world); return; }
   a.pose.clipT += dt;
+  // frozen victims still let their impact flash fade (they aren't stepped)
+  for (const id of run.victims) { const o = world.actorById(id); if (o) o.pose.impact = Math.max(0, o.pose.impact - dt); }
   const once = (key: string) => (w.fired.has(key) ? false : (w.fired.add(key), true));
   const victims = run.victims.map((id) => world.actorById(id)).filter((o): o is Actor => !!o);
   switch (run.kind) {

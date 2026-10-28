@@ -57,6 +57,11 @@ export const FEEL = {
    * slowdown. Triggers: the last kill of a wave, 3+ kills within 1 s, boss phase end.
    */
   killCam: { timeScale: 0.3, duration: 0.6, tint: 0.1, comboKills: 3, comboWindow: 1.0, /** revamp C1, invented */ zoom: 0.06 },
+  /**
+   * M19 rage fatalities (design/rage.md 2.5): time runs at `runScale` through the move, `releaseScale`
+   * for `releaseSlow` s after the release, then eases back; per-strike hit-stop and shakes. invented
+   */
+  rage: { runScale: 0.6, releaseScale: 0.3, releaseSlow: 0.45, strikeStop: 2 / 30, strikeShake: 5, releaseShake: 14, letterbox: 0.07, dim: 0.45 },
   /** Impact frame: the hit character drawn bright for the hit-stop. */
   impactFrame: { brightness: 1.8, contrast: 1.2 },
   /** Kill counter pop: 1.3 -> 1.0 over 8 frames; green for zombie kills. */

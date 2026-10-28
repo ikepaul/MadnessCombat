@@ -60,6 +60,10 @@ export class Vfx {
   private rings: { x: number; y: number; s: number; t: number }[] = [];
   private popped: number[] = [];
 
+  /** M19 rage: ink dash streaks (from a point to the hero), white slash lines hanging until the release, ignite bursts. */
+  private streaks: { actorId: number; x: number; y: number; z: number; left: number }[] = [];
+  private slashes: { x0: number; y0: number; x1: number; y1: number; flash: number }[] = [];
+  private bursts: { x: number; y: number; s: number; t: number }[] = [];
   /** Extreme gore (stage 3): necks still spraying, seconds left. */
   private fountains: { actorId: number; left: number }[] = [];
 
@@ -73,7 +77,7 @@ export class Vfx {
     // M9: a new room starts without the last one's smoke and sparks
     world.events.on('roomChanged', () => {
       this.puffs = []; this.drops = []; this.smears = []; this.stars = []; this.blasts = []; this.booms = [];
-      this.smoke = []; this.chunks = []; this.fountains = []; this.rings = []; this.popped = []; this.marks = []; this.bolts = []; this.sparks = []; this.ripples = []; this.bubbles = []; this.parries = [];
+      this.smoke = []; this.chunks = []; this.streaks = []; this.slashes = []; this.bursts = []; this.fountains = []; this.rings = []; this.popped = []; this.marks = []; this.bolts = []; this.sparks = []; this.ripples = []; this.bubbles = []; this.parries = [];
     });
     // M10: sparks off the cables, dust as the cab hits the bottom
     world.events.on('cableHit', (e) => {
@@ -115,6 +119,19 @@ export class Vfx {
     });
     world.events.on('alert', (e) => { this.marks = this.marks.filter((m) => m.actorId !== e.actorId); this.marks.push({ actorId: e.actorId, left: MARK_TICKS }); });
     world.events.on('land', (e) => this.dust(e.x, e.y, e.z, 6 + Math.min(6, e.fallSpeed)));
+    // M19 rage fatalities (design/rage.md 3): the ignite burst, dash streaks, the cut line's slashes
+    world.events.on('rageBeat', (e) => {
+      if (e.beat === 'ignite') { const [x, y] = project(e.x, e.y + 0.6, e.z); this.bursts.push({ x, y, s: scaleAt(e.z), t: 0 }); this.dust(e.x, e.y, e.z, 10); }
+      if (e.beat === 'dash') this.streaks.push({ actorId: e.actorId, x: e.x, y: e.y + 0.55, z: e.z, left: 10 });
+      if (e.beat === 'cut') {
+        const a = world.actorById(e.actorId);
+        if (!a) return;
+        const [x0, y0] = project(e.x, e.y + 0.7, e.z), [x1, y1] = project(a.pos.x, a.pos.y + 0.6, a.pos.z);
+        this.slashes.push({ x0, y0, x1, y1, flash: 0 });
+      }
+      if (e.beat === 'release') for (const s of this.slashes) s.flash = 2;
+    });
+    world.events.on('rageEnd', () => { this.slashes = this.slashes.filter((s) => s.flash > 0); });
     world.events.on('dive', (e) => this.dust(e.x, e.y, e.z, 8));
     world.events.on('standUp', (e) => this.dust(e.x, e.y, e.z, 4));
     world.events.on('bodyFall', (e) => this.dust(e.x, e.y, e.z, 6 + Math.min(8, e.speed)));
@@ -299,6 +316,12 @@ export class Vfx {
   }
 
   private step(dt: number): void {
+    for (const st of this.streaks) st.left--;
+    this.streaks = this.streaks.filter((st) => st.left > 0);
+    for (const s of this.slashes) if (s.flash > 0) s.flash--;
+    this.slashes = this.slashes.filter((s) => s.flash !== 0 || !!this.world.rage);
+    for (const b of this.bursts) b.t += dt;
+    this.bursts = this.bursts.filter((b) => b.t < 0.3);
     // M19 full rage: ink wisps rise off the hero's shoulders (3-4 a second; half at reduced effects, none off)
     const level = effectLevel();
     if (level !== 'off') {
@@ -396,6 +419,31 @@ export class Vfx {
   }
 
   draw(ctx: Ctx): void {
+    // M19 rage: ink streaks behind dashes, white slash lines, the ignite ring
+    ctx.lineCap = 'round';
+    for (const st of this.streaks) {
+      const a = this.world.actorById(st.actorId);
+      if (!a) continue;
+      // the streak trails behind the hero: it stops short of him, so it never paints over him
+      const [x0, y0] = project(st.x, st.y, st.z), [hx, hy] = project(a.pos.x, a.pos.y + 0.55, a.pos.z), s = scaleAt(a.pos.z), u = st.left / 10;
+      const len = Math.hypot(hx - x0, hy - y0), k = len > 1 ? Math.max(0, (len - 0.3 * s) / len) : 0;
+      const x1 = x0 + (hx - x0) * k, y1 = y0 + (hy - y0) * k;
+      ctx.strokeStyle = `rgba(20,20,22,${0.55 * u})`; ctx.lineWidth = 0.32 * s * u;
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      ctx.strokeStyle = `rgba(255,255,255,${0.35 * u})`; ctx.lineWidth = 0.05 * s * u;
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    }
+    for (const sl of this.slashes) {
+      ctx.strokeStyle = sl.flash > 0 ? 'rgba(255,255,255,1)' : 'rgba(255,255,255,0.35)'; ctx.lineWidth = sl.flash > 0 ? 10 : 8;
+      ctx.beginPath(); ctx.moveTo(sl.x0, sl.y0); ctx.lineTo(sl.x1, sl.y1); ctx.stroke();
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.moveTo(sl.x0, sl.y0); ctx.lineTo(sl.x1, sl.y1); ctx.stroke();
+    }
+    for (const b of this.bursts) {
+      const u = b.t / 0.3;
+      ctx.strokeStyle = `rgba(255,255,255,${0.9 * (1 - u)})`; ctx.lineWidth = 0.06 * b.s * (1 - u) + 1;
+      ctx.beginPath(); ctx.ellipse(b.x, b.y, (0.6 + 1.6 * u) * b.s, (0.6 + 1.6 * u) * b.s * 0.55, 0, 0, Math.PI * 2); ctx.stroke();
+    }
     for (const c of this.chunks) {
       ctx.globalAlpha = c.life > 5 ? 6 - c.life : 1;
       ctx.save();

@@ -18,6 +18,7 @@ import '../labs/movementLabs';
 import '../labs/comboLabs';
 import '../labs/qolLabs';
 import '../labs/coopLabs';
+import '../labs/rageLabs';
 import '../labs/stage4Labs';
 import { getLab, type Lab } from '../labs/registry';
 import { CanvasLayer } from '../render/canvasLayer';
@@ -33,6 +34,7 @@ import { type BotState, newBotState, partnerCommand } from '../dev/partnerBot';
 import { paintDoor, paintProp, paintRoom } from '../render/canvas/roomPainter';
 import { paintLockShadow, paintLockWall, paintTank } from '../render/canvas/sceneryPainter';
 import { TUNING } from '../data/tuning';
+import { FEEL } from '../data/feel';
 import { Decals } from '../render/decals';
 import { PostFx } from '../render/post';
 import { Vfx } from '../render/vfx';
@@ -141,6 +143,8 @@ export class GameScene extends Phaser.Scene {
   cleared = false;
   /** Which player this laptop controls (0 = single player / host, 1 = co-op guest). */
   localPlayer = 0;
+  /** M19: how far the stopped world is dimmed (0..1, eases in and out). */
+  private rageDim = 0;
   /** M18: the partner bot's memory (drives player 2 when no laptop does). */
   bot: BotState = newBotState();
   coop?: 'host' | 'guest';
@@ -560,7 +564,7 @@ export class GameScene extends Phaser.Scene {
     this.decals.drawGrowing(ctx);
     // co-op: a subtle circle on the floor around a downed teammate
     for (const p of this.world.players) if (p.state === 'downed') paintReviveCircle(ctx, p);
-    const list: { z: number; draw: () => void }[] = [];
+    const list: { z: number; draw: () => void; id?: number }[] = [];
     const rings = this.depthRings();
     for (const a of this.world.actors) {
       // gibbed bodies are gone (throw-grenade): only the pieces (VFX) remain
@@ -570,7 +574,7 @@ export class GameScene extends Phaser.Scene {
       // at equal depth the attacker draws in front, so the punching fist is visible
       const bias = a.state === 'attack' ? 0.002 : a.state === 'grabbed' ? -0.001 : 0;
       const ring = rings.get(a.id);
-      list.push({ z: a.pos.z - bias, draw: () => (a.kind === 'boss' ? paintBoss(ctx, a, { time: this.world.time, flashes }) : paintCharacter(ctx, a, pal, this.world.time, { blood, flashes, ring })) });
+      list.push({ id: a.id, z: a.pos.z - bias, draw: () => (a.kind === 'boss' ? paintBoss(ctx, a, { time: this.world.time, flashes }) : paintCharacter(ctx, a, pal, this.world.time, { blood, flashes, ring })) });
     }
     // M17: the item the local player's E would take is outlined
     const me = this.world.players[this.localPlayer];
@@ -598,7 +602,17 @@ export class GameScene extends Phaser.Scene {
       list.push({ z: b.z, draw: () => paintTank(ctx, b.x, b.z, b.facing, b.y, b.phase === 'shadow', k) });
     }
     list.sort((a, b) => b.z - a.z);
-    for (const d of list) d.draw();
+    // M19 (design/rage.md 2.5): during a rage fatality the stopped world is dimmed and the hero and
+    // his victims draw on top of it (a spotlight; depth order holds within each group)
+    const run = this.world.rage;
+    this.rageDim = Math.max(0, Math.min(1, this.rageDim + (run ? 1 : -1) * (this.game.loop.delta / 1000) / 0.2));
+    if (this.rageDim > 0) {
+      const top = new Set(run ? [...run.heroes, ...run.victims] : []);
+      for (const d of list) if (d.id === undefined || !top.has(d.id)) d.draw();
+      ctx.fillStyle = `rgba(14,14,16,${FEEL.rage.dim * this.rageDim})`;
+      ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+      for (const d of list) if (d.id !== undefined && top.has(d.id)) d.draw();
+    } else for (const d of list) d.draw();
     for (const p of this.world.players) if (p.state === 'downed') paintReviveBar(ctx, p);
     this.vfx.draw(ctx);
     this.gunFx.draw(ctx);

@@ -125,6 +125,26 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
   world.events.on('wallBounce', (e) => play('thump', at(e.x, e.y + 0.5, e.z, { rate: 0.85 })));
   world.events.on('popUp', (e) => play('whooshLight', at(e.x, e.y, e.z, { rate: 1.3 })));
   world.events.on('hit', (e) => { if (e.kind === 'gun' && e.part === 'head') play('hitMetal', at(e.x, e.y, e.z)); });
+  // M19 rage (design/rage.md 6, synth placeholders from existing ids): gains tick up with the
+  // streak, a repeat is a dull tick, full is a stinger; the move: a swell, whooshes, pitched strikes,
+  // a crash on the release; the music ducks while it runs
+  world.events.on('rageGain', (e) => {
+    const me = world.players[0]?.id === e.actorId || world.players.length === 1;
+    if (!me && world.players.length > 1) return;
+    play('tick', e.repeat ? { rate: 0.55, gain: 0.5 } : { rate: 1.2 + e.value * 0.8, gain: 0.7 });
+  });
+  world.events.on('rageReady', (e) => { play('stinger', at(e.x, e.y + 0.5, e.z, { gain: 0.8 })); play('rumble', at(e.x, e.y, e.z, { gain: 0.4 })); });
+  world.events.on('rageFizzle', (e) => play('dryFire', at(e.x, e.y + 0.5, e.z, { rate: 0.6 })));
+  world.events.on('rageStart', () => engine.duck(3));
+  world.events.on('rageBeat', (e) => {
+    const p = at(e.x, e.y + 0.5, e.z);
+    if (e.beat === 'ignite') { play('tapeStop', { ...p, rate: 1.6, gain: 0.7 }); play('thump', { ...p, delay: 0.15 }); }
+    else if (e.beat === 'dash') play('whooshHeavy', { ...p, rate: 1.3 });
+    else if (e.beat === 'strike') { play('impactHeavy', { ...p, rate: 1 + 0.06 * (e.i ?? 0) }); play('thump', { ...p, rate: 0.8 + 0.05 * (e.i ?? 0) }); }
+    else if (e.beat === 'cut') play('slash', { ...p, rate: 1.4, gain: 0.6 });
+    else if (e.beat === 'release') { play('crack', { ...p, rate: 0.7 }); play('impactHeavy', { ...p, rate: 0.6 }); play('thump', { ...p, rate: 0.5, delay: 0.05 }); }
+    else if (e.beat === 'land') { play('land', p); play('slideRack', { ...p, delay: 0.2 }); }
+  });
   // M18 co-op moves (design/coop-moves.md): a team chain pings, the double-team tings, bats crack,
   // a body bouncing off a partner thumps, the wishbone strains and tears, lifts and tosses whoosh
   world.events.on('coopMove', (e) => {

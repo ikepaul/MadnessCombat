@@ -82,6 +82,8 @@ export interface Snapshot {
   /** M12: the desert box's falling walls and the last stand (the red bars). */
   lockWalls?: World['lockWalls'];
   lastStand?: World['lastStand'];
+  /** M19: a rage fatality under way (the guest dims the stopped world, draws the letterbox). */
+  rage?: World['rage'];
   blocks?: World['blocks'];
   /** M7: props change in play (kicked-over tables). */
   props: World['room']['props'];
@@ -141,7 +143,7 @@ export class SnapshotWriter {
       items: w.items, doors: w.doors.map((d) => d.open), props: w.room.props, cannons: w.cannons, balls: w.balls, kills: w.kills, lastKillKind: w.lastKillKind,
       elevator: w.elevator, decks: w.room.decks,
       physics: w.physics, gore: w.gore, exits: w.exits, blocks: w.blocks, stage3Room: { void: w.room.void, crack: w.room.crack, vending: w.room.vending, lockWalls: w.room.lockWalls, outdoor: w.room.outdoor },
-      lockWalls: w.lockWalls, lastStand: w.lastStand,
+      lockWalls: w.lockWalls, lastStand: w.lastStand, rage: w.rage,
       events: full && this.joining ? [] : this.events,
     };
     this.events = [];
@@ -213,6 +215,7 @@ export function applySnapshot(world: World, s: Snapshot): void {
   }
   if (s.lockWalls) world.lockWalls = s.lockWalls;
   world.lastStand = s.lastStand;
+  world.rage = s.rage;
   if (s.decks) world.room.decks = s.decks;
   if (s.cannons) world.cannons = s.cannons;
   if (s.balls) world.balls = s.balls;

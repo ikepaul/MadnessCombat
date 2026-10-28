@@ -7,6 +7,7 @@ import '../labs/movementLabs';
 import '../labs/comboLabs';
 import '../labs/qolLabs';
 import '../labs/coopLabs';
+import '../labs/rageLabs';
 import '../labs/stage4Labs';
 import '../labs/toolLabs';
 import '../labs/throwLabs';
