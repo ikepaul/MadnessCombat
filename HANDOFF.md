@@ -1,6 +1,6 @@
 # Handoff: work done in parallel with the audit session
 
-For the Claude session auditing and bug-fixing the game (other account). Written 2026-10-28 by the session that planned and built M17 and M18. Read this before resuming, and merge `main` first.
+For the Claude session auditing and bug-fixing the game (other account). Written 2026-10-28 by the session that planned and built M17, M18 and (in part) M19. Read this before resuming, and merge `main` first.
 
 ## What landed on `main` while you were away
 1. **PR #37**: plans for M17–M20 (docs only): `design/qol-pass.md`, `design/coop-moves.md`, `design/rage.md`, new milestones in `PLAN.md`, decisions in `research/design-decisions.md`, one colour exception in `design/art-direction.md` (the full-rage red eye slit).
@@ -42,11 +42,22 @@ Nine co-op moves plus a partner bot. Tests: `tests/coopMoves.test.ts`. Labs: `/?
 
 New events/fields: `coopMove`, `kill.team / alsoId`, fatality kinds `held | wishbone | double | pingpong`, `Flight.by / pings / lethal / pierce`, `Actor.lastHeroHit / lastHitBy / heldHits / tender / grabbedBy2 / carried / spin / tossT`, `Pose.cut`, `AttackKind 'wishbone'`, `ActorSnap.grabbedBy / holding / carried`, setting `coopHints`. `die()` has a new last parameter `{ team, alsoId }`.
 
+## M19, rage meter and solo rage fatalities (branch `m19-rage`, its own PR; animation craft still to do)
+| Area | New behaviour (on purpose) | Where |
+|---|---|---|
+| Every `kill` event | Has `type` (14 kill types) and `rage: true` when it's a rage fatality's kill. | `killType` in `src/sim/rage.ts`, `die()` |
+| `World.step` | While `world.rage` is set, it **only** steps the rage move (no actors, items except flying heads, director, scripts, exits): the time stop. | `src/sim/world.ts`, `stepRageRun` |
+| Tab | New action `rage` (default `TAB`, captured so the browser doesn't move focus). | `settings.ts`, `playerInput.ts`, `PlayerCommand.rage` |
+| Over-the-shoulder shot | Sets `world.hitVia = 'style'` around its `fire()` (kill type `style`). | `guns.ts` |
+| Checkpoint | Saves each player's rage bar. | `progress.ts`, `GameScene` |
+| Feel | Rage kills don't trigger the kill-cam; rage beats use their own hit-stops (outside the 6-frames-per-second budget) and `FeelSink.slowMo`. | `feel.ts`, `feelFx.ts` |
+
 ## Known gaps / things worth a look
 - Not built from the M17 spec: the F1 cover debug overlay, the 3-frame hand-swap pose layer (only its sound).
 - Not built from the M18 spec: the authored poses (restrain, wishbone, lift/carry, giant swing...), most of the new VFX (double star, smears, flashes, speed lines, the spin's floor arc), the Controls page's co-op list; hitting the wishbone's holder drops the grunt instead of handing him to the other.
 - Balance: the co-op balance bots with 0.35 s reactions now lose wave A on all three seeds (2 of 3 before); the 0.1/0.2 s pairs clear, the solo 0.35 s bot still loses as required. Bots don't use the cursor, so the depth snap picks targets for them by distance.
+- The uncommitted music work in the main checkout (`src/audio/music.ts`, `assets/music/cues.json`) makes `tests/hazard.test.ts`'s music-cue test fail there; a clean checkout of `main` passes.
 - If you touch `combat.ts`, `guns.ts`, `items.ts`, `hitscan.ts`, `aim.ts` or `hud.ts`, expect conflicts with this work: merge `main` first.
 
 ## What's next in the plan
-M19–M20 (the rage meter and rage fatalities). Stage 4 rooms (M15–M16) are being built on another PC.
+The rest of M19 (pose editor upgrades, authored poses, the missing VFX), then M20 (team rage). Stage 4 rooms (M15–M16) are being built on another PC.

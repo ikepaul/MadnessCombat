@@ -1,4 +1,7 @@
 import Phaser from 'phaser';
+import { RageBars } from '../ui/rageBar';
+import { FEEL } from '../data/feel';
+import { effectLevel } from '../settings';
 import { rootToWorld } from '../anim/skeleton';
 import { INK } from '../data/palettes';
 import { project } from '../render/camera';
@@ -18,6 +21,10 @@ export class UIScene extends Phaser.Scene {
   private grid!: Phaser.GameObjects.Graphics;
   private hurt!: Phaser.GameObjects.Graphics;
   private pips!: Phaser.GameObjects.Graphics;
+  private rageBars!: RageBars;
+  private letterbox!: Phaser.GameObjects.Graphics;
+  private letterT = 0;
+  private flashLeft = 0;
   private info!: Phaser.GameObjects.Text;
   private labText!: Phaser.GameObjects.Text;
   private rulers: Phaser.GameObjects.Text[] = [];
@@ -51,6 +58,10 @@ export class UIScene extends Phaser.Scene {
     this.grid = this.add.graphics();
     this.hurt = this.add.graphics();
     this.pips = this.add.graphics();
+    // M19: a rage bar beside each life row; the rage fatality's letterbox and release flash
+    this.rageBars = new RageBars(this, game.world);
+    this.letterbox = this.add.graphics().setDepth(90);
+    game.world.events.on('rageBeat', (e) => { if (e.beat === 'release' && effectLevel() !== 'off') this.flashLeft = 1; });
     drawDebugGrid(this.grid, game.world.room);
     this.rulers = rulerLabels(game.world.room).map((l) =>
       this.add.text(l.x, l.y, l.text, { fontFamily: 'Inter', fontSize: '18px', color: '#ff8c00' }),
@@ -154,6 +165,7 @@ export class UIScene extends Phaser.Scene {
     const game = this.scene.get('game') as GameScene;
     const p = game.world.player;
     this.drawPips(game, delta / 1000);
+    this.drawLetterbox(game, delta / 1000);
     this.drawCounter(game);
     this.stageHud.update();
     this.inkHud.update(delta / 1000);
@@ -206,7 +218,19 @@ export class UIScene extends Phaser.Scene {
   }
 
   /** One row of life pips per player, bottom-left (P1 lowest). Co-op rows are labelled. */
+  /** M19 (design/rage.md 2.5): ink bars in over 8 frames while a rage fatality runs, out over 10; a white flash on the release. */
+  private drawLetterbox(game: GameScene, dt: number): void {
+    const on = !!game.world.rage;
+    this.letterT = Math.max(0, Math.min(1, this.letterT + (on ? dt / (8 / 30) : -dt / (10 / 30))));
+    const g = this.letterbox;
+    g.clear();
+    const h = 1080 * FEEL.rage.letterbox * (1 - (1 - this.letterT) ** 2);
+    if (h > 0.5) { g.fillStyle(0x141416, 1).fillRect(0, 0, 1920, h); g.fillRect(0, 1080 - h, 1920, h); }
+    if (this.flashLeft > 0) { g.fillStyle(0xffffff, effectLevel() === 'reduced' ? 0.15 : 0.3).fillRect(0, 0, 1920, 1080); this.flashLeft--; }
+  }
+
   private drawPips(game: GameScene, dt: number): void {
+    this.rageBars.begin(dt);
     const g = this.pips;
     g.clear();
     const players = game.world.players;
@@ -215,6 +239,7 @@ export class UIScene extends Phaser.Scene {
     players.forEach((p, row) => {
       const y = 1080 - 120 - row * 56;
       this.drawPipRow(g, row, p, coop ? 190 : 48, y, dt);
+      this.rageBars.draw(row, p, (coop ? 190 : 48) + p.maxHp * 52 + 6, y, dt);
       if (!coop) return;
       const you = row === game.localPlayer ? ' · you' : '';
       // a downed player's row turns grey (their pips are empty anyway)

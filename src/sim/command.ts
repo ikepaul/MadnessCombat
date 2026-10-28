@@ -32,6 +32,8 @@ export interface PlayerCommand {
   throwGun?: boolean;
   /** Pressed this tick (edge, M14 gun-fire-mode): B switches a rifle between single shot and full auto. */
   fireMode?: boolean;
+  /** M19: Tab pressed (edge): fire the rage fatality (when the bar is full). */
+  rage?: boolean;
   /** M17: E held (with both hands full, a click picks the hand E swaps). */
   useHeld?: boolean;
   /** Shift held: split aim, the back hand locks onto the nearest enemy on the other side. */
@@ -46,7 +48,7 @@ export const IDLE_COMMAND: PlayerCommand = { moveX: 0, moveZ: 0, jump: false, di
 
 /** Edge fields, cleared once a tick consumed them. */
 export function clearEdges(c: PlayerCommand): PlayerCommand {
-  return { ...c, jump: false, dive: false, attack: null, grab: false, press: [false, false], pickup: false, reload: false, throwGun: false, fireMode: false };
+  return { ...c, jump: false, dive: false, attack: null, grab: false, press: [false, false], pickup: false, reload: false, throwGun: false, fireMode: false, rage: false };
 }
 
 /** Keep edges latched between frames until a tick runs. */
@@ -63,9 +65,10 @@ export function mergeEdges(pending: PlayerCommand, next: PlayerCommand): PlayerC
     reload: !!(pending.reload || next.reload),
     throwGun: !!(pending.throwGun || next.throwGun),
     fireMode: !!(pending.fireMode || next.fireMode),
+    rage: !!(pending.rage || next.rage),
   };
 }
 
 export function hasEdges(c: PlayerCommand): boolean {
-  return c.jump || c.dive || c.attack !== null || c.grab || !!c.press?.[0] || !!c.press?.[1] || !!c.pickup || !!c.reload || !!c.throwGun;
+  return c.jump || c.dive || c.attack !== null || c.grab || !!c.press?.[0] || !!c.press?.[1] || !!c.pickup || !!c.reload || !!c.throwGun || !!c.rage;
 }

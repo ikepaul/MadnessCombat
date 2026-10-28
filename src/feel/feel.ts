@@ -13,6 +13,8 @@ export interface FeelSink {
   chromatic(px: number, frames: number): void;
   /** `at` = the kill's world point (revamp C1: the camera leans in toward it). */
   killCam(at?: { x: number; y: number; z: number }): void;
+  /** M19: hold time at `scale` for `seconds` of real time (a rage fatality's slow-mo); 0 seconds ends it. */
+  slowMo?(scale: number, seconds: number): void;
 }
 
 const HEAVY_KINDS: HitKind[] = ['heavy', 'uppercut', 'finisher', 'sweep', 'body', 'wall', 'slash', 'smash', 'stab', 'knife', 'blast', 'pin'];
@@ -38,7 +40,17 @@ export class FeelDirector {
       const combo = e.combo ? 1.5 : 1;
       this.sink.shake((heavy ? FEEL.shake.heavyHit : FEEL.shake.lightHit) * combo, FEEL.shake.decayMin);
     });
+    // M19 rage fatalities (design/rage.md 2.4): their own slow-mo and hits, outside the hit-stop budget
+    world.events.on('rageStart', () => this.sink.slowMo?.(FEEL.rage.runScale, 60));
+    world.events.on('rageBeat', (e) => {
+      if (e.beat === 'ignite') { this.sink.shake(FEEL.shake.heavyHit, FEEL.shake.decayMax); this.sink.chromatic(FEEL.chromatic.kill.px, 2); }
+      if (e.beat === 'strike') { this.sink.hitStop(FEEL.rage.strikeStop); this.sink.shake(FEEL.rage.strikeShake, FEEL.shake.decayMin); this.sink.chromatic(4, 2); }
+      if (e.beat === 'shot') this.sink.hitStop(FEEL.hitStop.light);
+      if (e.beat === 'release') { this.sink.shake(FEEL.rage.releaseShake, FEEL.shake.decayMax); this.sink.chromatic(FEEL.chromatic.killCam.px, 3); }
+    });
+    world.events.on('rageEnd', () => this.sink.slowMo?.(FEEL.rage.releaseScale, FEEL.rage.releaseSlow));
     world.events.on('kill', (e) => {
+      if (e.rage) return; // a rage fatality's kills: its own feel, no kill cam
       if (world.actorById(e.actorId)?.kind === 'hero') {
         this.sink.shake(FEEL.shake.kill, FEEL.shake.decayMax);
         return;

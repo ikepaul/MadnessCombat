@@ -19,6 +19,8 @@ import { Seq } from './sequencer';
 import { isBoss, stepBoss, stepSwept } from './boss';
 import { installAlertRules } from './stealth';
 import { stepSpin } from './coop';
+import { installRage } from './rage';
+import { stepRageRun } from './rageMoves';
 
 /** Props can change in play (a kicked-over table), so each World gets its own copies. */
 function ownProps(room: RoomDef): RoomDef {
@@ -68,6 +70,10 @@ export class World {
   physics: 'normal' | 'improbable' = 'normal';
   /** Thrown weapons hitting a co-op ally (the friendly-fire setting): full damage, a knockdown only, or nothing. */
   friendlyThrow: 'damage' | 'knockdown' | 'through' = 'damage';
+  /** M19: a rage fatality under way (src/sim/rageMoves.ts); everyone else is frozen. */
+  rage?: import('./rage').RageRun;
+  /** M19: set around a hit that comes from an M10b fatality (the over-the-shoulder shot): its kill type is `style`. */
+  hitVia?: 'style';
   /** M18: this stage shows blood (GameScene sets it; stage 1 doesn't): the wishbone tears only where there's blood. */
   blood = true;
   /** Stage 3 is gorier (src/sim/gore.ts). */
@@ -97,6 +103,7 @@ export class World {
     this.room = ownProps(room);
     this.resetDoors();
     installAlertRules(this);
+    installRage(this);
     this.events.on('explosion', (e) => { if (!this.puppet) blastExit(this, e); });
     this.events.on('land', (e) => { if (!this.puppet) skyLanding(this, e.actorId); });
     this.events.on('waveStart', () => { this.enemyGrenades = 1; });
@@ -216,6 +223,14 @@ export class World {
 
   step(): void {
     this.tick++;
+    // M19: a rage fatality stops the world for everyone but the hero and his victims
+    if (this.rage) {
+      stepRageRun(this, this.dt);
+      this.commands = this.commands.map(clearEdges);
+      this.stepRageItems();
+      this.events.emit('tick', { tick: this.tick });
+      return;
+    }
     // scripts first: they react to the last tick and set this tick's scripted commands
     this.seq.step(this.dt);
     assignTokens(this);
@@ -247,6 +262,15 @@ export class World {
     this.director?.step(this, this.dt);
     this.stepDoors();
     this.events.emit('tick', { tick: this.tick });
+  }
+
+  /** M19: during a rage fatality only the heads it knocks off fly (everything else waits). */
+  private stepRageItems(): void {
+    const all = this.items;
+    const heads = all.filter((it) => it.kind === 'head' && it.state === 'air');
+    this.items = heads;
+    stepItems(this, this.dt);
+    this.items = [...all.filter((it) => !heads.includes(it)), ...this.items];
   }
 
   /** A script's command, else the player's input (unless locked), else the brain. */

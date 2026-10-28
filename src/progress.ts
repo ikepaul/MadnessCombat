@@ -9,7 +9,8 @@ export interface Checkpoint {
   room: string;
   entry: string;
   kills: number;
-  players: Pick<Actor, 'hands' | 'grenades'>[];
+  /** M19: the rage bar too (a death restores the value the room was entered with). */
+  players: (Pick<Actor, 'hands' | 'grenades'> & { rage?: Actor['rage'] })[];
 }
 
 export interface Progress {

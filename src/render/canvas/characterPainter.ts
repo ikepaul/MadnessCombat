@@ -142,7 +142,13 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
   // revamp G1: a soft light rim around the players so they read in a crowd (restored with the ctx)
-  if (a.kind === 'hero' && !pose.dead && !opts.placement) { ctx.shadowColor = 'rgba(255,255,255,0.6)'; ctx.shadowBlur = Math.max(3, 0.035 * s); }
+  // M19 full rage (or raging): a hotter rim that pulses, and the eye slit turns red (design/rage.md 1.4)
+  const fury = a.kind === 'hero' && !pose.dead && ((a.rage?.value ?? 0) >= 1 || !!pose.raging);
+  if (a.kind === 'hero' && !pose.dead && !opts.placement) {
+    const pulse = fury && opts.flashes !== false ? 0.5 + 0.5 * Math.sin(time * Math.PI * 2.2) : 0;
+    ctx.shadowColor = fury ? `rgba(255,255,255,${0.6 + 0.35 * pulse})` : 'rgba(255,255,255,0.6)';
+    ctx.shadowBlur = Math.max(3, (fury ? 0.06 : 0.035) * s);
+  }
   // M11: the twin-tank jetpack on his back, flames while he's off the ground
   if (pose.jetpack) jetpack(ctx, time, a.hover !== undefined || a.pos.y > pose.groundY + 0.1);
 
@@ -248,7 +254,7 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
     ctx.translate(sk.head[0], sk.head[1]);
     // tilt toward the aim, at most 0.25 rad
     ctx.rotate(sk.head[2] + (aim !== undefined ? Math.max(-0.25, Math.min(0.25, aim * 0.18)) : 0));
-    paintHead(ctx, col.skin, col.skinHi, pose.dead);
+    paintHead(ctx, col.skin, col.skinHi, pose.dead, fury ? BLOOD : undefined);
     if (a.variant === 'leader' || a.variant === 'bodyguard' || a.variant === 'welder' || a.variant === 'agent') paintHeadGear(ctx, a.variant);
     // M10: knocked silly or out cold: stars round the head
     if (pose.dazed) dazedStars(ctx, time);
@@ -538,7 +544,7 @@ function gunInHand(ctx: Ctx, rig: Rig, w: WeaponDef, handCol: string, back: bool
 }
 
 /** Head at the origin of its own transform. */
-export function paintHead(ctx: Ctx, skin: string, skinHi: string, dead: boolean): void {
+export function paintHead(ctx: Ctx, skin: string, skinHi: string, dead: boolean, eye?: string): void {
   ctx.beginPath(); ctx.ellipse(0, 0, 0.2, 0.225, 0, 0, Math.PI * 2);
   ctx.fillStyle = skin; ctx.fill();
   // soft form shading: darker on the back side, lighter toward the face
@@ -553,11 +559,12 @@ export function paintHead(ctx: Ctx, skin: string, skinHi: string, dead: boolean)
   ctx.fillStyle = skinHi; ctx.globalAlpha = 0.8; ctx.fill(); ctx.globalAlpha = 1;
   ctx.beginPath(); ctx.ellipse(0, 0, 0.2, 0.225, 0, 0, Math.PI * 2);
   ctx.lineWidth = 0.016; ctx.strokeStyle = INK; ctx.stroke();
-  paintFace(ctx, dead);
+  paintFace(ctx, dead, eye);
 }
 
 /** Face A, "slit" (decided): one dash toward the facing side. Dead: one wide X over the face (2026-10-27). */
-function paintFace(ctx: Ctx, dead: boolean): void {
+/** `eye` (M19): the slit's colour (red at full rage, the one red on a living hero). */
+function paintFace(ctx: Ctx, dead: boolean, eye?: string): void {
   ctx.strokeStyle = INK;
   ctx.lineCap = 'round';
   if (dead) {
@@ -569,6 +576,14 @@ function paintFace(ctx: Ctx, dead: boolean): void {
     return;
   }
   ctx.lineWidth = 0.02;
+  if (eye) {
+    // a soft red glow under the slit
+    ctx.save();
+    ctx.strokeStyle = 'rgba(199,15,27,0.45)'; ctx.lineWidth = 0.05;
+    ctx.beginPath(); ctx.moveTo(0.025, -0.04); ctx.lineTo(0.15, -0.04); ctx.stroke();
+    ctx.restore();
+    ctx.strokeStyle = eye;
+  }
   ctx.beginPath(); ctx.moveTo(0.025, -0.04); ctx.lineTo(0.15, -0.04); ctx.stroke();
 }
 

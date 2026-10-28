@@ -20,6 +20,7 @@ export class PlayerInput {
   private reloadLatch = false;
   private throwLatch = false;
   private modeLatch = false;
+  private rageLatch = false;
   private pressLatch: [boolean, boolean] = [false, false];
   private attackLatch: PlayerCommand['attack'] = null;
   /** Aim only counts once the mouse has moved over the game (the pointer starts at 0,0). */
@@ -27,7 +28,7 @@ export class PlayerInput {
 
   constructor(private scene: Phaser.Scene) {
     const kb = scene.input.keyboard!;
-    kb.addCapture(['SPACE', 'CTRL', 'SHIFT']);
+    kb.addCapture(['SPACE', 'CTRL', 'SHIFT', 'TAB']);
     const K = Phaser.Input.Keyboard.KeyCodes as Record<string, number>;
     const key = (a: Action) => kb.addKey(K[SETTINGS.keys[a]] ?? K.SPACE);
     this.keys = Object.fromEntries((Object.keys(SETTINGS.keys) as Action[]).map((a) => [a, key(a)])) as Record<Action, Phaser.Input.Keyboard.Key>;
@@ -39,6 +40,7 @@ export class PlayerInput {
     this.keys.reload.on('down', () => (this.reloadLatch = true));
     this.keys.throw.on('down', () => (this.throwLatch = true));
     this.keys.fireMode.on('down', () => (this.modeLatch = true));
+    this.keys.rage.on('down', () => (this.rageLatch = true));
     scene.input.mouse?.disableContextMenu();
     scene.input.on('pointermove', () => (this.aimActive = true));
     scene.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
@@ -66,6 +68,7 @@ export class PlayerInput {
       reload: this.reloadLatch,
       throwGun: this.throwLatch,
       fireMode: this.modeLatch,
+      rage: this.rageLatch,
       useHeld: k.use.isDown,
       split: k.split.isDown,
       grenade: k.grenade.isDown,
@@ -81,6 +84,7 @@ export class PlayerInput {
     this.reloadLatch = false;
     this.throwLatch = false;
     this.modeLatch = false;
+    this.rageLatch = false;
     this.pressLatch = [false, false];
     this.attackLatch = null;
   }

@@ -19,6 +19,8 @@ export class FeelFx implements FeelSink {
   private chromaPx = 0;
   private chromaLeft = 0;
   private killCamLeft = 0;
+  private slowLeft = 0;
+  private slowScale = 1;
   /** Revamp C1: the kill-cam's screen point; the camera zooms in toward it. */
   private zoomAt: [number, number] = [SCREEN_W / 2, SCREEN_H / 2];
 
@@ -40,6 +42,12 @@ export class FeelFx implements FeelSink {
     if (this.k <= 0) return;
     this.chromaPx = Math.max(this.chromaPx, px * this.k);
     this.chromaLeft = Math.max(this.chromaLeft, frames * FRAME);
+  }
+
+  /** M19: a rage fatality's slow-mo (real seconds; 0 ends it). */
+  slowMo(scale: number, seconds: number): void {
+    this.slowScale = scale;
+    this.slowLeft = seconds;
   }
 
   killCam(at?: { x: number; y: number; z: number }): void {
@@ -96,5 +104,11 @@ export class FeelFx implements FeelSink {
     this.post.chromatic(this.chromaLeft > 0 ? this.chromaPx : 0);
     this.chromaLeft = Math.max(0, this.chromaLeft - realDt);
     if (this.chromaLeft <= 0) this.chromaPx = 0;
+    // M19: a rage fatality's slow-mo, eased back over its last 0.2 s
+    if (this.slowLeft > 0) {
+      this.slowLeft = Math.max(0, this.slowLeft - realDt);
+      const ease = Math.min(1, this.slowLeft / 0.2);
+      this.clock.feelScale = Math.min(this.clock.feelScale, 1 - (1 - this.slowScale) * ease);
+    }
   }
 }

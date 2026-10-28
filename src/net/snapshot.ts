@@ -45,6 +45,8 @@ export interface ActorSnap {
   grabbedBy?: number;
   holding?: Actor['holding'];
   carried?: Actor['carried'];
+  /** M19: the rage bar (the guest's HUD and the full-rage look). */
+  rage?: Actor['rage'];
   /** M7: grunt variant, and what an unaware enemy is doing (the painter draws the cigarette). */
   variant?: Actor['variant'];
   /** M8: the boombox NPC's boombox. */
@@ -80,6 +82,8 @@ export interface Snapshot {
   /** M12: the desert box's falling walls and the last stand (the red bars). */
   lockWalls?: World['lockWalls'];
   lastStand?: World['lastStand'];
+  /** M19: a rage fatality under way (the guest dims the stopped world, draws the letterbox). */
+  rage?: World['rage'];
   blocks?: World['blocks'];
   /** M7: props change in play (kicked-over tables). */
   props: World['room']['props'];
@@ -98,7 +102,7 @@ function snapActor(a: World['actors'][number]): ActorSnap {
     pos: [a.pos.x, a.pos.y, a.pos.z], facing: a.facing, state: a.state, stateT: a.stateT,
     hp: a.hp, maxHp: a.maxHp, revive: a.revive, entering: a.entering,
     bodyState: a.body.state, bodyHeight: a.body.height, bodyKick: a.body.kick || undefined, traversing: a.traversing, parked: a.parked,corpse: a.corpse?.phase, gibbed: a.corpse?.gibbed, pinned: a.corpse?.pinned,
-    pose: a.pose, hands: a.hands, grenades: a.grenades, useHeldAt: a.useHeldAt, grabbedBy: a.grabbedBy, holding: a.holding, carried: a.carried,
+    pose: a.pose, hands: a.hands, grenades: a.grenades, useHeldAt: a.useHeldAt, grabbedBy: a.grabbedBy, holding: a.holding, carried: a.carried, rage: a.rage,
     variant: a.variant, carry: a.carry, unaware: a.ai?.aware === false ? a.ai.idle ?? 'stand' : undefined,
     hover: a.hover, fallingAway: a.fallingAway, ceilingStuck: a.ceilingStuck,
   };
@@ -139,7 +143,7 @@ export class SnapshotWriter {
       items: w.items, doors: w.doors.map((d) => d.open), props: w.room.props, cannons: w.cannons, balls: w.balls, kills: w.kills, lastKillKind: w.lastKillKind,
       elevator: w.elevator, decks: w.room.decks,
       physics: w.physics, gore: w.gore, exits: w.exits, blocks: w.blocks, stage3Room: { void: w.room.void, crack: w.room.crack, vending: w.room.vending, lockWalls: w.room.lockWalls, outdoor: w.room.outdoor },
-      lockWalls: w.lockWalls, lastStand: w.lastStand,
+      lockWalls: w.lockWalls, lastStand: w.lastStand, rage: w.rage,
       events: full && this.joining ? [] : this.events,
     };
     this.events = [];
@@ -182,6 +186,7 @@ export function applySnapshot(world: World, s: Snapshot): void {
     a.grabbedBy = as.grabbedBy;
     a.holding = as.holding;
     a.carried = as.carried;
+    a.rage = as.rage;
     if (as.corpse) a.corpse = { phase: as.corpse, t: 0, raisable: !as.gibbed, gibbed: !!as.gibbed, slumped: false, pinned: as.pinned };
     else a.corpse = undefined;
     if (as.enemy && !a.ai) a.ai = newAiState(world);
@@ -210,6 +215,7 @@ export function applySnapshot(world: World, s: Snapshot): void {
   }
   if (s.lockWalls) world.lockWalls = s.lockWalls;
   world.lastStand = s.lastStand;
+  world.rage = s.rage;
   if (s.decks) world.room.decks = s.decks;
   if (s.cannons) world.cannons = s.cannons;
   if (s.balls) world.balls = s.balls;

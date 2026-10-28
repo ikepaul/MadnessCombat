@@ -30,7 +30,7 @@ export interface GameEvents {
     /** This hit got the combo bonus; `chain` = its position in the chain (1 = first hit). */
     combo: boolean; chain: number;
   };
-  kill: At & { byId: number; kind: HitKind; decap: boolean; /** M18: a co-op move (or a team chain) killed him. */ team?: boolean; /** M18: the other player in a team kill (the wishbone). */ alsoId?: number };
+  kill: At & { byId: number; kind: HitKind; decap: boolean; /** M19: the kill's type for the rage meter. */ type?: import('./rage').KillType; /** M19: a rage fatality's kill (gives no rage). */ rage?: boolean; /** M18: a co-op move (or a team chain) killed him. */ team?: boolean; /** M18: the other player in a team kill (the wishbone). */ alsoId?: number };
   /** A gun fired (M5): muzzle/eject on screen, barrel angle, one ray per pellet (tracer end, impact). */
   shot: At & {
     hand: 0 | 1; weapon: WeaponId; muzzle: [number, number]; eject: [number, number]; angle: number;
@@ -98,6 +98,13 @@ export interface GameEvents {
   popUp: At & { itemId: number };
   /** M10b: a contextual kill (kill-cam, pitched-up tick). */
   fatality: At & { actorId: number; kind: 'punt' | 'backshot' | 'held' | 'wishbone' | 'double' | 'pingpong'; itemId?: number };
+  /** M19 rage: a kill filled the bar (amount 0 = a repeat), the bar became full, a rage fatality's beats. */
+  rageGain: At & { amount: number; type: import('./rage').KillType; repeat: boolean; value: number };
+  rageReady: At;
+  rageStart: { kind: import('./rage').RageKind; heroes: number[]; victims: number[] };
+  rageBeat: At & { kind: import('./rage').RageKind; beat: 'ignite' | 'dash' | 'strike' | 'shot' | 'cut' | 'finale' | 'release' | 'land'; targetId?: number; i?: number; variant?: number };
+  rageEnd: { kind: import('./rage').RageKind };
+  rageFizzle: At;
   /** M18 co-op moves (design/coop-moves.md): feel, audio and HUD hints listen. */
   coopMove: At & { kind: 'held' | 'chain' | 'pingpong' | 'wishbone' | 'pass' | 'bat' | 'double' | 'lift' | 'toss' | 'spin'; phase: 'start' | 'hit' | 'end'; byId: number; partnerId: number; targetId?: number };
   /** M14: a blow turned aside: the agent blocking a jab, a sword guard taking a bullet or a blade. */
