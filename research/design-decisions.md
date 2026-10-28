@@ -70,5 +70,19 @@ Specs: `../design/qol-pass.md` (M17), `../design/coop-moves.md` (M18), `../desig
 - **Sword guard**: **hold RMB** with a sword-class weapon (sword, katana, scimitar); long weapons keep RMB = thrust.
 - The show's on-screen gag text is not copied; by default there is none (no answer yet on an own gag).
 
+## Audit decisions (2026-10-28, with the user)
+Source: `../design/audit-pass.md` §4 (the M14b audit). The bundle goes in as suggested (M14b in `PLAN.md`).
+- **Stage 1 checkpoints**: each beat (riot, grenade, boss, wave B, ending) is a checkpoint, and Continue resumes it. This refines "dying restarts the room": in stage 1 the beat is the room.
+- **Mercy window**: after a hit the hero ignores further hits for **0.3 s** (Pro), scaled proportionally by difficulty (Noob 0.5 s, Notch 0.15 s). Hero only; scripted lethal hits are exempt. "Every hit costs exactly 1 life" stays.
+- **Gun headshots**: no nerf yet. Measure again on the spawn-variety PR (#43); then melee-only healing is tried as an F6 switch in the playtest. No aim-settle.
+- **Prone** stays the bullet dodge; adjacent unarmed grunts stomp a prone hero after a ≥ 0.3 s drawn tell.
+- **Dive key**: C by default (Ctrl stays bindable, with a warning); a leave-page confirm while a stage runs.
+- **Debug keys** only in dev builds or with `?debug`; M (mute) stays a player key.
+- **Scripted hits** (the tutorial cross, the boss flings) knock down without damage.
+- **Music**: the one-stem track plays straight through rooms; shipped as OGG under a neutral file name.
+- **Text**: minimum 26 px, captions 34 px.
+- **`axeThrows`** is on from the camera room to the end of stage 3, owned by the rooms (the same after a restart). Rooms waiting on one trick re-show their hint after 20 s of nothing.
+- Smaller defaults: Continue = the furthest point reached; Co-op hidden in production builds; the toy street keeps its red (the welder's visor goes grey); the head moving with the fist on 1-frame hits stays.
+
 ## Still open (to ask later)
 - Pistol-whip (gun-butt hit at contact range): its own key (F with a gun in hand) or automatic? Not in the M10b slice.
