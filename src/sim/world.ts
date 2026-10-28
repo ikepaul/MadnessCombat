@@ -20,6 +20,7 @@ import { isBoss, stepBoss, stepSwept } from './boss';
 import { installAlertRules } from './stealth';
 import { stepSpin } from './coop';
 import { installRage } from './rage';
+import { stepRageRun } from './rageMoves';
 
 /** Props can change in play (a kicked-over table), so each World gets its own copies. */
 function ownProps(room: RoomDef): RoomDef {
@@ -222,6 +223,14 @@ export class World {
 
   step(): void {
     this.tick++;
+    // M19: a rage fatality stops the world for everyone but the hero and his victims
+    if (this.rage) {
+      stepRageRun(this, this.dt);
+      this.commands = this.commands.map(clearEdges);
+      this.stepRageItems();
+      this.events.emit('tick', { tick: this.tick });
+      return;
+    }
     // scripts first: they react to the last tick and set this tick's scripted commands
     this.seq.step(this.dt);
     assignTokens(this);
@@ -253,6 +262,15 @@ export class World {
     this.director?.step(this, this.dt);
     this.stepDoors();
     this.events.emit('tick', { tick: this.tick });
+  }
+
+  /** M19: during a rage fatality only the heads it knocks off fly (everything else waits). */
+  private stepRageItems(): void {
+    const all = this.items;
+    const heads = all.filter((it) => it.kind === 'head' && it.state === 'air');
+    this.items = heads;
+    stepItems(this, this.dt);
+    this.items = [...all.filter((it) => !heads.includes(it)), ...this.items];
   }
 
   /** A script's command, else the player's input (unless locked), else the brain. */

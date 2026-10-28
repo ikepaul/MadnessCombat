@@ -8,6 +8,7 @@ import { DISARM, GRENADE, GUARD, GUN_BLOCK, isMelee, LOW_SLASH, MELEE, SHIELD, T
 import { GUNS, isWeapon, WEAPONS } from '../data/weapons';
 import { stepHands, stepUse } from './guns';
 import { killType, type KillType } from './rage';
+import { tryRage } from './rageMoves';
 import { isPartner, launchToss, releaseSpin, setDown, stepCarried, stepTossed, tryLift, tryPass } from './coop';
 import { blastFlight } from './explosives';
 import { tryTakedown } from './stealth';
@@ -72,6 +73,8 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
   cmd = stepUse(world, a, cmd);
   // M18 weapon pass: Q with the cursor on your partner lobs the item to them
   if (tryPass(world, a, cmd)) cmd = { ...cmd, throwGun: false };
+  // M19: Tab with a full rage bar fires the rage fatality (the world stops for everyone else)
+  if (tryRage(world, a, cmd)) return;
   // a hand holding a gun fires instead of punching (M5): LMB = hand 0, RMB = hand 1
   if (a.state === 'free' || a.state === 'attack') {
     cmd = withoutGunPunches(a, cmd);

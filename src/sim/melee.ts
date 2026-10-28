@@ -246,6 +246,15 @@ function lobGrenade(world: World, a: Actor, fuse: number, aim?: ScreenPoint): vo
   world.events.emit('throw', { actorId: a.id, itemId: it.id, ...from, vx: it.vel.x, vz: it.vel.z });
 }
 
+/** M19: a grenade being cooked is lobbed now toward the hero's aim (a rage fatality starting). True if one was. */
+export function lobCooking(world: World, a: Actor): boolean {
+  if (a.cook === undefined) return false;
+  const fuse = GRENADE.fuse - a.cook;
+  a.cook = undefined;
+  lobGrenade(world, a, fuse, a.pose.aim);
+  return true;
+}
+
 /** A held live grenade (picked up from the floor) is lobbed like a cooked one. */
 export function lobHeldGrenade(world: World, a: Actor, it: Item, aim?: ScreenPoint): void {
   world.items = world.items.filter((x) => x !== it);

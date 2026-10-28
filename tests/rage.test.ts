@@ -114,3 +114,135 @@ describe('M19 rage gain', () => {
     expect(hero.rage!.value).toBeCloseTo(0.13, 5);
   });
 });
+
+describe('M19 firing a rage fatality', () => {
+  const full = (hero: Actor) => { hero.rage = { value: 1, recent: [], streak: 0 }; };
+
+  function runUntilEnd(world: World, max = 600): number {
+    let n = 0;
+    while (world.rage && n++ < max) tick(world);
+    return n;
+  }
+
+  it('Tab with a full bar and 3 grunts: all three dead, bar 0, the hero unhurt; the kills give no rage', () => {
+    const { world, hero } = setup(-2);
+    full(hero);
+    const gs = [-0.5, 0.6, 1.8].map((x, i) => grunt(world, x, Z + (i - 1) * 0.3));
+    const kills = record(world, 'kill');
+    tick(world, { rage: true });
+    expect(world.rage?.kind).toBe('rampage');
+    runUntilEnd(world);
+    expect(gs.every((g) => g.state === 'dead')).toBe(true);
+    expect(hero.rage!.value).toBe(0);
+    expect(hero.hp).toBe(hero.maxHp);
+    expect(kills.every((k) => k.rage)).toBe(true);
+    // Rampage: they all die on the same tick (the release)
+    expect(new Set(kills.map((k) => k.actorId)).size).toBe(3);
+  });
+
+  it('no victims on screen: a fizzle, the bar stays full', () => {
+    const { world, hero } = setup();
+    full(hero);
+    const fizz = record(world, 'rageFizzle');
+    tick(world, { rage: true });
+    expect(fizz).toHaveLength(1);
+    expect(hero.rage!.value).toBe(1);
+    expect(world.rage).toBeUndefined();
+  });
+
+  it('not full: nothing; locked input: nothing', () => {
+    const { world, hero } = setup();
+    grunt(world, 0);
+    hero.rage = { value: 0.9, recent: [], streak: 0 };
+    tick(world, { rage: true });
+    expect(world.rage).toBeUndefined();
+    full(hero);
+    world.inputLocked = true;
+    tick(world, { rage: true });
+    expect(world.rage).toBeUndefined();
+  });
+
+  it('9 grunts: 6 victims, 3 bystanders frozen during the run, then stunned', () => {
+    const { world, hero } = setup(-3);
+    full(hero);
+    const gs = Array.from({ length: 9 }, (_, i) => grunt(world, -2.2 + i * 0.6, Z + ((i % 3) - 1) * 0.4));
+    tick(world, { rage: true });
+    const victims = world.rage!.victims;
+    expect(victims).toHaveLength(6);
+    const others = gs.filter((g) => !victims.includes(g.id));
+    const at = others.map((g) => ({ ...g.pos }));
+    runUntilEnd(world);
+    others.forEach((g, i) => expect(g.pos).toEqual(at[i]));
+    expect(others.every((g) => g.state === 'stun')).toBe(true);
+    expect(gs.filter((g) => g.state === 'dead')).toHaveLength(6);
+  });
+
+  it('bosses and the riot mini-boss are never victims', () => {
+    const { world, hero } = setup(-2);
+    full(hero);
+    const riot = grunt(world, 0);
+    riot.variant = 'riot';
+    tick(world, { rage: true });
+    expect(world.rage).toBeUndefined();
+  });
+
+  it('a live grenade fuse does not burn during the run', () => {
+    const { world, hero } = setup(-2);
+    full(hero);
+    grunt(world, 0);
+    const nade = world.spawnItem('grenade', 'grunt', { x: 2, y: 0, z: Z }, { x: 0, y: 0, z: 0 }, 0);
+    nade.state = 'floor'; nade.live = true; nade.fuse = 2;
+    tick(world, { rage: true });
+    const left = nade.fuse;
+    tick(world, {}, 30);
+    expect(nade.fuse).toBe(left);
+    runUntilEnd(world);
+  });
+
+  it('gun in hand: Spin shot, each dies as the barrel passes (different ticks), guns refilled', () => {
+    const { world, hero } = setup(0);
+    full(hero);
+    hero.hands[0] = newHand('pistol', 1, 0);
+    const gs = [grunt(world, -2), grunt(world, 2)];
+    const kills: number[] = [];
+    world.events.on('kill', () => kills.push(world.tick));
+    tick(world, { rage: true });
+    expect(world.rage?.kind).toBe('spinShot');
+    runUntilEnd(world);
+    expect(gs.every((g) => g.state === 'dead')).toBe(true);
+    expect(kills[0]).not.toBe(kills[1]);
+    expect(hero.hands[0]!.ammo).toBe(8);
+  });
+
+  it('a blade: Cut line splits them (blood) or takes their heads (stage 1)', () => {
+    for (const blood of [true, false]) {
+      const { world, hero } = setup(-2);
+      world.blood = blood;
+      full(hero);
+      hero.hands[0] = newHand('sword');
+      const g = grunt(world, 0);
+      const before = world.actors.length;
+      tick(world, { rage: true });
+      expect(world.rage?.kind).toBe('cutLine');
+      runUntilEnd(world);
+      expect(g.state).toBe('dead');
+      if (blood) expect(world.actors.length).toBe(before + 1);
+      else expect(g.pose.headless).toBe(true);
+    }
+  });
+
+  it('a club: Home run launches the bodies, which bowl over a bystander', () => {
+    const { world, hero } = setup(-1.6);
+    full(hero);
+    hero.hands[0] = newHand('bat');
+    const victims = [grunt(world, -0.9), grunt(world, -0.3)];
+    tick(world, { rage: true });
+    expect(world.rage?.kind).toBe('homeRun');
+    // a bystander that walked in after it started, on the bodies' way to the nearest (left) wall
+    const by = grunt(world, -3.0);
+    runUntilEnd(world);
+    expect(victims.every((g) => g.state === 'dead')).toBe(true);
+    tick(world, {}, 40);
+    expect(by.state === 'knockback' || by.state === 'down' || by.state === 'dead' || by.state === 'getUp' || by.hp < by.maxHp).toBe(true);
+  });
+});
