@@ -32,6 +32,14 @@ export class CoopLobbyScene extends Phaser.Scene {
       fontFamily: 'Inter', fontSize: '22px', color: '#8e8f94',
     }).setOrigin(0.5);
     if (this.role === 'host') this.input.keyboard?.on('keydown-ENTER', () => this.start(false));
+    // UXS-06: Esc leaves the lobby for the title (and drops the link, so nobody waits on us)
+    this.add.text(960, 1030, 'Esc: back to the title', { fontFamily: 'Inter', fontSize: '22px', color: '#8e8f94' }).setOrigin(0.5);
+    this.input.keyboard?.on('keydown-ESC', () => {
+      if (this.started) return;
+      this.started = true;
+      coopLink(this.role).leave();
+      this.scene.start('title', { view: 'main' });
+    });
     coopLink(this.role);
   }
 
@@ -43,6 +51,7 @@ export class CoopLobbyScene extends Phaser.Scene {
   }
 
   update(): void {
+    if (this.started) return;
     const link = coopLink(this.role);
     const w = link.welcome;
     if (this.role === 'host') {

@@ -3,7 +3,7 @@
 import Phaser from 'phaser';
 import { audio } from '../audio/mixer';
 import { resetProgress } from '../progress';
-import { type Action, ACTION_LABELS, DEFAULT_KEYS, FRIENDLY_FIRE_LABELS, type FriendlyFire, SETTINGS, saveSettings } from '../settings';
+import { type Action, ACTION_LABELS, DEFAULT_KEYS, FRIENDLY_FIRE_LABELS, type FriendlyFire, keyText, RISKY_KEYS, SETTINGS, saveSettings } from '../settings';
 import { DIFFICULTIES, DIFFICULTY_LABELS } from '../sim/difficulty';
 import type { MenuItem } from './menu';
 
@@ -50,7 +50,8 @@ function keyName(e: KeyboardEvent): string | undefined {
 export function controlsItems(scene: Phaser.Scene, listening: (on: boolean) => void, onBack: () => void): MenuItem[] {
   let waiting: Action | undefined;
   const rows: MenuItem[] = (Object.keys(ACTION_LABELS) as Action[]).map((a) => ({
-    label: () => `${ACTION_LABELS[a]}   ${waiting === a ? 'press a key…' : SETTINGS.keys[a]}`,
+    // CMB-01: Ctrl (Alt, Meta) can be bound, with a warning: Ctrl + W closes the tab mid-fight
+    label: () => `${ACTION_LABELS[a]}   ${waiting === a ? 'press a key…' : keyText(SETTINGS.keys[a])}${waiting !== a && RISKY_KEYS.includes(SETTINGS.keys[a]) ? '   ⚠ with W / Tab it can close or switch the tab' : ''}`,
     action: () => {
       waiting = a;
       listening(true);

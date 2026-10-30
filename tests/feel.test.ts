@@ -193,3 +193,25 @@ describe('music scheduler (bar boundaries)', () => {
     expect(sw.update(bar)).toEqual({ level: 3, at: bar });
   });
 });
+
+describe('M14b VIS-01: the kill cam restores each voice to its own rate', () => {
+  /** A fake AudioParam timeline: setValueAtTime events, cancelScheduledValues drops those at or after t. */
+  class Param {
+    events: [number, number][] = [];
+    constructor(public initial: number) {}
+    setValueAtTime(v: number, t: number) { this.events.push([t, v]); this.events.sort((a, b) => a[0] - b[0]); return this as unknown as AudioParam; }
+    cancelScheduledValues(t: number) { this.events = this.events.filter(([at]) => at < t); return this as unknown as AudioParam; }
+    at(t: number) { let v = this.initial; for (const [at, x] of this.events) if (at <= t) v = x; return v; }
+  }
+
+  it('two kill cams 0.3 s apart: the loop is back at its base rate 0.7 s after the second', async () => {
+    const { scheduleKillCamRate } = await import('../src/audio/mixer');
+    const p = new Param(0.98);
+    scheduleKillCamRate(p, 0.98, 0, 0.6, 0.6);
+    expect(p.at(0.2)).toBeCloseTo(0.588);
+    scheduleKillCamRate(p, 0.98, 0.3, 0.9, 0.6);
+    expect(p.at(0.5)).toBeCloseTo(0.588);
+    expect(p.at(1.0)).toBeCloseTo(0.98);
+    expect(p.at(3)).toBeCloseTo(0.98);
+  });
+});

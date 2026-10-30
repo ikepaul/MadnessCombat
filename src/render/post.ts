@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { FEEL } from '../data/feel';
+import { effectLevel } from '../settings';
 import { SCREEN_H, SCREEN_W } from './camera';
 
 /**
@@ -57,9 +58,9 @@ export class PostFx {
     this.vignette.setVisible(on);
   }
 
-  /** Called once per rendered frame: re-rolls the grain offset. */
+  /** Called once per rendered frame: re-rolls the grain offset (UXS-17: static with effects off / reduced motion). */
   update(): void {
-    if (!this.enabled) return;
+    if (!this.enabled || effectLevel() === 'off') return;
     this.grain.setTilePosition(Math.random() * 256, Math.random() * 256);
   }
 

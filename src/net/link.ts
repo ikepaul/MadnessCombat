@@ -16,6 +16,8 @@ export class CoopLink {
   onInput?: (c: PlayerCommand) => void;
   onPeer?: (connected: boolean) => void;
   private retryTimer?: ReturnType<typeof setTimeout>;
+  /** UXS-06: left (Esc in the lobby, quit to the title): this link is dead, the next coopLink() makes a new one. */
+  private gone = false;
 
   constructor(readonly role: CoopRole) {
     const hot = import.meta.hot;
@@ -24,16 +26,18 @@ export class CoopLink {
       return;
     }
     hot.on('coop:welcome', (w: Welcome) => {
+      if (this.gone) return;
       this.welcome = w;
       this.peer = w.peer;
       if (!w.ok && role === 'guest') this.retryTimer = setTimeout(() => this.hello(), RETRY * 1000);
     });
     hot.on('coop:peer', (p: { connected: boolean }) => {
+      if (this.gone) return;
       this.peer = p.connected;
       this.onPeer?.(p.connected);
     });
-    hot.on('coop:snap', (s: Snapshot) => this.onSnap?.(s));
-    hot.on('coop:input', (c: PlayerCommand) => this.onInput?.(c));
+    hot.on('coop:snap', (s: Snapshot) => { if (!this.gone) this.onSnap?.(s); });
+    hot.on('coop:input', (c: PlayerCommand) => { if (!this.gone) this.onInput?.(c); });
     this.hello();
   }
 
@@ -46,11 +50,23 @@ export class CoopLink {
     import.meta.hot?.send('coop:hello', { role: this.role });
   }
 
+  /** UXS-06: leave the session; the relay tells the other laptop (`coop:peer` false). */
+  leave(): void {
+    if (this.gone) return;
+    this.gone = true;
+    clearTimeout(this.retryTimer);
+    this.peer = false;
+    import.meta.hot?.send('coop:bye', {});
+    if (link === this) link = undefined;
+  }
+
   sendInput(c: PlayerCommand): void {
+    if (this.gone) return;
     import.meta.hot?.send('coop:input', c);
   }
 
   sendSnap(s: Snapshot): void {
+    if (this.gone) return;
     import.meta.hot?.send('coop:snap', s);
   }
 }

@@ -77,14 +77,24 @@ export class FeelFx implements FeelSink {
     return [lx * clamp((this.zoomAt[0] - SCREEN_W / 2) / (SCREEN_W / 2)), ly * clamp((this.zoomAt[1] - SCREEN_H / 2) / (SCREEN_H / 2))];
   }
 
+  /** The clock was halted last frame (STB-11: the kill cam, shakes and the filter wait under the pause menu). */
+  private wasHalted = false;
+
   /** Once per rendered frame with real elapsed seconds. */
   update(realDt: number): void {
+    const halted = this.clock.halted;
+    if (halted !== this.wasHalted) {
+      this.wasHalted = halted;
+      if (this.killCamLeft > 0) { if (halted) this.audio?.killCamEnd(); else this.audio?.killCam(this.killCamLeft, false); }
+    }
+    if (halted) return;
     // kill cam runs on real time: 0.6 s of slow motion, tint fading out over the last third
     if (this.killCamLeft > 0) {
       this.killCamLeft = Math.max(0, this.killCamLeft - realDt);
       this.clock.feelScale = this.killCamLeft > 0 ? FEEL.killCam.timeScale : 1;
       const fade = Math.min(1, this.killCamLeft / (FEEL.killCam.duration / 3));
-      this.post.killCam(FEEL.killCam.tint * fade * Math.max(0.5, this.k));
+      // UXS-17: no red wash with effects off / reduced motion
+      this.post.killCam(FEEL.killCam.tint * fade * this.k);
     } else {
       this.clock.feelScale = 1;
       this.post.killCam(0);

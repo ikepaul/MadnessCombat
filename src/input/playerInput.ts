@@ -4,7 +4,7 @@ import { type Action, SETTINGS } from '../settings';
 
 /**
  * Keyboard + mouse -> PlayerCommand (PLAN.md controls): WASD move (W/S = depth), Space jump,
- * Ctrl (or C) dive/prone and get up, mouse aim, LMB / RMB use the front / back hand (fire,
+ * C dive/prone (M14b: the default moved off Ctrl; bound to Ctrl, C stays a second key) and get up, mouse aim, LMB / RMB use the front / back hand (fire,
  * or punch when empty: light / heavy, uppercut when aimed steeply up), F grab / throw,
  * E pick up / pull out, R reload, Q throw the held weapon, G (hold) cook a grenade and release
  * to lob it, Shift (hold) split aim. Edges are latched until

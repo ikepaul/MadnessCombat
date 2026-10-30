@@ -4,6 +4,7 @@
 // UI scene, so the wipe covers the HUD too and the post FX never touch them.
 import Phaser from 'phaser';
 import { TUNING } from '../data/tuning';
+import { effectLevel } from '../settings';
 import type { World } from '../sim/world';
 
 const INK_HEX = 0x141416;
@@ -91,6 +92,12 @@ export class StageHud {
     const e = u * u * (3 - 2 * u);
     const span = W + SLANT * 2;
     const lead = -SLANT + e * span;
+    // UXS-17: with effects off / reduced motion the room change is a plain fade (same sim timing)
+    if (effectLevel() === 'off') {
+      g.fillStyle(INK_HEX, ph.kind === 'out' ? e : 1 - e).fillRect(0, 0, W, H);
+      if (ph.kind === 'in' && u >= 1) this.phase = undefined;
+      return;
+    }
     g.fillStyle(INK_HEX, 1);
     const quad = (pts: [number, number][]) => {
       g.beginPath();
