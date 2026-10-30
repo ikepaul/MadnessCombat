@@ -2,6 +2,7 @@
 // walk cycle, idle breathing, airborne tuck, hit lean and stun wobble. Aim and recoil act on
 // the front hand and live in the painter, since they need the screen projection.
 import { FEEL } from '../data/feel';
+import { applyStomp } from './stomp';
 import type { Actor } from '../sim/actor';
 import { blendIn, sampleClip } from './clips';
 import { applyIdle } from './idles';
@@ -122,6 +123,8 @@ export function buildSkeleton(a: Actor, time: number, walk?: { phase: number; we
 
   // idles (playtest 2026-10-27): guards' fidgets and chats, the hero's after standing still
   applyIdle(a, s, time);
+  // M14b: the stomp's wind-up and stamp (render only, from the `stomp` event)
+  applyStomp(a, s, time);
 
   const quiet = p.dead || a.state === 'down' || a.state === 'knockback';
   // w = how much of the walk shows (1 while stepping; eased by the painter at starts and stops)

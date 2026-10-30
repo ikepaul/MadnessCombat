@@ -60,7 +60,8 @@ export const SOUNDS = {
   shotSmg: def('gunSmg', 'weapons', 0.6, { variants: 5, limit: 3, reverb: 0.25, files: shots('cz', 5) }),
   shotRifle: def('gunRifle', 'weapons', 0.85, { variants: 5, limit: 3, reverb: 0.35, files: shots('sks', 5) }),
   shotMg: def('gunRifle', 'weapons', 0.8, { variants: 5, limit: 3, reverb: 0.35, files: shots('sks', 5) }),
-  shotShotgun: def('gunShotgun', 'weapons', 1, { variants: 1, reverb: 0.5, files: shots('shotty', 1) }),
+  /** M14b VIS-13: 1 -> 0.7, its RMS sat 6-7 dB over every other gun (invented). */
+  shotShotgun: def('gunShotgun', 'weapons', 0.7, { variants: 1, reverb: 0.5, files: shots('shotty', 1) }),
   shotSuppressed: def('gunSuppressed', 'weapons', 0.7, { variants: 4, reverb: 0.1 }),
   dryFire: def('tick', 'weapons', 0.7, { variants: 1, reverb: 0, files: ['kenney/metalClick.ogg'] }),
   magOut: def('tick', 'foley', 0.6, { variants: 1, reverb: 0.05, files: ['kenney/metalLatch.ogg'] }),
@@ -69,6 +70,8 @@ export const SOUNDS = {
   casing: def('tick', 'weapons', 0.25, { variants: 5, limit: 6, reverb: 0, files: kenney('impactMetal_light_', FIVE) }),
   hitMetal: def('impact', 'impacts', 0.5, { variants: 5, reverb: 0.2, files: kenney('impactMetal_medium_', FIVE) }),
   hitWood: def('impact', 'impacts', 0.6, { variants: 5, reverb: 0.2, files: kenney('impactWood_light_', FIVE) }),
+  /** M14b VIS-13: outdoor bullet hits on the floor (was the grass footstep, near silent). invented */
+  hitDirt: def('hitDirt', 'impacts', 0.9, { variants: 4, reverb: 0.05 }),
   hitConcrete: def('impact', 'impacts', 0.5, { variants: 5, reverb: 0.2, files: kenney('impactMining_', FIVE) }),
   // M6: throwing, explosives, melee weapons (generated, src/audio/synth.ts)
   explosion: def('explosion', 'impacts', 1, { variants: 3, limit: 3, reverb: 0.5 }),
@@ -83,7 +86,8 @@ export const SOUNDS = {
   clang: def('clang', 'impacts', 0.7, { variants: 3, reverb: 0.3 }),
   // M7: armed enemies, stealth, zombies (generated)
   telegraph: def('telegraph', 'weapons', 0.7, { variants: 2, limit: 3, reverb: 0 }),
-  alert: def('alert', 'ui', 0.6, { variants: 1, limit: 2, reverb: 0 }),
+  /** M14b VIS-13: 0.6 -> 1.0, a gameplay telegraph was the quietest UI cue (invented). */
+  alert: def('alert', 'ui', 1.0, { variants: 1, limit: 2, reverb: 0 }),
   wireStrain: def('strain', 'foley', 0.7, { variants: 2, limit: 1, reverb: 0.05 }),
   moan: def('moan', 'voices', 0.5, { variants: 4, limit: 3, reverb: 0.3 }),
   woodCrash: def('woodCrash', 'impacts', 0.9, { variants: 2, limit: 2, reverb: 0.3 }),
@@ -97,7 +101,8 @@ export const SOUNDS = {
   // M14 (generated): the rifle's selector flipping, the agent's forearm block, a parry's bright ring,
   // a hollow step on stairs, a body sliding down them
   selector: def('slideRack', 'weapons', 0.45, { variants: 2, limit: 1, reverb: 0 }),
-  block: def('thump', 'impacts', 0.75, { variants: 3, reverb: 0.1 }),
+  /** M14b VIS-13: 0.75 -> 0.45, a blocked jab sounded bigger than a landed heavy (invented). */
+  block: def('thump', 'impacts', 0.45, { variants: 3, reverb: 0.1 }),
   parry: def('ping', 'impacts', 0.8, { variants: 2, limit: 2, reverb: 0.3 }),
   stairStep: def('thunk', 'foley', 0.4, { variants: 4, limit: 3, reverb: 0.15 }),
   stairSlide: def('bodyFall', 'foley', 0.6, { variants: 2, limit: 2, reverb: 0.2 }),

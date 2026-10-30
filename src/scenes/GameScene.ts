@@ -26,6 +26,7 @@ import { Vfx } from '../render/vfx';
 import { GunFx } from '../render/gunFx';
 import { isWeapon, WEAPON_IDS, WEAPONS } from '../data/weapons';
 import { lyingAt } from '../anim/skeleton';
+import { installStompPose } from '../anim/stomp';
 import { type Actor, alive, createActor, meleeBand } from '../sim/actor';
 import { snapTarget } from '../sim/combat';
 import { DeathTimer, FixedClock } from '../sim/clock';
@@ -238,6 +239,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.vfx = new Vfx(this.world, () => this.blood);
     this.decals = new Decals(this.world, this.decalLayer, () => this.blood);
+    installStompPose(this.world);
     // casings and magazines that land stay on the floor (baked with the decals)
     this.gunFx = new GunFx(this.world, (d) => this.decals.addDebris(d));
     this.input_ = new PlayerInput(this);

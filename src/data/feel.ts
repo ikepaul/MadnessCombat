@@ -92,6 +92,8 @@ export const FEEL = {
     walkSwingLag: 1,
     /** VIS-16: the swing eases in / out over this when a walk starts or stops (s) [0 = snap]. invented */
     walkBlend: 0.1,
+    /** M14b (Look & sound): the stomp's drawn wind-up and stamp (src/anim/stomp.ts) [0 = the lean only]. invented */
+    stompPose: 1,
   },
   /** M14b VIS-17: players draw in front at equal depth (H of z; under the attack bias 0.002) [0]. invented */
   drawOrder: { playerBias: 0.0015 },

@@ -312,6 +312,12 @@ export const TUNING = {
     /** decided with the user: every kill the player makes heals this much (up to max). */
     healPerKill: 1,
     /**
+     * M14b CMB-03 (decided 2026-10-28: an F6 switch, decided in the playtest): 1 = only hand-to-hand
+     * kills heal (fists, sweeps, finishers, blades, blunt swings, pins, takedowns, thrown bodies);
+     * gun, thrown-weapon and explosion kills don't. 0 = every kill heals (the old behaviour). invented
+     */
+    healMeleeOnly: 0,
+    /**
      * M14b ENC-03 (decided 2026-10-28): after losing a life the hero ignores further hits for this
      * long (s), scaled by difficulty (`mercyScale`: Noob 0.5 s, Pro 0.3, Hacker 0.225, Notch 0.15).
      * Scripted lethal hits (the boss's cameo, the last stand) go through. 0 = the old behaviour.

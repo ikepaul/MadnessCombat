@@ -103,7 +103,7 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
     for (const r of e.rays) {
       if (!r.impact || r.surface === 'flesh' || r.surface === 'sky') continue;
       const q = at(r.impact.x, r.impact.y, r.impact.z, { gain: 0.6 / Math.max(1, e.rays.length / 2) });
-      play(r.surface === 'prop' ? 'hitWood' : world.room.outdoor && r.surface === 'floor' ? 'stepDirt' : 'hitConcrete', q);
+      play(r.surface === 'prop' ? 'hitWood' : world.room.outdoor && r.surface === 'floor' ? 'hitDirt' : 'hitConcrete', q);
     }
   });
   world.events.on('dryFire', (e) => play('dryFire', at(e.x, e.y + 0.5, e.z)));

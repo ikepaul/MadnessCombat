@@ -57,6 +57,17 @@ describe('dev tuning overrides (M13 playtest pass)', () => {
     expect(setPath(root, ['move', 'nope', 'x'], 2)).toBe(false);
   });
 
+  it('M14b F: on/off switches and number-list entries are tunable too, each only by its own type', async () => {
+    const { setPath } = await import('../src/dev/overrides');
+    const root = { input: { firstDifferentWins: true }, hit: { chainStun: [0.7, 0.45, 0.25] } };
+    expect(setPath(root, ['input', 'firstDifferentWins'], false)).toBe(true);
+    expect(root.input.firstDifferentWins).toBe(false);
+    expect(setPath(root, ['hit', 'chainStun', '1'], 0.7)).toBe(true);
+    expect(root.hit.chainStun).toEqual([0.7, 0.7, 0.25]);
+    expect(setPath(root, ['input', 'firstDifferentWins'], 1)).toBe(false);
+    expect(setPath(root, ['hit', 'chainStun', '0'], true)).toBe(false);
+  });
+
   it('applies nothing without saved overrides (tests, production)', async () => {
     const { applyOverrides } = await import('../src/dev/overrides');
     const root = { a: 1 };
