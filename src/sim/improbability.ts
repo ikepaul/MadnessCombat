@@ -89,6 +89,8 @@ export function stepCollapse(world: World, dt: number): void {
       world.room.void = { side: c.side, x: c.x };
       world.room.props = world.room.props.filter((p) => !overVoid(world, (p.x0 + p.x1) / 2));
       world.items = world.items.filter((it) => !overVoid(world, it.pos.x));
+      // a carried item (a head, a body part) that fell with the floor leaves its carrier's hands too
+      for (const a of world.actors) if (a.holding?.kind === 'item' && !world.items.some((it) => it.id === a.holding!.id)) a.holding = undefined;
       for (const a of world.actors) if (overVoid(world, a.pos.x)) dropIntoVoid(world, a);
       world.events.emit('collapse', { phase: 'fall', side: c.side, x: c.x });
     }
