@@ -82,13 +82,15 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   shotgun: {
     // gun-shotgun: 5-6 near-parallel pellet rays +-4 deg, 0.6 s pump, 6 shells (invented)
     id: 'shotgun', name: 'Pump shotgun', oneHanded: false, auto: false, interval: 0.6, mag: 6, reload: 0.4, pellets: 6, spread: 4,
-    damageHead: 4, damageBody: 2, ...LONG_GEOM, muzzle: [0.52, -0.06], eject: [0.15, -0.09],
+    // M14b CMB-04: body pellets 1 (was 2: one blast deleted the agent and the riot); up close >= 4 still kill a grunt
+    damageHead: 4, damageBody: 1, ...LONG_GEOM, muzzle: [0.52, -0.06], eject: [0.15, -0.09],
     firingWalk: 1, suppressed: false, shake: 6, recoil: 0.1,
   },
   sawedoff: {
     // gun-shotgun: sawed-off, 2 shots then reload/throw; wider spread (invented)
     id: 'sawedoff', name: 'Sawed-off', oneHanded: true, auto: false, interval: 0.2, mag: 2, reload: 1.0, pellets: 6, spread: 6,
-    damageHead: 4, damageBody: 2, reach: 0.34, length: 0.36, muzzle: [0.33, -0.06], eject: [0.08, -0.08],
+    // M14b CMB-04: like the pump (was 2)
+    damageHead: 4, damageBody: 1, reach: 0.34, length: 0.36, muzzle: [0.33, -0.06], eject: [0.08, -0.08],
     firingWalk: 1, suppressed: false, shake: 6, recoil: 0.1,
   },
 };
@@ -117,6 +119,8 @@ export const GUNS = {
   knockbackAirtime: 0.25,
   /** Point-blank shotgun: within this distance the knockback is a heavy hit's, and a head hit bursts the head. invented */
   pointBlank: 1.2,
+  /** M14b CMB-04: one shotgun blast deals at most this to the agent or the riot (99 = no cap, old). invented */
+  toughShotCap: 4,
 } as const;
 
 /** Every weapon id, for pick-ups and the HUD. */

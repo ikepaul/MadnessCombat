@@ -75,6 +75,8 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
   if (tryPass(world, a, cmd)) cmd = { ...cmd, throwGun: false };
   // M19: Tab with a full rage bar fires the rage fatality (the world stops for everyone else)
   if (tryRage(world, a, cmd)) return;
+  // M14b CMB-08: presses made while busy wait here and come out on the first free ground tick
+  cmd = bufferInput(world, a, cmd);
   // a hand holding a gun fires instead of punching (M5): LMB = hand 0, RMB = hand 1
   if (a.state === 'free' || a.state === 'attack') {
     cmd = withoutGunPunches(a, cmd);
@@ -118,13 +120,15 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
     }
     case 'attack': {
       const k = a.attack?.kind;
-      if (cmd.attack && (k === 'light' || k === 'heavy' || k === 'uppercut' || k === 'finisher')) a.queued = { kind: cmd.attack, aim: cmd.aim, at: world.time };
+      // M14b CMB-08: weapon swings and body throws queue the next press too (a knife combo no longer needs frame-exact clicks)
+      const swing = (k === 'swing' || k === 'thrust' || k === 'throw') && TUNING.input.buffer > 0;
+      if (cmd.attack && (k === 'light' || k === 'heavy' || k === 'uppercut' || k === 'finisher' || swing)) queuePress(world, a, cmd);
       // a grab pressed during a move comes out when it ends (playtest: chaining)
       if (cmd.grab && k !== 'throw') a.grabQueued = world.time;
       // in the air the jump carries on; on the ground keep walking through a swing
-      // (finishers, item throws, pulls and steals are planted)
+      // (finishers, item throws, pulls and steals are planted; so is the weapon finisher)
       if (a.body.state === 'air') stepAirborneAction(world, a, cmd, dt);
-      else if (k !== 'finisher' && k !== 'toss' && k !== 'lob' && k !== 'pull' && k !== 'steal' && k !== 'flip' && k !== 'takedown' && k !== 'wishbone') stepAttackMove(world, a, cmd, dt);
+      else if (k !== 'finisher' && !a.attack?.down && k !== 'toss' && k !== 'lob' && k !== 'pull' && k !== 'steal' && k !== 'flip' && k !== 'takedown' && k !== 'wishbone') stepAttackMove(world, a, cmd, dt);
       else a.pose.walkPhase = undefined;
       stepAttack(world, a);
       break;
@@ -195,6 +199,68 @@ export function stepActor(world: World, a: Actor, cmd: PlayerCommand, dt: number
   // the painter reads what each hand holds from the pose
   a.pose.held = a.hands[0]?.item ?? null;
   a.pose.heldB = a.hands[1]?.item ?? null;
+}
+
+// ---------- M14b input buffering (CMB-08, CMB-16) ----------
+
+type Press = Exclude<PlayerCommand['attack'], null>;
+
+/** The move a press would start (a heavy aimed steeply up is the uppercut). */
+function pressKind(a: Actor, kind: Press, aim: [number, number] | undefined): string {
+  return kind === 'heavy' && aim && aimedUp(a, aim) ? 'uppercut' : kind;
+}
+
+/**
+ * A punch or swing pressed during a move waits for its end (`M.buffer`). M14b CMB-16: the first
+ * press of a different kind than the move wins: a jab mashed after the uppercut no longer
+ * replaces it (a press of the queued kind just refreshes it).
+ */
+function queuePress(world: World, a: Actor, cmd: PlayerCommand): void {
+  const q = a.queued, kind = cmd.attack!;
+  if (TUNING.input.firstDifferentWins && q && world.time - q.at <= M.buffer + 1e-6) {
+    const atk = a.attack;
+    const cur = atk?.kind === 'swing' || atk?.kind === 'thrust' ? (atk.hand === 1 || atk.kind === 'thrust' ? 'heavy' : 'light') : atk?.kind;
+    const qk = pressKind(a, q.kind, q.aim), nk = pressKind(a, kind, cmd.aim);
+    if (qk !== nk && (qk !== cur || nk === cur)) return;
+  }
+  a.queued = { kind, aim: cmd.aim, at: world.time };
+}
+
+/**
+ * M14b CMB-08: one edge buffer per player. Jump, dive, attack, grab and E pressed while he can't
+ * act on them (a flinch, getting up, standing up or diving, a move for jump/dive, the air for
+ * grab/E) are kept for `TUNING.input.buffer` s and replayed on the first free ground tick. The
+ * existing punch / grab queues of a move stay as they were (`a.queued`, `a.grabQueued`).
+ */
+function bufferInput(world: World, a: Actor, cmd: PlayerCommand): PlayerCommand {
+  const W = TUNING.input.buffer;
+  if (W <= 0 || a.playerIndex === undefined) return cmd;
+  const b = a.body, now = world.time;
+  if (a.state === 'free' && b.state === 'ground' && a.cook === undefined) {
+    const q = a.inbuf;
+    if (!q) return cmd;
+    const ok = (t: number | undefined) => t !== undefined && now - t <= W + 1e-6;
+    const out = { ...cmd };
+    if (!out.jump && ok(q.jump)) out.jump = true;
+    if (!out.dive && ok(q.dive)) out.dive = true;
+    if (!out.attack && q.attack && ok(q.attack.at)) { out.attack = q.attack.kind; out.aim = q.attack.aim ?? out.aim; }
+    if (!out.grab && ok(q.grab)) out.grab = true;
+    if (!out.pickup && ok(q.pickup)) out.pickup = true;
+    q.jump = q.dive = q.grab = q.pickup = undefined;
+    q.attack = undefined;
+    return out;
+  }
+  const busy = a.state === 'stun' || a.state === 'getUp' || (a.state === 'free' && (b.state === 'standingUp' || b.state === 'diving' || b.state === 'goingProne'));
+  const inMove = a.state === 'attack';
+  const inAir = a.state === 'free' && b.state === 'air';
+  if (!busy && !inMove && !inAir) return cmd;
+  const q = (a.inbuf ??= {});
+  if ((busy || inMove) && cmd.jump) q.jump = now;
+  if ((busy || inMove) && cmd.dive) q.dive = now;
+  if (busy && cmd.attack) q.attack = { kind: cmd.attack, aim: cmd.aim, at: now };
+  if ((busy || inAir) && cmd.grab) q.grab = now;
+  if ((busy || inAir) && cmd.pickup) q.pickup = now;
+  return cmd;
 }
 
 /** M14 melee-blade-deflect: a sword-class blade in the front hand with the back hand free guards on RMB. */
@@ -330,7 +396,8 @@ function startAttack(world: World, a: Actor, cmd: PlayerCommand): void {
   let kind: AttackKind = cmd.attack!;
   if (kind === 'heavy' && cmd.aim && aimedUp(a, cmd.aim)) kind = 'uppercut';
   // a punch at a downed body with nobody standing in reach becomes the finisher
-  if (kind !== 'uppercut' && a.body.state === 'ground' && !standingInReach(world, a) && downedInReach(world, a)) kind = 'finisher';
+  // (M14b CMB-14: an uppercut at one too, as the heavy finisher)
+  if ((kind !== 'uppercut' || TUNING.melee.weaponFinisher) && a.body.state === 'ground' && !standingInReach(world, a) && downedInReach(world, a)) kind = 'finisher';
   a.state = 'attack';
   a.stateT = 0;
   a.attack = { kind, heavy: cmd.attack === 'heavy', t: 0, done: false, aim: cmd.aim };
@@ -519,7 +586,9 @@ export function applyHit(
   at: { x: number; y: number; z: number }, part: 'head' | 'body' = 'body', heavy = false,
   bullet?: { damage: number; pointBlank: boolean },
 ): void {
-  if (o.state === 'getUp' || o.state === 'downed') return; // i-frames (invented); downed heroes are out of the fight
+  if (o.state === 'downed') return; // downed heroes are out of the fight
+  // get-up i-frames (invented); M14b CMB-15: the hit shows (a flash and a soft thud) instead of vanishing
+  if (o.state === 'getUp') { world.events.emit('hitAbsorbed', { actorId: o.id, x: at.x, y: at.y, z: at.z, reason: 'getUp' }); return; }
   if (o.invulnerable || o.parked) return; // M9: the target before his last room, the boss's cameo; co-op: gone ahead
   if (o.carried || o.tossT !== undefined) return; // M18: carried, swung or tossed by the partner: untouchable
   if (by) o.lastHitBy = by.id;
@@ -541,7 +610,12 @@ export function applyHit(
     by.attack = undefined; by.state = 'stun'; by.stateT = 0; by.stunFor = H.stun; by.pose.lean = -0.3; setClip(by, 'stun');
     return;
   }
+  // M14b ENC-03: the hero's mercy window after losing a life (one burst no longer takes all three);
+  // a raised guard or a gun block still turns the blow first
+  if (inMercy(world, by, o)) { world.events.emit('hitAbsorbed', { actorId: o.id, x: at.x, y: at.y, z: at.z, reason: 'mercy' }); return; }
   const corpse = o.state === 'dead';
+  // M14b CMB-13/14: a body on the floor (a blade or club finishing it keeps it there)
+  const onFloor = o.state === 'down' || (o.state === 'knockback' && o.flight?.phase === 'skid');
   // M18 ping-pong: a player's heavy on a grunt that already bounced off his partner bats him away to die
   if (!corpse && by?.playerIndex !== undefined && o.flight?.juggle && o.flight.phase === 'air' && (o.flight.pings ?? 0) >= 1 && BAT_KINDS.includes(kind)) {
     batAway(world, by, o, dirX, at);
@@ -552,6 +626,8 @@ export function applyHit(
   const juggled = !corpse && !!o.flight?.juggle && o.flight.phase === 'air';
   const launcher = !corpse && !!by && kind === 'uppercut' && o.kind === 'grunt' && o.state === 'stun';
   const combo = !corpse && base > 0 && o.kind !== 'hero' && CHAIN_KINDS.includes(kind) && chainBonus(world, by, o, kind);
+  // M14b CMB-06: a riot or tough target shrugs off the TUNING.hit.toughShrug-th jab of a chain and the ones after it
+  const shrug = !corpse && kind === 'light' && !!by && H.toughShrug > 0 && toughTarget(o) && (o.chain?.count ?? 0) >= H.toughShrug;
   let damage = corpse || base <= 0 || (o.protected && kind !== 'pin') ? 0 : o.kind === 'hero' ? 1 : o.kind === 'zombie' ? zombieDamage(kind, base)
     // M11 the brute (~6 melee hits): every blow is one, bullets half, explosions three
     : o.variant === 'vending' ? (base >= 99 ? (kind === 'blast' ? 3 : o.hp) : kind === 'bullet' ? 0.5 : 1)
@@ -561,6 +637,7 @@ export function applyHit(
   // the launcher sends him up alive; jabs only keep him up (the heavy that follows finishes it)
   if (launcher) damage = J.launchDamage;
   else if (juggled && kind === 'light') damage = 0;
+  else if (shrug) damage = 0;
   // M18 double-team: both players' blows within TUNING.coop.double.window = a kill (tough ones take +2)
   const double = !corpse && !!by && by.playerIndex !== undefined && o.kind !== 'hero' && (damage > 0 || juggled) && doubleTeam(world, by, o);
   if (double) damage = o.variant === 'riot' || o.variant === 'vending' || o.variant === 'agent' ? damage + TUNING.coop.double.toughBonus : 99;
@@ -581,7 +658,7 @@ export function applyHit(
   // enemy-zombie: the head comes off and it keeps going (one more hit)
   if (!corpse && damage < 99 && (killed || part === 'head') && zombieLosesHead(world, o, kind, part, killed, dirX, dirZ)) killed = false;
   if (o.corpse?.phase !== 'frozen') o.pose.impact = H.impact;
-  if (o.kind === 'hero' && damage > 0) o.pose.hurt = H.hurtFlash;
+  if (o.kind === 'hero' && damage > 0) { o.pose.hurt = H.hurtFlash; o.mercyAt = world.time; }
   if ((damage > 0 || corpse) && o.corpse?.phase !== 'frozen') addWound(o, at, part);
   world.events.emit('hit', { actorId: o.id, attackerId: by?.id ?? 0, kind, part, damage, killed, dirX, dirZ, combo, chain: o.chain?.count ?? 0, ...at });
   if (corpse) return;
@@ -645,7 +722,9 @@ export function applyHit(
   const airborne = o.pos.y > o.pose.groundY + 0.05;
   // M10b click -> throw -> punch: an empty gun to a grunt's head stuns like a punch (body hits still knock down)
   const gunToHead = kind === 'gun' && part === 'head' && o.kind === 'grunt';
-  switch ((airborne && kind === 'light') || dazedNow ? 'heavy' : gunToHead ? 'light' : kind) {
+  // M14b CMB-13/14: a blade or club on a body on the floor keeps it there (like the finisher)
+  const floorBlow = onFloor && (kind === 'stab' || kind === 'slash' || kind === 'smash');
+  switch ((airborne && kind === 'light') || dazedNow ? 'heavy' : gunToHead ? 'light' : floorBlow ? 'finisher' : kind) {
     case 'light':
     case 'stab':
       // M14 enemy-agent: jabs don't stun him (and the first of a chain is blocked)
@@ -654,13 +733,19 @@ export function applyHit(
         if (damage === 0) world.events.emit('block', { actorId: o.id, byId: by?.id ?? 0, ...at });
         break;
       }
+      // M14b CMB-06: shrugged off: he leans into it and keeps going
+      if (shrug) {
+        o.pose.lean = -0.1;
+        world.events.emit('block', { actorId: o.id, byId: by?.id ?? 0, ...at });
+        break;
+      }
       // enemy-zombie: light hits only make a zombie twitch
       if (o.kind === 'zombie') { o.state = 'stun'; o.stateT = 0; o.stunFor = TUNING.zombie.flinch; o.pose.lean = -0.2; setClip(o, 'stun'); break; }
       // combat-disarm: a punch knocks the weapon away 30% of the time (kicks and sweeps always: knockdowns drop it)
       if (kind === 'light' && o.kind !== 'hero' && (o.hands[0] || o.hands[1]) && world.rng() < DISARM.punchChance) disarm(world, by, o, 'knock', dirX);
       o.state = 'stun';
       o.stateT = 0;
-      o.stunFor = o.kind === 'hero' ? H.heroFlinch : H.stun;
+      o.stunFor = o.kind === 'hero' ? H.heroFlinch : kind === 'light' ? chainStun(o) : H.stun;
       o.pose.lean = -0.35;
       setClip(o, 'stun');
       break;
@@ -683,6 +768,34 @@ export function applyHit(
     default:
       knockDown(world, o, kind, dirX, dirZ);
   }
+}
+
+/** M14b ENC-03: the mercy window at this difficulty (s). */
+export function mercyWindow(world: World): number {
+  return TUNING.health.mercy * (TUNING.health.mercyScale[world.difficulty] ?? 1);
+}
+
+/**
+ * M14b ENC-03: a player hero hit again within the mercy window of his last lost life takes
+ * nothing. Scripted lethal hits go through: the boss's cameo (stage 2 ending, stage 3 end) and
+ * anything during the last stand.
+ */
+function inMercy(world: World, by: Actor | undefined, o: Actor): boolean {
+  if (o.kind !== 'hero' || o.playerIndex === undefined || o.mercyAt === undefined || o.state === 'dead') return false;
+  if (world.lastStand || by?.boss?.phase === 'cameo') return false;
+  return world.time - o.mercyAt <= mercyWindow(world) + 1e-6;
+}
+
+/** M14b CMB-06: the riot and anything with more hp than a grunt (not the agent: he blocks on his own, nor the brute). */
+function toughTarget(o: Actor): boolean {
+  if (o.kind !== 'grunt' || o.variant === 'agent' || o.variant === 'vending') return false;
+  return o.variant === 'riot' || o.maxHp > TUNING.health.grunt;
+}
+
+/** M14b CMB-06: the stun of a jab shrinks along its chain (0.7 -> 0.45 -> 0.25 s). */
+function chainStun(o: Actor): number {
+  const n = Math.max(1, o.chain?.count ?? 1), steps = H.chainStun;
+  return steps.length ? steps[Math.min(n, steps.length) - 1] : H.stun;
 }
 
 /**
@@ -1201,6 +1314,8 @@ function shieldHit(world: World, by: Actor | undefined, o: Actor, kind: HitKind,
   if (wasAlive) world.events.emit('kill', { actorId: o.id, byId: by?.id ?? 0, kind, decap: false, type: killType(kind), ...o.pos });
   const broke = o.shieldHits >= SHIELD.hits;
   world.events.emit('shieldHit', { actorId: o.id, holderId: holder?.id ?? 0, broke, ...at });
+  // M14b VIS-19: the same "absorbed" response as the mercy window (slice D draws it)
+  world.events.emit('hitAbsorbed', { actorId: o.id, x: at.x, y: at.y, z: at.z, reason: 'shield' });
   if (broke) {
     if (holder) holder.holding = undefined;
     o.grabbedBy = undefined;

@@ -50,33 +50,46 @@ export function stepLocomotion(world: World, a: Actor, cmd: PlayerCommand, dt: n
   }
 
   const enter = (s: typeof b.state) => { b.state = s; b.stateTime = 0; };
+  const jumpOff = () => {
+    const boost = a.kind === 'hero' ? JUMP.hero.airSpeed : 1;
+    b.vel = { x: wantX * boost, y: JUMP_V0, z: wantZ * boost };
+    b.takeoff = { x: wantX * boost, z: wantZ * boost };
+    enter('air');
+    if (a.inbuf) a.inbuf.fellAt = undefined;
+    world.events.emit('jump', { actorId: a.id, ...a.pos });
+  };
+  const diveDown = () => {
+    if (len > 0.1) {
+      const d = PRONE.diveDistance / DIVE_TIME;
+      const ux = ix / Math.max(len, 1e-6), uz = iz / Math.max(len, 1e-6);
+      b.vel = { x: ux * d, y: 0, z: uz * d * MOVE.depthFactor };
+      // melee-low-sweep: diving into an adjacent enemy goes in feet first
+      b.sweep = Math.abs(ux) > 0.3 && sweepTarget(world, a, Math.sign(ux) as 1 | -1, 1.0) !== undefined;
+      b.swept = [];
+      if (b.sweep) a.facing = Math.sign(ux) as 1 | -1;
+      enter('diving');
+    } else {
+      b.vel = { x: 0, y: 0, z: 0 };
+      enter('goingProne');
+    }
+    world.events.emit('dive', { actorId: a.id, ...a.pos });
+  };
+  // M14b CMB-09 / CMB-11: a jump or a low dive pressed in the air just before landing
+  const q = a.inbuf, now = world.time;
+  const landJump = () => !!q && q.airJump !== undefined && now - q.airJump <= JUMP.buffer + 1e-6;
+  const landDive = () => !!q && q.airDive !== undefined && now - q.airDive <= TUNING.input.buffer + 1e-6;
 
   switch (b.state) {
     case 'ground': {
       b.kick = false; // (a kick cut short by a hit doesn't carry into the next jump)
-      if (cmd.jump && !a.holding) {
-        const boost = a.kind === 'hero' ? JUMP.hero.airSpeed : 1;
-        b.vel = { x: wantX * boost, y: JUMP_V0, z: wantZ * boost };
-        b.takeoff = { x: wantX * boost, z: wantZ * boost };
-        enter('air');
-        world.events.emit('jump', { actorId: a.id, ...a.pos });
+      const jumpLate = landJump(), diveLate = landDive();
+      if (q) { q.airJump = q.airDive = q.fellAt = undefined; }
+      if ((cmd.jump || jumpLate) && !a.holding) {
+        jumpOff();
         break;
       }
-      if (cmd.dive && !a.holding) {
-        if (len > 0.1) {
-          const d = PRONE.diveDistance / DIVE_TIME;
-          const ux = ix / Math.max(len, 1e-6), uz = iz / Math.max(len, 1e-6);
-          b.vel = { x: ux * d, y: 0, z: uz * d * MOVE.depthFactor };
-          // melee-low-sweep: diving into an adjacent enemy goes in feet first
-          b.sweep = Math.abs(ux) > 0.3 && sweepTarget(world, a, Math.sign(ux) as 1 | -1, 1.0) !== undefined;
-          b.swept = [];
-          if (b.sweep) a.facing = Math.sign(ux) as 1 | -1;
-          enter('diving');
-        } else {
-          b.vel = { x: 0, y: 0, z: 0 };
-          enter('goingProne');
-        }
-        world.events.emit('dive', { actorId: a.id, ...a.pos });
+      if ((cmd.dive || diveLate) && !a.holding) {
+        diveDown();
         break;
       }
       b.vel = { x: wantX, y: 0, z: wantZ };
@@ -88,10 +101,24 @@ export function stepLocomotion(world: World, a: Actor, cmd: PlayerCommand, dt: n
         b.takeoff = { x: b.vel.x, z: b.vel.z };
         b.vel.y = 0;
         enter('air');
+        // M14b CMB-09: coyote time starts (players only; brains never jump late)
+        if (a.playerIndex !== undefined && JUMP.coyote > 0) (a.inbuf ??= {}).fellAt = now;
       }
       break;
     }
     case 'air':
+      // M14b CMB-09: just walked off an edge: a jump still goes (coyote time)
+      if (cmd.jump && !b.kick && !a.holding && q?.fellAt !== undefined && now - q.fellAt <= JUMP.coyote + 1e-6) {
+        jumpOff();
+        break;
+      }
+      // M14b CMB-09: a jump pressed before landing waits for it
+      if (cmd.jump && a.playerIndex !== undefined && JUMP.buffer > 0) (a.inbuf ??= {}).airJump = now;
+      // M14b CMB-11: coming down low over the ground the dive waits for the landing instead of kicking
+      if (cmd.dive && !b.kick && !a.holding && a.playerIndex !== undefined && b.vel.y <= 0 && a.pos.y - b.groundY < TUNING.flyKick.minHeight) {
+        (a.inbuf ??= {}).airDive = now;
+        cmd = { ...cmd, dive: false };
+      }
       // dive in mid-air: the flying kick
       if (cmd.dive && !b.kick && !a.holding) {
         b.kick = true;
@@ -103,6 +130,13 @@ export function stepLocomotion(world: World, a: Actor, cmd: PlayerCommand, dt: n
         world.events.emit('dive', { actorId: a.id, ...a.pos });
       }
       airStep(world, a, wantX, wantZ, dt);
+      // M14b CMB-09 / CMB-11: touched down with a jump or a dive waiting: it goes on the landing tick
+      if ((b.state as string) === 'ground' && q) {
+        const j = landJump(), d = landDive();
+        q.airJump = q.airDive = q.fellAt = undefined;
+        if (j && !a.holding) jumpOff();
+        else if (d && !a.holding) diveDown();
+      }
       break;
     case 'diving': {
       walkHorizontal(world, a, dt);

@@ -127,8 +127,10 @@ export function stepHands(world: World, a: Actor, cmd: PlayerCommand, dt: number
     }
     const pressed = !!cmd.press?.[i] && !(backShot && i === 1), held = !!cmd.hold?.[i] && !(backShot && i === 1);
     if (h.ammo > 0) {
+      // M14b CMB-10: a press in the last moments of the cooldown is kept and fires on the first ready tick
+      if (pressed && h.cooldown > 1e-6 && h.cooldown <= TUNING.input.shotLatch + 1e-6) h.latched = true;
       // (tolerance: summing 1/60 s ticks drifts, and the measured SMG rate is exactly 6 ticks)
-      if ((w.auto && !h.semi ? held || pressed : pressed) && h.cooldown <= 1e-6 && canShoot(a)) fire(world, a, i, h, w, dual);
+      if ((w.auto && !h.semi ? held || pressed : pressed || h.latched) && h.cooldown <= 1e-6 && canShoot(a)) fire(world, a, i, h, w, dual);
       if (held && w.firingWalk < 1) a.walkFactor = w.firingWalk;
     } else if (pressed) {
       // gun-empty-throw: one dry click, then the next press throws the gun
@@ -157,6 +159,7 @@ function startReload(world: World, a: Actor, dual: boolean): void {
     const g = gunIn(a.hands[i]);
     if (!g || g.h.reload > 0 || g.h.spare <= 0 || g.h.ammo >= g.w.mag) continue;
     g.h.reload = g.w.reload;
+    g.h.latched = false;
     g.h.clicked = false;
     world.events.emit('reload', { actorId: a.id, hand: i, phase: 'start', weapon: g.w.id, ...a.pos });
     return;
@@ -171,11 +174,14 @@ function fire(world: World, a: Actor, i: 0 | 1, h: Hand, w: WeaponDef, dual: boo
   h.ammo--;
   h.cooldown = w.interval;
   h.clicked = false;
+  h.latched = false;
   a.pose.kick![i] = w.recoil;
   // the barrel's direction on screen (local angle, mirrored to the facing side)
   const base = Math.atan2(Math.sin(rig.angle), Math.cos(rig.angle) * a.facing);
   const spread = ((w.spread * (dual && !w.oneHanded ? GUNS.dualLongSpread : 1) * (h.semi ? GUNS.semiSpread : 1)) * Math.PI) / 180;
   const rays: ShotRay[] = [];
+  // M14b CMB-04: each target's hp before this shot's first pellet (the agent / riot cap)
+  const dealt = new Map<number, number>();
   // no friendly fire (invented); your own human shield doesn't stop your shots
   const skip = (o: Actor) => o === a || o.grabbedBy === a.id || (a.playerIndex !== undefined && o.playerIndex !== undefined);
   for (let p = 0; p < w.pellets; p++) {
@@ -207,8 +213,15 @@ function fire(world: World, a: Actor, i: 0 | 1, h: Hand, w: WeaponDef, dual: boo
       const backTarget = over?.at === o.id;
       const part = backTarget || (o.flight?.juggle && o.flight.phase === 'air') ? 'head' : r.hit.part;
       const pointBlank = backTarget || (w.pellets > 1 && Math.hypot(o.pos.x - a.pos.x, o.pos.z - a.pos.z) < GUNS.pointBlank);
-      const damage = part === 'head' ? w.damageHead : w.damageBody;
+      let damage = part === 'head' ? w.damageHead : w.damageBody;
+      // M14b CMB-04: one shotgun blast takes at most GUNS.toughShotCap off the agent or the riot
+      // (counted on his hp, so chain bonuses between pellets stay inside the cap too)
+      const capped = w.pellets > 1 && (o.variant === 'agent' || o.variant === 'riot');
+      if (capped && !dealt.has(o.id)) dealt.set(o.id, o.hp);
+      const hp0 = dealt.get(o.id) ?? o.hp;
+      if (capped) damage = Math.max(0, Math.min(damage, GUNS.toughShotCap - (hp0 - o.hp)));
       world.hitBullet(a, o, damage, part, Math.sign(dir[0]) || a.facing, pointBlank, { x: o.pos.x, y: o.pos.y + (part === 'head' ? 0.79 : 0.4), z: o.pos.z });
+      if (capped && alive(o) && hp0 - o.hp > GUNS.toughShotCap) o.hp = hp0 - GUNS.toughShotCap;
       rays.push({ end: r.end, surface: 'flesh', impact: behind(world, r.end, dir, o) });
     } else rays.push({ end: r.end, surface: r.surface, impact: r.world && r.surface && r.surface !== 'sky' ? { ...r.world, surface: r.surface } : undefined });
   }

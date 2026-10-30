@@ -311,11 +311,8 @@ export function enterRoom(world: World, def: StageDef, roomId: string, entryId: 
   world.events.emit('roomEnter', { stage: def.stage, room: roomId, entry: entryId });
 }
 
-/**
- * M14b slice B (CMB-08): clears the actor's input buffer on room entry. A no-op until that buffer
- * exists; slice B fills it in (it is also called from the pause menu's close).
- */
-export function clearInputBuffer(_a: Actor): void {}
+/** M14b CMB-08: clears the actor's input buffer on room entry (also called from the pause menu's close). */
+export function clearInputBuffer(a: Actor): void { a.inbuf = undefined; a.queued = undefined; a.grabQueued = undefined; }
 
 /**
  * M14b STB-03 + STB-09: everything transient an actor carries from one room into the next is

@@ -100,14 +100,41 @@ export function startMeleeAction(world: World, a: Actor, cmd: PlayerCommand): bo
   }
   if (!cmd.attack) return false;
   const lmb = cmd.attack === 'light';
-  if (d0?.twoHanded) { startAction(world, a, lmb ? 'swing' : 'thrust', cmd, { hand: 0 }); return true; }
-  const i: 0 | 1 = lmb ? 0 : 1;
+  if (d0?.twoHanded && !lmb) { startAction(world, a, 'thrust', cmd, { hand: 0 }); return true; }
+  const i: 0 | 1 = lmb || d0?.twoHanded ? 0 : 1;
   const d = i === 0 ? d0 : d1;
   if (!d) return false;
   if (!cmd.face) faceCursor(a, cmd);
-  if (d.id === 'knife' && !swingTargets(world, a, d, d.reach, []).length) { startAction(world, a, 'toss', cmd, { hand: i }); return true; }
+  // M14b CMB-13/14: nobody standing in reach but a body on the floor: the weapon finisher (planted,
+  // swing damage); a knife with someone getting up in reach stays in the hand (no toss over his head)
+  if (TUNING.melee.weaponFinisher && a.playerIndex !== undefined && a.body.state === 'ground' && !swingTargets(world, a, d, d.reach, []).length) {
+    if (floorTargets(world, a, d, []).length) {
+      startAction(world, a, 'swing', cmd, { hand: i });
+      a.attack!.down = true;
+      setClip(a, 'stabDown');
+      return true;
+    }
+    if (d.id === 'knife' && floorTargets(world, a, d, [], true).length) { startAction(world, a, 'swing', cmd, { hand: i }); return true; }
+  }
+  if (d.id === 'knife' && !d.twoHanded && !swingTargets(world, a, d, d.reach, []).length) { startAction(world, a, 'toss', cmd, { hand: i }); return true; }
   startAction(world, a, 'swing', cmd, { hand: i });
   return true;
+}
+
+/**
+ * M14b CMB-13/14: living bodies on the floor a swing of `def` reaches (nearest first): knocked
+ * down or skidding to a stop; `rising` adds those getting up (i-frames: only for the knife rule).
+ */
+function floorTargets(world: World, a: Actor, def: MeleeDef, already: number[], rising = false): Actor[] {
+  return world.actors
+    .filter((o) => {
+      if (o === a || !alive(o) || already.includes(o.id) || o.grabbedBy !== undefined) return false;
+      const floor = o.state === 'down' || (o.state === 'knockback' && o.flight?.phase === 'skid') || (rising && o.state === 'getUp');
+      if (!floor || (a.playerIndex !== undefined && o.playerIndex !== undefined)) return false;
+      const ahead = (o.pos.x - a.pos.x) * a.facing;
+      return ahead >= -0.1 && ahead <= def.reach + 0.2 && Math.abs(o.pos.z - a.pos.z) <= meleeBand(a, def.depthBand);
+    })
+    .sort((p, q) => Math.abs(p.pos.x - a.pos.x) - Math.abs(q.pos.x - a.pos.x));
 }
 
 /** Standing targets a swing of `def` reaches (nearest first). */
@@ -143,6 +170,16 @@ export function stepAction(world: World, a: Actor): void {
         world.events.emit('punch', { actorId: a.id, x: a.pos.x + a.facing * def.reach * 0.8, y: a.pos.y + 0.6, z: a.pos.z, kind, facing: a.facing });
       }
       if (atk.done) break;
+      // M14b CMB-13/14: the weapon finisher comes down on the nearest body on the floor
+      if (atk.down) {
+        const o = floorTargets(world, a, def, atk.hits ?? [])[0];
+        if (o) {
+          atk.hits!.push(o.id);
+          atk.done = true;
+          applyHit(world, a, o, kind, a.facing, 0, { x: o.pos.x, y: o.pos.y + 0.15, z: o.pos.z }, 'body');
+        }
+        break;
+      }
       // M18 body bat: a swing at a body your partner threw sends it on
       if (atk.kind === 'swing' && tryBat(world, a, a.pos.x + a.facing * def.reach * 0.6, a.pos.y + 0.6, def.reach * 0.5)) { atk.done = true; break; }
       const reach = atk.kind === 'thrust' ? def.reach + 0.1 : def.reach;

@@ -28,6 +28,8 @@ export interface Hand {
   bloody?: boolean;
   /** M14 gun-fire-mode: a rifle switched to single shot (one round per click, tighter spread). */
   semi?: boolean;
+  /** M14b CMB-10: a shot pressed in the last moments of the cooldown fires on the first ready tick. */
+  latched?: boolean;
 }
 
 /** A full hand for `item`: guns come loaded with one spare magazine. */
@@ -194,6 +196,20 @@ export interface Attack {
   weapon?: string;
   /** Table flip: index of the prop in room.props (M7). */
   prop?: number;
+  /** M14b CMB-13/14: a swing aimed down at a body on the floor (the weapon finisher, planted). */
+  down?: boolean;
+}
+
+/** M14b CMB-08: buffered presses (world time of each). */
+export interface InputBuffer {
+  jump?: number;
+  dive?: number;
+  attack?: { kind: Exclude<AttackKind, 'finisher' | 'throw'>; aim?: [number, number]; at: number };
+  grab?: number;
+  pickup?: number;
+  airJump?: number;
+  airDive?: number;
+  fellAt?: number;
 }
 
 /** Ballistic flight of a knocked-back, killed or thrown body. */
@@ -268,6 +284,14 @@ export interface Actor {
   queued?: { kind: Exclude<AttackKind, 'finisher' | 'throw'>; aim?: [number, number]; at: number };
   /** A grab (F) pressed during a move: world time of the press (playtest: chaining). */
   grabQueued?: number;
+  /**
+   * M14b CMB-08/09/11: edges pressed while busy, kept as the world time of the press and replayed
+   * on the first free ground tick (`bufferInput` in combat.ts); `airJump` / `airDive` wait for the
+   * landing, `fellAt` is the coyote clock (walked off an edge). Cleared on room entry and pause close.
+   */
+  inbuf?: InputBuffer;
+  /** M14b ENC-03: world time the hero last lost a life (the mercy window runs from it). */
+  mercyAt?: number;
   /** M10b pop & catch: world time a weapon was caught; the next hit with it starts as a chain hit. */
   primedAt?: number;
   /** Combo chain being landed on this actor (src/sim/combat.ts chainBonus). */
