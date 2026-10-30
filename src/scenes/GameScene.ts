@@ -58,6 +58,7 @@ import { paintReviveBar, paintReviveCircle } from '../render/canvas/revivePainte
 import { hookWorldAudio } from '../audio/hooks';
 import { audio } from '../audio/mixer';
 import { MusicSystem } from '../audio/music';
+import { actorDrawZ } from '../render/drawOrder';
 import { BoomboxSource } from '../audio/boombox';
 import { FeelDirector } from '../feel/feel';
 import { FeelFx } from '../render/feelFx';
@@ -640,10 +641,9 @@ export class GameScene extends Phaser.Scene {
       if (a.corpse?.phase === 'frozen' || a.corpse?.gibbed) continue;
       // co-op: gone ahead up the ladder / into the vent, waiting for the partner
       if (outOfSight(this.world, a)) continue;
-      // at equal depth the attacker draws in front, so the punching fist is visible
-      const bias = a.state === 'attack' ? 0.002 : a.state === 'grabbed' ? -0.001 : 0;
+      // at equal depth the attacker draws in front, then the players (VIS-17, src/render/drawOrder.ts)
       const ring = rings.get(a.id);
-      list.push({ id: a.id, z: a.pos.z - bias, draw: () => (a.kind === 'boss' ? paintBoss(ctx, a, { time: this.world.time, flashes }) : paintCharacter(ctx, a, pal, this.world.time, { blood, flashes, ring })) });
+      list.push({ id: a.id, z: actorDrawZ(a), draw: () => (a.kind === 'boss' ? paintBoss(ctx, a, { time: this.world.time, flashes }) : paintCharacter(ctx, a, pal, this.world.time, { blood, flashes, ring })) });
     }
     // M17: the item the local player's E would take is outlined
     const me = this.world.players[this.localPlayer];

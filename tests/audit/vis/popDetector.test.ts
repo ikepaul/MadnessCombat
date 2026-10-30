@@ -7,6 +7,7 @@
 // Run: AUDIT=1 npx vitest run tests/audit/vis/popDetector.test.ts
 import { describe, expect, it } from 'vitest';
 import { TEST_ROOM } from '../../../src/data/rooms/testRoom';
+import { drawnPose } from '../../../src/anim/drawn';
 import { buildSkeleton } from '../../../src/anim/layers';
 import { PART_NAMES, rootToWorld } from '../../../src/anim/skeleton';
 import { type Actor, createActor, newHand } from '../../../src/sim/actor';
@@ -21,14 +22,16 @@ const PARTS = PART_NAMES.filter((p) => p !== 'item');
 
 interface Sample { tick: number; label: string; facing: number; pts: Record<string, [number, number]>; r: number }
 
+/** M14b slice D: what the painter draws (src/anim/drawn.ts); AUDIT_SIM=1 samples the sim's own root as before. */
 function sample(world: World, a: Actor): Sample {
-  const { skeleton } = buildSkeleton(a, world.time);
+  const d = process.env.AUDIT_SIM ? { root: a.pose.root, sx: a.facing, off: [0, 0, 0], walk: undefined } : drawnPose(a, world.time);
+  const { skeleton } = buildSkeleton(a, world.time, d.walk);
   const pts: Record<string, [number, number]> = {};
   for (const p of PARTS) {
-    const [dx, dy] = rootToWorld(a.pose.root, a.facing, skeleton[p][0], skeleton[p][1]);
-    pts[p] = [a.pos.x + dx, a.pos.y + dy];
+    const [dx, dy] = rootToWorld(d.root, d.sx as 1 | -1, skeleton[p][0], skeleton[p][1]);
+    pts[p] = [a.pos.x + d.off[0] + dx, a.pos.y + d.off[1] + dy];
   }
-  return { tick: world.tick, label: `${a.state}/${a.pose.clip}${a.corpse ? '/' + a.corpse.phase : ''}`, facing: a.facing, pts, r: a.pose.root.r };
+  return { tick: world.tick, label: `${a.state}/${a.pose.clip}${a.corpse ? '/' + a.corpse.phase : ''}`, facing: a.facing, pts, r: d.root.r };
 }
 
 /** The scripted session: [from second, command or action]. */
@@ -111,7 +114,10 @@ function run() {
     for (let i = 1; i < s.length; i++) {
       if (s[i].tick !== s[i - 1].tick + 1) continue;
       if (s[i].facing !== s[i - 1].facing) {
-        flips.push({ who, tick: s[i].tick, d: +Math.max(...PARTS.map((p) => delta(i, p))).toFixed(3), label: s[i].label });
+        // the turn: the flip tick and the 4 after it (VIS-15 narrows over 2 frames)
+        let d = 0;
+        for (let j = i; j < Math.min(s.length, i + 5); j++) if (s[j].tick === s[j - 1].tick + 1) d = Math.max(d, ...PARTS.map((p) => delta(j, p)));
+        flips.push({ who, tick: s[i].tick, d: +d.toFixed(3), label: s[i].label });
         continue;
       }
       for (const p of PARTS) {

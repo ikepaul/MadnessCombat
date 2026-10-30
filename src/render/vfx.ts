@@ -26,6 +26,8 @@ interface Chunk { x: number; y: number; vx: number; vy: number; floor: number; r
 /** Ticks at 60 Hz: 1 frame at 30 fps = 2 ticks. Revamp B1: smears trail 2-3 frames. invented */
 const SMEAR_TICKS: Partial<Record<HitKind, number>> = { light: 4, heavy: 5, uppercut: 6, finisher: 4, stab: 4, slash: 6, smash: 6 };
 const STAR_TICKS = 3;
+/** M14b: the absorbed-hit flash, 4 frames. invented */
+const ABSORB_TICKS = 8;
 /** The alert "!" stays 0.7 s. */
 const MARK_TICKS = 42;
 /** boss-halo: the bolt itself shows 2 frames (4 ticks), then an afterglow fades over 0.25 s. */
@@ -64,6 +66,8 @@ export class Vfx {
   private streaks: { actorId: number; x: number; y: number; z: number; left: number }[] = [];
   private slashes: { x0: number; y0: number; x1: number; y1: number; flash: number }[] = [];
   private bursts: { x: number; y: number; s: number; t: number }[] = [];
+  /** M14b: absorbed-hit flashes (ticks left). */
+  private absorbs: { actorId: number; left: number }[] = [];
   /** Extreme gore (stage 3): necks still spraying, seconds left. */
   private fountains: { actorId: number; left: number }[] = [];
 
@@ -77,7 +81,7 @@ export class Vfx {
     // M9: a new room starts without the last one's smoke and sparks
     world.events.on('roomChanged', () => {
       this.puffs = []; this.drops = []; this.smears = []; this.stars = []; this.blasts = []; this.booms = [];
-      this.smoke = []; this.chunks = []; this.streaks = []; this.slashes = []; this.bursts = []; this.fountains = []; this.rings = []; this.popped = []; this.marks = []; this.bolts = []; this.sparks = []; this.ripples = []; this.bubbles = []; this.parries = [];
+      this.smoke = []; this.chunks = []; this.streaks = []; this.slashes = []; this.bursts = []; this.fountains = []; this.rings = []; this.popped = []; this.marks = []; this.bolts = []; this.sparks = []; this.ripples = []; this.bubbles = []; this.parries = []; this.absorbs = [];
     });
     // M10: sparks off the cables, dust as the cab hits the bottom
     world.events.on('cableHit', (e) => {
@@ -195,6 +199,14 @@ export class Vfx {
     world.events.on('wallHit', (e) => {
       if (e.speed > 2) this.dust(e.x, e.y + 0.3, e.z, 6);
     });
+    // M14b VIS-19: every bullet into a held body sprays; a body that falls apart scatters a few pieces
+    world.events.on('shieldHit', (e) => {
+      const [x, y] = project(e.x, e.y, e.z), s = scaleAt(e.z);
+      if (this.blood()) this.mist(x, y, s, 0, Math.round(10 * this.gore), -0.6);
+      if (e.broke) this.pieces(e.x, e.y, e.z, 6, ['#8e8f94', '#d2d2d5', '#4a4b50']);
+    });
+    // ENC-03 / CMB-15: a hit absorbed: a short white flash around the body (follows the actor)
+    world.events.on('hitAbsorbed', (e) => { this.absorbs = this.absorbs.filter((f) => f.actorId !== e.actorId); this.absorbs.push({ actorId: e.actorId, left: ABSORB_TICKS }); });
     // M10b: launch dust, the spike's floor-crack ring, wall-bounce dust, a glint at the top of a popped weapon's arc
     world.events.on('juggle', (e) => {
       if (e.phase === 'launch') this.dust(e.x, 0, e.z, 6);
@@ -220,14 +232,9 @@ export class Vfx {
     });
     world.events.on('gib', (e) => {
       const a = world.actorById(e.actorId);
-      const [x, y] = project(e.x, e.y + 0.4, e.z), s = scaleAt(e.z), floor = project(e.x, 0, e.z)[1];
+      const [x, y] = project(e.x, e.y + 0.4, e.z), s = scaleAt(e.z);
       const colors = a?.kind === 'zombie' ? ['#63d06b', '#8e8f94', '#4a4b50'] : ['#8e8f94', '#d2d2d5', '#4a4b50', '#707176'];
-      const pieces = this.gore > 1 ? 24 : 12;
-      for (let i = 0; i < pieces; i++) {
-        const ang = -Math.PI / 2 + (Math.random() - 0.5) * 2.6, v = (1.5 + Math.random() * 3) * s;
-        this.chunks.push({ x, y, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v, floor: floor + (Math.random() - 0.5) * 0.25 * s, r: (0.03 + Math.random() * 0.05) * s,
-          angle: Math.random() * 6, spin: (Math.random() - 0.5) * 20, color: colors[i % colors.length], life: 0, landed: false });
-      }
+      this.pieces(e.x, e.y, e.z, this.gore > 1 ? 24 : 12, colors);
       if (this.blood()) this.mist(x, y, s, 0, Math.round(24 * this.gore * 1.2), -1.4);
     });
     world.events.on('stick', (e) => {
@@ -306,6 +313,16 @@ export class Vfx {
     }
   }
 
+  /** Body pieces flying off and landing (gibs; a human shield falling apart). */
+  private pieces(wx: number, wy: number, wz: number, n: number, colors: string[]): void {
+    const [x, y] = project(wx, wy + 0.4, wz), s = scaleAt(wz), floor = project(wx, 0, wz)[1];
+    for (let i = 0; i < n; i++) {
+      const ang = -Math.PI / 2 + (Math.random() - 0.5) * 2.6, v = (1.5 + Math.random() * 3) * s;
+      this.chunks.push({ x, y, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v, floor: floor + (Math.random() - 0.5) * 0.25 * s, r: (0.03 + Math.random() * 0.05) * s,
+        angle: Math.random() * 6, spin: (Math.random() - 0.5) * 20, color: colors[i % colors.length], life: 0, landed: false });
+    }
+  }
+
   /** Blood mist: ~14 droplets, 0.25-0.45 s, gravity (design/art-direction.md). */
   private mist(x: number, y: number, s: number, dirX: number, n: number, up = -0.6): void {
     for (let i = 0; i < n; i++) {
@@ -316,6 +333,8 @@ export class Vfx {
   }
 
   private step(dt: number): void {
+    for (const f of this.absorbs) f.left--;
+    this.absorbs = this.absorbs.filter((f) => f.left > 0);
     for (const st of this.streaks) st.left--;
     this.streaks = this.streaks.filter((st) => st.left > 0);
     for (const s of this.slashes) if (s.flash > 0) s.flash--;
@@ -472,6 +491,18 @@ export class Vfx {
     }
     for (const m of this.smears) this.drawSmear(ctx, m);
     for (const st of this.stars) this.drawStar(ctx, st);
+    // the absorbed hit: a white ring around the body that tightens and fades (a gameplay cue: at least half strength with effects off)
+    for (const f of this.absorbs) {
+      const a = this.world.actorById(f.actorId);
+      if (!a) continue;
+      const u = f.left / ABSORB_TICKS, [x, y] = project(a.pos.x, a.pos.y + 0.5, a.pos.z), s = scaleAt(a.pos.z);
+      ctx.globalAlpha = u * (0.5 + 0.5 * flashes);
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = Math.max(2, 0.03 * s);
+      ctx.beginPath(); ctx.ellipse(x, y, (0.32 + 0.12 * u) * s, (0.56 + 0.12 * u) * s, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
     // M10b: the spike's crack ring, spreading on the floor
     for (const r of this.rings) {
       const u = r.t / 0.35;

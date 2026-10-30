@@ -126,6 +126,13 @@ export const SOUNDS = {
   ambWind: def('windLoop', 'world', 0.2, { variants: 1, limit: 1, reverb: 0, loop: true }),
   /** Indoor room tone: turned down ~4 dB with the wind. */
   ambRoom: def('roomToneLoop', 'world', 0.3, { variants: 1, limit: 1, reverb: 0, loop: true }),
+  // M14b slice D (VIS-08, ENC-03/CMB-15): generated recipes, no files
+  /** A hit that did nothing (mercy window, get-up, shield): a soft, dry thud. invented */
+  absorb: def('thump', 'impacts', 0.4, { variants: 3, limit: 2, reverb: 0.05 }),
+  /** Co-op: a teammate is down (under the hurt voice); low and short so it reads over a fight. invented */
+  downCue: def('ding', 'ui', 0.5, { variants: 1, limit: 1, reverb: 0.2 }),
+  /** Extreme gore: a hand coming off. invented */
+  dismember: def('squelch', 'impacts', 0.8, { variants: 3, limit: 2, reverb: 0.1 }),
 } satisfies Record<string, SoundDef>;
 
 export type SoundId = keyof typeof SOUNDS;

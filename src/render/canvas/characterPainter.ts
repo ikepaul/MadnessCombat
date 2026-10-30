@@ -3,6 +3,7 @@
 // head 0.45 x 0.40 H, body 0.30 -> 0.40 H wide, hands 0.12 H, feet 0.19 x 0.05 H.
 // Parts are placed by the pose skeleton (src/anim), the whole body by the root transform.
 import { aimRig, type Rig } from '../../anim/aim';
+import { drawnPose } from '../../anim/drawn';
 import { buildSkeleton } from '../../anim/layers';
 import { flatness, ROOT_PIVOT, type Root, type Skeleton } from '../../anim/skeleton';
 import { FEEL } from '../../data/feel';
@@ -84,26 +85,35 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
   // M11: the vending-machine brute has its own body
   if (a.variant === 'vending' && !opts.placement) { paintBrute(ctx, a, time, opts); return; }
   const { placement } = opts;
+  // M14b slice D: the drawn root / turn / grab offset (render only, src/anim/drawn.ts)
+  const dr = placement || opts.skeleton ? undefined : drawnPose(a, time);
+  const sx = dr?.sx ?? a.facing;
   let fx: number, fy: number, s: number, shadowY: number;
   if (placement) {
     ({ x: fx, y: fy, scale: s } = placement);
     shadowY = fy;
   } else {
-    [fx, fy] = project(a.pos.x, a.pos.y, a.pos.z);
-    shadowY = project(a.pos.x, pose.groundY, a.pos.z)[1];
-    s = scaleAt(a.pos.z);
+    const [ox, oy, oz] = dr?.off ?? [0, 0, 0];
+    [fx, fy] = project(a.pos.x + ox, a.pos.y + oy, a.pos.z + oz);
+    shadowY = project(a.pos.x + ox, pose.groundY, a.pos.z + oz)[1];
+    s = scaleAt(a.pos.z + oz);
   }
   const col = actorColors(a.kind, pal, a.variant, pose.green ?? 1);
-  const layered = buildSkeleton(a, time);
+  const layered = buildSkeleton(a, time, dr?.walk);
   const sk = opts.skeleton ?? layered.skeleton;
-  const root = pose.root;
+  const root = dr?.root ?? pose.root;
   const flat = flatness(root);
+  // VIS-15: mid-turn the guns still sit on the sim's rig (the hitscan's), in its full facing
+  const rigSpace = (draw: () => void) => {
+    if (sx === a.facing) { draw(); return; }
+    ctx.save(); ctx.scale(a.facing / sx, 1); draw(); ctx.restore();
+  };
 
   // contact shadow stays on the surface below and shrinks with height; lying bodies cast a long one
   const air = Math.max(0, fy === shadowY ? 0 : (shadowY - fy) / s);
   const shrink = 1 - Math.min(0.5, air * 0.4);
   // under the body's middle (the root pivot), so lying and prone shadows cover the whole body
-  const mid = root.tx * root.sx * a.facing;
+  const mid = root.tx * root.sx * sx;
   ctx.beginPath();
   ctx.ellipse(fx + mid * s, shadowY, (0.3 + 0.32 * flat) * shrink * s, 0.06 * shrink * s, 0, 0, Math.PI * 2);
   ctx.fillStyle = `rgba(0,0,0,${0.2 * (1 - Math.min(0.6, air * 0.5))})`;
@@ -122,7 +132,7 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
   const bounce = c?.phase === 'settled' && c.t < 0.25 ? 0.05 * Math.sin((Math.PI * c.t) / 0.25) * (1 - c.t / 0.25) : 0;
   ctx.translate(fx, fy - bounce * s);
   ctx.scale(s, s);
-  ctx.scale(a.facing, 1);
+  ctx.scale(sx, 1);
   applyRoot(ctx, root);
   // M18 split render: only one side of the cut is drawn (ctx is in actor-local H here, facing right)
   const cut = pose.cut;
@@ -177,7 +187,7 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
     if (!pose.lostHands?.[which]) { hand(ctx, xf, col.hand); return; }
     if (opts.blood) { burst(ctx, xf[0] - 0.02, xf[1], 0.04, BLOOD, 6); burst(ctx, xf[0] - 0.05, xf[1] + 0.03, 0.02, BLOOD_DARK, 5); }
   };
-  if (rigB && gunB) { if (!prone) gunInHand(ctx, rigB, gunB, col.hand, true); }
+  if (rigB && gunB) { if (!prone) rigSpace(() => gunInHand(ctx, rigB, gunB, col.hand, true)); }
   else if (!backInFront && !support) {
     // an idle smoker lets his gun hang in the back hand; the front hand has the cigarette
     if (smokeSwap) {
@@ -252,6 +262,8 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
   if (!pose.headless) {
     ctx.save();
     ctx.translate(sk.head[0], sk.head[1]);
+    // VIS-15: the head turns first
+    if (Math.sign(sx) !== (dr?.headFacing ?? a.facing)) ctx.scale(-1, 1);
     // tilt toward the aim, at most 0.25 rad
     ctx.rotate(sk.head[2] + (aim !== undefined ? Math.max(-0.25, Math.min(0.25, aim * 0.18)) : 0));
     paintHead(ctx, col.skin, col.skinHi, pose.dead, fury ? BLOOD : undefined);
@@ -272,10 +284,10 @@ export function paintCharacter(ctx: Ctx, a: Actor, pal: Palette, time: number, o
 
   // front hand + held item
   if (rigF && gunF) {
-    if (!prone) gunInHand(ctx, rigF, gunF, col.hand, false);
+    if (!prone) rigSpace(() => gunInHand(ctx, rigF, gunF, col.hand, false));
     if (support && !prone) {
       const c = Math.cos(rigF.angle), n = Math.sin(rigF.angle);
-      hand(ctx, [rigF.hand[0] + FOREGRIP[0] * c - FOREGRIP[1] * n, rigF.hand[1] + FOREGRIP[0] * n + FOREGRIP[1] * c, rigF.angle], col.hand);
+      rigSpace(() => hand(ctx, [rigF.hand[0] + FOREGRIP[0] * c - FOREGRIP[1] * n, rigF.hand[1] + FOREGRIP[0] * n + FOREGRIP[1] * c, rigF.angle], col.hand));
     }
   } else {
     if (pose.grenade && !pose.held) {
