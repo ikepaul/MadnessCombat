@@ -252,6 +252,11 @@ export interface GameEvents {
    * at x, z); `seconds` = how long the arrow shows. The HUD draws the arrow; the sting is audio's.
    */
   exitCue: { exit: string; kind: string; side: -1 | 0 | 1; x: number; z: number; seconds: number; again: boolean };
+  /**
+   * M14b ENC-19: a mid-room checkpoint (`midRoomCheckpoint`): a death now restarts this room at
+   * `entry` (one of the room's `checkpoints`, also an entry its script knows how to resume from).
+   */
+  checkpoint: { room: string; entry: string };
 }
 
 export type HitKind =

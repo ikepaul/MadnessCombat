@@ -26,7 +26,8 @@ export const S3 = {
   collapseAfter: 4,
   /** The jetpack's bursts: aim telegraph, then the trigger held (s); how many before he runs dry. */
   burstAim: 0.6,
-  burstHold: 1.4,
+  /** M14b (playtest, 2026-10-30): 1.4 -> 1.0 s, one burst no longer outlasts the prone dodge. */
+  burstHold: 1.0,
   bursts: 3,
   /** Off over the void, then back through the right door behind you (door telegraph first). */
   awayTime: 1.4,

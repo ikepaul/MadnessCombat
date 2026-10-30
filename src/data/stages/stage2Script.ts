@@ -7,7 +7,7 @@ import { type Actor, alive } from '../../sim/actor';
 import { bossLeave, spawnBossCameo } from '../../sim/boss';
 import { project } from '../../render/camera';
 import type { Beat, Seq } from '../../sim/sequencer';
-import { openExit } from '../../sim/stage';
+import { midRoomCheckpoint, openExit } from '../../sim/stage';
 import type { RoomScript, SpawnOpts, WaveEntry } from '../../sim/waves';
 import { removeActor, type World } from '../../sim/world';
 import { canRaise, raiseCorpse } from '../../sim/zombies';
@@ -29,6 +29,8 @@ export const S2 = {
   peek: 1.8,
   /** Corridor: a beat between the mini-boss's death and the boss coming through the wall (s). */
   bossAfter: 1.2,
+  /** ENC-19: a restart from the corridor's mid-room checkpoint raises this many dead (the cameo raises up to 8). Invented. */
+  cameoZombies: 6,
 };
 
 /** Room 1, the outside wall: one smoking guard, back turned; the wire from behind. */
@@ -169,20 +171,45 @@ const CORRIDOR_SPAWNS: RoomScript['spawns'] = [{ id: 'left', kind: 'door', door:
  * walks in with his squad: steal his rifle (F). Then the boss comes in, flings you across the
  * corridor and raises the dead (up to 8), and leaves. The rifle against the horde, a few more
  * grunts, and the far door opens on to the elevator (M10).
+ * ENC-19: once the boss has left, a mid-room checkpoint: a restart (entry 'afterCameo') starts with
+ * the raised dead, the loadout and kills saved at that moment.
  */
-function* corridor(s: Seq, _entry: string): Beat {
+function* corridor(s: Seq, entry: string): Beat {
   const world = s.world;
-  // the target's guards who didn't make it this far
-  for (const [x, z, r] of [[-1.6, 9.5, -1], [0.4, 8.6, 1], [1.5, 9.6, -1]] as const) {
-    const c = s.place('grunt', x, z, r > 0 ? 1 : -1);
-    c.state = 'dead';
-    c.hp = 0;
-    c.pose.dead = true;
-    c.corpse = { phase: 'settled', t: 0, raisable: true, gibbed: false, slumped: false };
-    c.pose.root = lyingAt((r * Math.PI) / 2);
-    c.pose.clip = 'lying';
-    c.pose.clipT = 1;
+  if (entry === 'afterCameo') {
+    // the raised dead, already up, on the left of the corridor
+    for (let i = 0; i < S2.cameoZombies; i++) raiseCorpse(world, deadGuard(s, -3 + i * 0.75, 8.5 + (i % 3) * 0.55, i % 2 ? 1 : -1));
+    s.music(null);
+    caption(s, 'They are getting up again. Keep the rifle on them.', 4);
+  } else {
+    // the target's guards who didn't make it this far
+    for (const [x, z, r] of [[-1.6, 9.5, -1], [0.4, 8.6, 1], [1.5, 9.6, -1]] as const) deadGuard(s, x, z, r);
+    yield* corridorToCameo(s);
   }
+  yield* s.until(() => !world.actors.some((a) => (a.ai || a.kind === 'zombie') && alive(a)));
+  yield* s.waves(corridorStragglers());
+  world.openDoor(0);
+  world.doors[0].hold = Infinity;
+  openExit(world, 'west-door');
+  caption(s, 'The lift is that way.', 3);
+}
+
+/** A grunt lying dead (raisable) at x, z; `r` = which way he lies. */
+function deadGuard(s: Seq, x: number, z: number, r: 1 | -1): Actor {
+  const c = s.place('grunt', x, z, r);
+  c.state = 'dead';
+  c.hp = 0;
+  c.pose.dead = true;
+  c.corpse = { phase: 'settled', t: 0, raisable: true, gibbed: false, slumped: false };
+  c.pose.root = lyingAt((r * Math.PI) / 2);
+  c.pose.clip = 'lying';
+  c.pose.clipT = 1;
+  return c;
+}
+
+/** The corridor up to the boss's cameo: the shotguns, the riot squad, the fling and the mass raise; then the checkpoint. */
+function* corridorToCameo(s: Seq): Beat {
+  const world = s.world;
   yield* s.waves(corridorShotguns());
   const squad = s.run(function* squad(q: Seq) { yield* q.waves(corridorSquad()); });
   yield* s.until(() => world.actors.some((a) => a.variant === 'riot'));
@@ -191,13 +218,8 @@ function* corridor(s: Seq, _entry: string): Beat {
   yield* s.until(() => dead(riot));
   yield S2.bossAfter;
   yield* bossInterruption(s);
+  midRoomCheckpoint(world, 'afterCameo');
   yield* s.join(squad);
-  yield* s.until(() => !world.actors.some((a) => (a.ai || a.kind === 'zombie') && alive(a)));
-  yield* s.waves(corridorStragglers());
-  world.openDoor(0);
-  world.doors[0].hold = Infinity;
-  openExit(world, 'west-door');
-  caption(s, 'The lift is that way.', 3);
 }
 
 /**

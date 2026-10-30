@@ -74,6 +74,17 @@ export interface StageRoom {
    * its checkpoint plays like the arrival: the physics mode and room flags (e.g. 'axeThrows').
    */
   rules?: RoomRules;
+  /**
+   * M14b ENC-19: mid-room checkpoints, in play order. Each is also a key of `entries` (where the
+   * players stand on a restart) and the script resumes from it when entered there.
+   */
+  checkpoints?: string[];
+}
+
+/** M14b ENC-19: the room's script reached a mid-room checkpoint (the shell saves it). Skipped while every player is dead. */
+export function midRoomCheckpoint(world: World, entry: string): void {
+  if (world.players.length && world.players.every((p) => !alive(p))) return;
+  world.events.emit('checkpoint', { room: world.roomId ?? '', entry });
 }
 
 export interface RoomRules { physics?: 'normal' | 'improbable'; flags?: string[] }

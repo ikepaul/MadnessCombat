@@ -83,6 +83,11 @@ Source: `../design/audit-pass.md` §4 (the M14b audit). The bundle goes in as su
 - **Text**: minimum 26 px, captions 34 px.
 - **`axeThrows`** is on from the camera room to the end of stage 3, owned by the rooms (the same after a restart). Rooms waiting on one trick re-show their hint after 20 s of nothing.
 - Smaller defaults: Continue = the furthest point reached; Co-op hidden in production builds; the toy street keeps its red (the welder's visor goes grey); the head moving with the fist on 1-frame hits stays.
+- **Playtest (2026-10-30)**: "seems good". Every new value from slices B–D stays; their A/B switches stay as tunables.
+- **Healing**: every kill heals (`TUNING.health.healMeleeOnly` 0). Melee-only healing was not kept.
+- **Mid-room checkpoint (ENC-19)**: the stage 2 corridor gets one after the boss's fling and mass raise; a death after it restarts at the raised dead with the loadout and kills of that moment. Continue still only moves forward (the checkpoint sorts after the corridor's entry, before the elevator). The desert keeps its single checkpoint.
+- **Jetpack burst**: stage 3 camera room, one MG burst lasts 1.0 s (was 1.4 s).
+- **The "!" alert** is louder (recipe level 0.5, was 0.4), to meet its −22 dB loudness target.
 
 ## Still open (to ask later)
 - Pistol-whip (gun-butt hit at contact range): its own key (F with a gun in hand) or automatic? Not in the M10b slice.

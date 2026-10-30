@@ -3,7 +3,7 @@
 // rifle · the mass raise only raises intact corpses. Plus checkpoints and the target staying safe.
 import { describe, expect, it } from 'vitest';
 import { STAGE2, STAGE2_ROOMS } from '../src/data/stages/stage2';
-import { bossInterruption, corridorSquad } from '../src/data/stages/stage2Script';
+import { bossInterruption, corridorSquad, S2 } from '../src/data/stages/stage2Script';
 import { TUNING } from '../src/data/tuning';
 import { project } from '../src/render/camera';
 import { type Actor, alive, createActor, newHand } from '../src/sim/actor';
@@ -332,5 +332,51 @@ describe('the elevator hatch', () => {
     hero.pos.x = (h.x0 + h.x1) / 2;
     tick(world, {}, 60);
     expect(hero.pos.y).toBeLessThan(0.1);
+  });
+});
+
+describe('ENC-19: the corridor has a mid-room checkpoint after the boss cameo', () => {
+  /** Blast every enemy that is up (the cameo boss aside). */
+  function clear(world: World, hero: Actor): void {
+    for (const a of world.actors) if ((a.ai || a.kind === 'zombie') && alive(a) && !a.entering && !a.koed && a.kind !== 'boss') world.hitActor(hero, a, 'blast', 1, 0, { ...a.pos });
+  }
+
+  it('the checkpoint fires after the fling and mass raise; a restart there starts at the zombies, then the room plays out', () => {
+    const { world, hero } = setup('corridor');
+    hero.invulnerable = true;
+    const marks: { room: string; entry: string }[] = [];
+    world.events.on('checkpoint', (e) => marks.push(e));
+    let raised = false, flung = false;
+    world.events.on('massRaise', () => (raised = true));
+    world.events.on('bossFling', () => (flung = true));
+    // fight until the cameo is over (the raised dead are left standing)
+    for (let i = 0; i < 60 * 120 && !marks.length; i++) { tick(world); if (!flung) clear(world, hero); }
+    expect(flung && raised).toBe(true);
+    expect(marks).toEqual([{ room: 'corridor', entry: 'afterCameo' }]);
+    expect(world.actors.some((a) => a.kind === 'zombie' && alive(a))).toBe(true);
+
+    // a restart from the checkpoint: no shotguns, no squad, no boss; the dead are up and the room goes on
+    const r = setup('corridor', 'afterCameo');
+    r.hero.invulnerable = true;
+    const flings: unknown[] = [];
+    r.world.events.on('bossFling', (e) => flings.push(e));
+    tick(r.world, {}, 2);
+    const zombies = r.world.actors.filter((a) => a.kind === 'zombie');
+    expect(zombies.length).toBe(S2.cameoZombies);
+    expect(r.world.actors.some((a) => a.ai && alive(a))).toBe(false);
+    expect(r.hero.pos.x).toBeCloseTo(STAGE2.rooms.corridor.entries.afterCameo.x, 1);
+    let open = false;
+    for (let i = 0; i < 60 * 60 && !open; i++) { tick(r.world); clear(r.world, r.hero); open = r.world.exits.some((e) => e.open); }
+    expect(open).toBe(true);
+    expect(flings.length).toBe(0);
+    expect(r.world.actors.some((a) => a.variant === 'riot')).toBe(false);
+  });
+
+  it('the order key puts the checkpoint after the corridor entry and before the elevator (Continue only moves forward)', async () => {
+    const progress = await import('../src/progress');
+    const at = (room: string, entry: string) => ({ stage: 2, room, entry });
+    expect(progress.compareCheckpoints(at('corridor', 'afterCameo'), at('corridor', 'east'))).toBe(1);
+    expect(progress.compareCheckpoints(at('corridor', 'afterCameo'), at('elevator', 'door'))).toBe(-1);
+    expect(progress.orderKey(at('office', 'hole'))[2]).toBe(0);
   });
 });

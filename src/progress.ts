@@ -41,13 +41,19 @@ export const PROGRESS_VERSION = 1;
 
 /** Room ids in play order per stage (the order key's room index). Stage 1 is one room. */
 const ROOM_ORDER: Record<number, string[]> = { 1: ['arena'], 2: Object.keys(STAGE2.rooms), 3: Object.keys(STAGE3.rooms) };
+/** ENC-19: the room stages' rooms (their mid-room `checkpoints` order the beat index). */
+const ROOM_DEFS: Record<number, typeof STAGE2.rooms> = { 2: STAGE2.rooms, 3: STAGE3.rooms };
 
 type Place = Pick<Checkpoint, 'stage' | 'room' | 'entry'>;
 
-/** The checkpoint's place in the game: [stage, room index, beat index]. A stage's start (room '') sorts before its first room. */
+/**
+ * The checkpoint's place in the game: [stage, room index, beat index]. A stage's start (room '') sorts
+ * before its first room. Beats: stage 1's beats; in a room stage, a room's entry = 0 and its mid-room
+ * checkpoints (ENC-19) 1, 2, ... in order.
+ */
 export function orderKey(cp: Place): [number, number, number] {
   const room = cp.room ? (ROOM_ORDER[cp.stage]?.indexOf(cp.room) ?? -1) : -1;
-  const beat = cp.stage === 1 ? Math.max(0, (STAGE1_BEATS as readonly string[]).indexOf(cp.entry)) : 0;
+  const beat = cp.stage === 1 ? Math.max(0, (STAGE1_BEATS as readonly string[]).indexOf(cp.entry)) : (ROOM_DEFS[cp.stage]?.[cp.room]?.checkpoints?.indexOf(cp.entry) ?? -1) + 1;
   return [cp.stage, room, beat];
 }
 
