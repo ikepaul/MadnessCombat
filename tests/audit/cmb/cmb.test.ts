@@ -19,6 +19,7 @@ import { spawnEnemy, WaveDirector } from '../../../src/sim/waves';
 import { World } from '../../../src/sim/world';
 
 const Z = 9.2;
+const H = TUNING.health as { healMeleeOnly: number };
 const EMPTY: RoomDef = { ...TEST_ROOM, props: [] };
 type Cmd = Partial<PlayerCommand>;
 
@@ -522,7 +523,7 @@ describe.skipIf(A)('CMB probes', () => {
   it('style comparison: brawler vs gunner (head / body) vs mixed', () => {
     const rows = ['| fight | style | reaction | cleared | s | hits taken | deaths | kills | head kills | shots |', '|---|---|---|---|---|---|---|---|---|---|'];
     const styles: Style[] = ['brawler', 'gunHead', 'gunBody', 'mixed'];
-    for (const reaction of [0.2, 0.35]) {
+    for (const reaction of process.env.STYLE_WAVEA === '0' ? [] : [0.2, 0.35]) {
       for (const style of styles) {
         for (const seed of [1, 2]) {
           const r = fightWaveA(style, seed, reaction);
@@ -530,12 +531,19 @@ describe.skipIf(A)('CMB probes', () => {
         }
       }
     }
-    for (const [label, stage, room, give] of [['S2 office', STAGE2, 'office', 'pistolSuppressed'], ['S2 lobby', STAGE2, 'lobby', 'pistolSuppressed'], ['S3 street', STAGE3, 'street', 'pistol']] as const) {
-      for (const style of styles) {
-        const r = fightStage(stage, room, style, 1, 0.25, give);
-        rows.push(`| ${label} | ${style} | 0.25 | ${r.cleared} | ${r.s} | ${r.hitsTaken} | ${r.deaths} | ${r.kills} | ${r.headKills} | ${r.shots} |`);
+    // CMB-03 (M14b F): the S2 fights with melee-only healing off (today) and on
+    const heal0 = TUNING.health.healMeleeOnly;
+    for (const heal of [0, 1]) {
+      H.healMeleeOnly = heal;
+      for (const [label, stage, room, give] of [['S2 office', STAGE2, 'office', 'pistolSuppressed'], ['S2 lobby', STAGE2, 'lobby', 'pistolSuppressed'], ['S3 street', STAGE3, 'street', 'pistol']] as const) {
+        if (heal && stage === STAGE3) continue;
+        for (const style of styles) {
+          const r = fightStage(stage, room, style, 1, 0.25, give);
+          rows.push(`| ${label}${heal ? ' meleeHeal' : ''} | ${style} | 0.25 | ${r.cleared} | ${r.s} | ${r.hitsTaken} | ${r.deaths} | ${r.kills} | ${r.headKills} | ${r.shots} |`);
+        }
       }
     }
+    H.healMeleeOnly = heal0;
     table('Style comparison (gunners start with a pistol + 1 spare mag and scavenge)', rows);
   });
 });

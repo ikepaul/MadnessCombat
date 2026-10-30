@@ -1,5 +1,6 @@
 // F6 tuning panel (dev only, M13 playtest pass): every number in TUNING, FEEL, GUNS, GRENADE,
-// THROWN and DISARM as an editable field with a search box. Changes apply live (values the sim
+// THROWN and DISARM as an editable field with a search box (M14b F: on/off switches as a
+// checkbox, number lists one field per entry, for the playtest's A/B switches). Changes apply live (values the sim
 // reads each tick) and are saved for the next reload (values derived at load time, like the
 // jump's gravity, need that reload). "Copy changes" puts the edited paths and values on the
 // clipboard to be written back into src/data/.
@@ -7,18 +8,19 @@ import { FEEL } from '../data/feel';
 import { DISARM, GRENADE, THROWN } from '../data/melee';
 import { TUNING } from '../data/tuning';
 import { GUNS } from '../data/weapons';
-import { loadOverrides, saveOverrides, setPath } from './overrides';
+import { loadOverrides, saveOverrides, setPath, type TuneValue } from './overrides';
 
 const ROOTS: Record<string, object> = { TUNING, FEEL, GUNS, GRENADE, THROWN, DISARM };
 
 let panel: HTMLDivElement | undefined;
 
-/** Every numeric leaf under the roots: [path, value]. */
-function leaves(): [string, number][] {
-  const out: [string, number][] = [];
+/** Every numeric or on/off leaf under the roots (list entries by index): [path, value]. */
+function leaves(): [string, TuneValue][] {
+  const out: [string, TuneValue][] = [];
   const walk = (o: unknown, path: string) => {
-    if (typeof o === 'number') { out.push([path, o]); return; }
-    if (typeof o !== 'object' || o === null || Array.isArray(o)) return;
+    if (typeof o === 'number' || typeof o === 'boolean') { out.push([path, o]); return; }
+    if (typeof o !== 'object' || o === null) return;
+    if (Array.isArray(o) && !o.every((v) => typeof v === 'number')) return;
     for (const [k, v] of Object.entries(o)) walk(v, `${path}.${k}`);
   };
   for (const [name, root] of Object.entries(ROOTS)) walk(root, name);
@@ -64,15 +66,15 @@ export function toggleTuningPanel(): void {
     label.textContent = path;
     label.style.overflowWrap = 'anywhere';
     const input = document.createElement('input');
-    input.type = 'number';
-    input.step = String(stepFor(value));
-    input.value = String(value);
-    Object.assign(input.style, { width: '80px', background: '#2a2b30', color: '#fff', border: '1px solid #555' });
+    const flag = typeof value === 'boolean';
+    if (typeof value === 'boolean') { input.type = 'checkbox'; input.checked = value; }
+    else { input.type = 'number'; input.step = String(stepFor(value)); input.value = String(value); }
+    Object.assign(input.style, { width: flag ? '16px' : '80px', background: '#2a2b30', color: '#fff', border: '1px solid #555' });
     const mark = () => { label.style.color = path in overrides ? '#ff6b73' : '#e6e6e8'; };
     mark();
     input.oninput = () => {
-      const v = Number(input.value);
-      if (!Number.isFinite(v)) return;
+      const v = flag ? input.checked : Number(input.value);
+      if (typeof v === 'number' && !Number.isFinite(v)) return;
       const [name, ...rest] = path.split('.');
       if (!setPath(ROOTS[name], rest, v)) return;
       overrides[path] = v;

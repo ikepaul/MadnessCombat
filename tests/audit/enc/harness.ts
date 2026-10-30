@@ -321,6 +321,7 @@ export function playStage(o: RunOpts): { rooms: RoomStat[]; total: number; arriv
       if (cur!.deaths >= maxDeaths) cur!.failed = true;
       boot();
       st.seen.clear();
+      st.lastPress = -9; // the new world's clock starts at 0 again (else a gunner never fires after a late death)
     }
     if (o.rooms && !o.rooms.includes(cur!.room)) break;
   }

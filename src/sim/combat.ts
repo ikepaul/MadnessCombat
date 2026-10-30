@@ -949,7 +949,7 @@ export function die(world: World, o: Actor, by: Actor | undefined, kind: HitKind
   o.corpse = { phase: 'tumble', t: 0, raisable: o.kind === 'grunt', gibbed: false, slumped: false };
   const type = team?.type ?? killType(kind, { team: team?.team });
   world.events.emit('kill', { actorId: o.id, byId: by?.id ?? 0, kind, decap, type, ...(team?.team ? { team: true } : {}), ...(team?.alsoId ? { alsoId: team.alsoId } : {}), ...(world.rage ? { rage: true } : {}), ...o.pos });
-  creditKill(world, by?.id);
+  creditKill(world, by?.id, kind);
   if (decap) {
     o.pose.headless = true;
     o.corpse.phase = 'headless';
@@ -1280,14 +1280,18 @@ function damageThrown(world: World, a: Actor): void {
     a.state = 'dead';
     a.corpse = { phase: 'tumble', t: 0, raisable: true, gibbed: false, slumped: false };
     world.events.emit('kill', { actorId: a.id, byId: by ?? 0, kind: 'body', decap: false, type: 'toss', ...a.pos });
-    creditKill(world, by);
+    creditKill(world, by, 'body');
   }
 }
 
-/** Every kill the player makes heals a life, up to the max (decided with the user). */
-function creditKill(world: World, byId: number | undefined): void {
+/** Kills that heal while `TUNING.health.healMeleeOnly` is on (CMB-03): hand to hand, thrown bodies included. */
+export const HEALING_KILLS: HitKind[] = ['light', 'heavy', 'uppercut', 'finisher', 'sweep', 'body', 'wall', 'stab', 'slash', 'smash', 'pin', 'takedown'];
+
+/** Every kill the player makes heals a life, up to the max (decided with the user); CMB-03: melee kills only when switched on. */
+function creditKill(world: World, byId: number | undefined, kind: HitKind): void {
   const p = world.players.find((h) => h.id === byId);
   if (!p || !alive(p) || p.state === 'downed' || p.hp >= p.maxHp) return;
+  if (TUNING.health.healMeleeOnly && !HEALING_KILLS.includes(kind)) return;
   p.hp = Math.min(p.maxHp, p.hp + TUNING.health.healPerKill);
   world.events.emit('heal', { actorId: p.id, hp: p.hp });
 }
@@ -1404,7 +1408,7 @@ function tearApart(world: World, a: Actor, holder: Actor, o: Actor): void {
   holder.holding = undefined;
   const dir = Math.sign(holder.pos.x - o.pos.x) || 1;
   die(world, o, a, 'heavy', dir, 0, !world.blood, 'heavy', { team: true, alsoId: holder.id });
-  creditKill(world, holder.id);
+  creditKill(world, holder.id, 'heavy');
   world.events.emit('fatality', { actorId: o.id, kind: 'wishbone', ...o.pos });
   world.events.emit('coopMove', { kind: 'wishbone', phase: 'end', byId: a.id, partnerId: holder.id, targetId: o.id, actorId: o.id, ...o.pos });
   if (!world.blood) {

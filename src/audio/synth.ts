@@ -21,7 +21,9 @@ export type Recipe =
   // M12
   | 'heartbeatLoop' | 'glass' | 'implode'
   // M8 boss
-  | 'crackle' | 'thunder' | 'rumble' | 'wardHum' | 'ricochet' | 'cannonBoom' | 'fallWhistle' | 'heavyLand' | 'telekinesis';
+  | 'crackle' | 'thunder' | 'rumble' | 'wardHum' | 'ricochet' | 'cannonBoom' | 'fallWhistle' | 'heavyLand' | 'telekinesis'
+  // M14b VIS-13
+  | 'hitDirt';
 
 /** Seeded RNG (mulberry32) so variants are stable between runs. */
 function rng(seed: number): () => number {
@@ -159,6 +161,14 @@ export function render(recipe: Recipe, sr: number, seed: number): Float32Array {
       const b = new Buf(sr, 0.5);
       tone(b, (t) => 60 * Math.exp(-t * 4) + 30, ad(0.003, 0.15), 1);
       noise(b, r, () => 2200, (t) => Math.exp(-t / 0.12) * (0.6 + 0.4 * Math.sin(t * 2 * Math.PI * 38)), 0.45, 300);
+      return normalise(b.d);
+    }
+    case 'hitDirt': {
+      // M14b VIS-13: a bullet into sand or dirt: a short dull puff and a little grit settling (invented)
+      const b = new Buf(sr, 0.18);
+      noise(b, r, () => jitter(1400, 0.2), ad(0.002, 0.03), 1, 150);
+      noise(b, r, () => 5000, (t) => (t < 0.02 ? 0 : 0.35 * Math.exp(-(t - 0.02) / 0.05)), 0.5, 2000);
+      tone(b, () => jitter(80, 0.1), ad(0.002, 0.025), 0.5);
       return normalise(b.d);
     }
     case 'stepDirt': case 'stepConcrete': {
