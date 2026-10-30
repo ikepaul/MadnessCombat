@@ -4,7 +4,7 @@
 // red eye-slit icon (the one red exception) and the key. Phaser Graphics in the UI scene.
 import Phaser from 'phaser';
 import { INK } from '../data/palettes';
-import { SETTINGS } from '../settings';
+import { keyFor } from '../settings';
 import type { Actor } from '../sim/actor';
 import type { KillType } from '../sim/rage';
 import type { World } from '../sim/world';
@@ -27,7 +27,7 @@ export class RageBars {
       row.newest = 0;
       if (e.amount <= 0) return;
       row.flash = 0.3;
-      const text = scene.add.text(0, 0, `+${Math.round(e.amount * 100)}`, { fontFamily: 'Anton', fontSize: '22px', color: '#ffffff', stroke: INK, strokeThickness: 6 }).setOrigin(0.5, 1).setDepth(42);
+      const text = scene.add.text(0, 0, `+${Math.round(e.amount * 100)}`, { fontFamily: 'Anton', fontSize: '26px', color: '#ffffff', stroke: INK, strokeThickness: 6 }).setOrigin(0.5, 1).setDepth(42);
       row.pops.push({ text, t: 0 });
     });
   }
@@ -65,8 +65,8 @@ export class RageBars {
       g.fillStyle(INK_HEX, 1).fillEllipse(ex, y, 30, 34);
       g.fillStyle(0xe9e9eb, 1).fillEllipse(ex, y, 24, 28);
       g.lineStyle(4, RED, 1).lineBetween(ex - 2, y - 2, ex + 9, y - 2);
-      const key = (this.keys[index] ??= this.scene.add.text(0, 0, '', { fontFamily: 'Inter', fontSize: '14px', color: '#ffffff', stroke: INK, strokeThickness: 4 }).setOrigin(0.5, 0).setDepth(42));
-      key.setText(SETTINGS.keys.rage).setPosition(ex, y + 18).setVisible(true);
+      const key = (this.keys[index] ??= this.scene.add.text(0, 0, '', { fontFamily: 'Anton', fontSize: '26px', color: '#ffffff', stroke: INK, strokeThickness: 5 }).setOrigin(0.5, 0).setDepth(42));
+      key.setText(keyFor('rage')).setPosition(ex, y + 18).setVisible(true);
       ex += 30;
     }
     // the variety strip: the last 2 kill types, newest on the right; a repeat shakes and greys

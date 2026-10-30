@@ -101,11 +101,11 @@ export class TitleScene extends Phaser.Scene {
       this.heading('CONTROLS');
       const items = controlsItems(this, (on) => { if (this.menu) this.menu.hold = on; }, () => this.show('settings'));
       // UXS-11: the help line sits under the heading and the rows end above the bottom edge (no overlap at 1280x720)
-      at(items, () => this.show('settings'), 26, 29, 575);
-      this.layer.push(this.add.text(1000, 498, 'Mouse: aim, LMB / RMB use the front / back hand.\nEnter on a row, then press the new key.', { fontFamily: 'Inter', fontSize: '20px', color: '#9a9ba0' }));
+      at(items, () => this.show('settings'), 26, 28, 592);
+      this.layer.push(this.add.text(1000, 498, 'Mouse: aim, LMB / RMB use the front / back hand.\nEnter on a row, then press the new key.', { fontFamily: 'Inter', fontSize: '26px', color: '#9a9ba0' }));
     } else {
       this.heading('CREDITS');
-      this.layer.push(this.add.text(1000, 520, creditsText(), { fontFamily: 'Inter', fontSize: '22px', color: '#d9d9dc', wordWrap: { width: 840 }, lineSpacing: 8 }));
+      this.layer.push(this.add.text(1000, 520, creditsText(), { fontFamily: 'Inter', fontSize: '26px', color: '#d9d9dc', wordWrap: { width: 860 }, lineSpacing: 6 }));
       // just the text and a way back (Esc, Enter or a click)
       const backText = this.add.text(1000, 990, 'Back (Esc)', { fontFamily: 'Anton', fontSize: '36px', color: '#c70f1b' }).setInteractive({ useHandCursor: true });
       this.layer.push(backText);

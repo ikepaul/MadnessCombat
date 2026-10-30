@@ -1,21 +1,6 @@
 import Phaser from 'phaser';
 import { INK } from '../data/palettes';
-import '../labs/aiLabs';
-import '../labs/gunLabs';
-import '../labs/meleeLabs';
-import '../labs/movementLabs';
-import '../labs/comboLabs';
-import '../labs/qolLabs';
-import '../labs/coopLabs';
-import '../labs/rageLabs';
-import '../labs/stage4Labs';
-import '../labs/toolLabs';
-import '../labs/throwLabs';
-import '../labs/enemyLabs';
-import '../labs/bossLabs';
-import '../labs/hazardLabs';
-import '../labs/stage2Labs';
-import '../labs/stage3Labs';
+// the labs register themselves through ./labScenes (UXS-21)
 import { allLabSlugs, getLab } from '../labs/registry';
 
 /** `/?lab` with no slug: every expected lab, built ones clickable. */

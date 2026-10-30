@@ -29,11 +29,11 @@ export class CoopLobbyScene extends Phaser.Scene {
     this.status = this.add.text(960, 430, '', { fontFamily: 'Inter', fontSize: '30px', color: '#d9d9dc', align: 'center' }).setOrigin(0.5);
     this.links = this.add.text(960, 560, '', { fontFamily: 'Inter', fontSize: '34px', color: '#ffffff', align: 'center', lineSpacing: 12 }).setOrigin(0.5, 0);
     this.add.text(960, 980, 'Both laptops on the same Wi-Fi · the host runs `npm run dev:lan`', {
-      fontFamily: 'Inter', fontSize: '22px', color: '#8e8f94',
+      fontFamily: 'Inter', fontSize: '26px', color: '#8e8f94',
     }).setOrigin(0.5);
     if (this.role === 'host') this.input.keyboard?.on('keydown-ENTER', () => this.start(false));
     // UXS-06: Esc leaves the lobby for the title (and drops the link, so nobody waits on us)
-    this.add.text(960, 1030, 'Esc: back to the title', { fontFamily: 'Inter', fontSize: '22px', color: '#8e8f94' }).setOrigin(0.5);
+    this.add.text(960, 1030, 'Esc: back to the title', { fontFamily: 'Inter', fontSize: '26px', color: '#8e8f94' }).setOrigin(0.5);
     this.input.keyboard?.on('keydown-ESC', () => {
       if (this.started) return;
       this.started = true;

@@ -1,10 +1,5 @@
 import Phaser from 'phaser';
 import type { PaletteId } from '../data/palettes';
-import '../labs/aiLabs';
-import '../labs/gunLabs';
-import '../labs/meleeLabs';
-import '../labs/movementLabs';
-import '../labs/toolLabs';
 import { getLab } from '../labs/registry';
 import type { StageRoomId } from '../data/stages/stage1';
 
@@ -15,8 +10,15 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
-    Promise.all([document.fonts.load('64px Anton'), document.fonts.load('20px Inter')]).finally(() => {
-      const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(window.location.search);
+    // UXS-21: the labs (and the pose editor) load only behind ?lab, from their own chunk
+    const labs = params.has('lab')
+      ? import('./labScenes').then(({ LabIndexScene, PoseEditorScene }) => {
+        if (!this.scene.get('lab-index')) this.scene.add('lab-index', LabIndexScene, false);
+        if (!this.scene.get('pose-editor')) this.scene.add('pose-editor', PoseEditorScene, false);
+      })
+      : Promise.resolve();
+    Promise.all([document.fonts.load('64px Anton'), document.fonts.load('20px Inter'), labs]).finally(() => {
       const palette = (params.get('palette') ?? undefined) as PaletteId | undefined;
       const lab = params.get('lab');
       if (params.has('lab') && !lab) this.scene.start('lab-index');

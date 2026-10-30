@@ -15,6 +15,8 @@ import { Menu, type MenuItem } from '../ui/menu';
 import { controlsItems, settingsItems } from '../ui/settingsMenu';
 import { InkHud } from '../ui/hud';
 import { inkWipe, takeStageCard } from '../ui/transition';
+import { tunedTag } from '../dev/overrides';
+import { toggleTuningPanel } from '../dev/tuningPanel';
 
 /** HUD + debug overlay. A separate scene/camera so post FX never touch it. */
 export class UIScene extends Phaser.Scene {
@@ -29,6 +31,9 @@ export class UIScene extends Phaser.Scene {
   /** UXS-06: the co-op status line ("Host paused", "Player 2 left"...). */
   private netText!: Phaser.GameObjects.Text;
   private labText!: Phaser.GameObjects.Text;
+  /** UXS-25: "TUNED · n" while F6 overrides are active (dev builds), re-read twice a second. */
+  private tuned!: Phaser.GameObjects.Text;
+  private tunedCheck = 0;
   private rulers: Phaser.GameObjects.Text[] = [];
   /** Per player row: last hp seen, seconds of pop left after losing / regaining a life. */
   private pipRows: { lastHp: number; lost: number; healed: number }[] = [];
@@ -66,14 +71,20 @@ export class UIScene extends Phaser.Scene {
     game.world.events.on('rageBeat', (e) => { if (e.beat === 'release' && effectLevel() !== 'off') this.flashLeft = 1; });
     drawDebugGrid(this.grid, game.world.room);
     this.rulers = rulerLabels(game.world.room).map((l) =>
-      this.add.text(l.x, l.y, l.text, { fontFamily: 'Inter', fontSize: '18px', color: '#ff8c00' }),
+      this.add.text(l.x, l.y, l.text, { fontFamily: 'Inter', fontSize: '18px', color: '#ff8c00' }), // debug text
     );
-    const box = { fontFamily: 'Inter', fontSize: '18px', color: '#ffffff', backgroundColor: '#000000aa', padding: { x: 8, y: 4 } };
+    const box = { fontFamily: 'Inter', fontSize: '18px', // debug text (F1 overlay, lab bar)
+      color: '#ffffff', backgroundColor: '#000000aa', padding: { x: 8, y: 4 } };
     this.info = this.add.text(16, 12, '', box);
     this.netText = this.add.text(960, 60, '', { fontFamily: 'Inter', fontSize: '30px', color: '#ffffff', backgroundColor: '#000000cc', padding: { x: 18, y: 10 } }).setOrigin(0.5, 0).setDepth(195).setVisible(false);
     this.labText = this.add.text(16, 1080 - 48, '', { ...box, wordWrap: { width: 1880 } }).setVisible(!!game.lab).setOrigin(0, 1).setY(1080 - 16);
+    // UXS-25: dev builds say when F6 overrides are in force (click opens the panel)
+    this.tuned = this.add.text(1920 - 250, 16, '', { fontFamily: 'Anton', fontSize: '26px', color: '#141416', backgroundColor: '#ffb020', padding: { x: 10, y: 4 } })
+      .setOrigin(1, 0).setDepth(196).setVisible(false);
+    if (import.meta.env.DEV) this.tuned.setInteractive({ useHandCursor: true }).on('pointerdown', () => toggleTuningPanel());
+    this.tunedCheck = 0;
     this.pipRows = [];
-    this.pipLabels = [0, 1].map(() => this.add.text(0, 0, '', { fontFamily: 'Inter', fontSize: '20px', color: '#ffffff', stroke: INK, strokeThickness: 4, fontStyle: 'bold' }).setOrigin(0, 0.5));
+    this.pipLabels = [0, 1].map(() => this.add.text(0, 0, '', { fontFamily: 'Inter', fontSize: '26px', color: '#ffffff', stroke: INK, strokeThickness: 5, fontStyle: 'bold' }).setOrigin(0, 0.5));
     // world-kill-counter: big number bottom-right, appears at the first kill
     this.counter = this.add.text(1920 - 48, 1080 - 36, '', {
       fontFamily: 'Anton', fontSize: '96px', color: '#ffffff', stroke: INK, strokeThickness: 10,
@@ -105,7 +116,8 @@ export class UIScene extends Phaser.Scene {
     this.titleCard = this.add.container(0, 0, [bg, text]).setDepth(90).setVisible(false);
     // top of the screen, over the sky / back wall, so it never covers the fight
     this.caption = this.add.text(960, 120, '', {
-      fontFamily: 'Inter', fontSize: '30px', color: '#ffffff', backgroundColor: '#000000cc', padding: { x: 18, y: 10 }, align: 'center', wordWrap: { width: 1400 },
+      // UXS-16: captions at 34 px (the 1080 canvas shrinks to 0.67 in a 1280 x 720 window)
+      fontFamily: 'Inter', fontSize: '34px', color: '#ffffff', backgroundColor: '#000000cc', padding: { x: 18, y: 10 }, align: 'center', wordWrap: { width: 1400 },
     }).setOrigin(0.5, 0).setDepth(90).setVisible(false);
     this.scriptCardUntil = 0;
   }
@@ -116,7 +128,9 @@ export class UIScene extends Phaser.Scene {
     const title = this.add.text(960, 400, 'BODY COUNT', { fontFamily: 'Anton', fontSize: '72px', color: '#ffffff' }).setOrigin(0.5);
     const n = this.add.text(960, 540, '0', { fontFamily: 'Anton', fontSize: '200px', color: '#ffffff' }).setOrigin(0.5).setName('n');
     const sub = this.add.text(960, 700, '', { fontFamily: 'Inter', fontSize: '26px', color: '#b9babd', align: 'center' }).setOrigin(0.5).setName('sub');
-    return this.add.container(0, 0, [bg, title, n, sub]).setDepth(100);
+    // UXS-13: the "hold R" replay fills this bar
+    const hold = this.add.graphics().setName('hold');
+    return this.add.container(0, 0, [bg, title, n, sub, hold]).setDepth(100);
   }
 
   /** When the pause menu last closed: the same Esc press must not open it again. */
@@ -147,7 +161,7 @@ export class UIScene extends Phaser.Scene {
             { label: 'Settings', action: () => show('settings') },
             { label: 'Quit to title', action: () => { this.closePause(); game.toTitle(); } },
           ]
-        : view === 'settings' ? settingsItems(() => show('controls'), () => show('main'))
+        : view === 'settings' ? settingsItems(() => show('controls'), () => show('main'), true)
           : controlsItems(this, (on) => { if (this.pause) this.pause.menu.hold = on; }, () => show('settings'));
       const size = view === 'main' ? 48 : view === 'settings' ? 34 : 26, gap = view === 'main' ? 70 : view === 'settings' ? 50 : 36;
       const menu = new Menu(this, items, 260, 400, back, size, gap);
@@ -176,6 +190,11 @@ export class UIScene extends Phaser.Scene {
     this.drawLetterbox(game, delta / 1000);
     this.drawCounter(game);
     this.netText.setVisible(!!game.netNote).setText(game.netNote);
+    if (import.meta.env.DEV && (this.tunedCheck -= delta / 1000) <= 0) {
+      this.tunedCheck = 0.5;
+      const tag = tunedTag();
+      this.tuned.setVisible(!!tag).setText(tag);
+    }
     this.stageHud.update();
     this.inkHud.update(delta / 1000);
     if (game.world.time >= this.scriptCardUntil) { this.titleCard.setVisible(false); this.caption.setVisible(false); }
@@ -219,10 +238,16 @@ export class UIScene extends Phaser.Scene {
       // co-op: only the host restarts the room
       const next = game.nextStage;
       const again = game.coop === 'guest' ? 'waiting for the host  ·  Esc: title'
-        : next ? `Enter: on to Stage ${next}  ·  R: Stage ${game.stageInfo!.stage} again  ·  Esc: title`
-          : game.stageInfo?.stage === 3 && !game.coop ? 'Enter: credits  ·  R: Stage 3 again  ·  Esc: title' : 'Enter: fight again  ·  Esc: title';
+        : next ? `Enter: on to Stage ${next}  ·  hold R: Stage ${game.stageInfo!.stage} again  ·  Esc: title`
+          : game.stageInfo?.stage === 3 && !game.coop ? 'Enter: credits  ·  hold R: Stage 3 again  ·  Esc: title' : 'Enter: fight again  ·  Esc: title';
       (this.card.getByName('sub') as Phaser.GameObjects.Text).setText(`${episode}${again}`);
       this.card.setVisible(true);
+    }
+    if (this.card.visible) {
+      const fill = game.endCard.fill(performance.now() / 1000);
+      const g = this.card.getByName('hold') as Phaser.GameObjects.Graphics;
+      g.clear();
+      if (fill > 0) { g.fillStyle(0x2a2b30, 1).fillRect(760, 760, 400, 8); g.fillStyle(0xc70f1b, 1).fillRect(760, 760, 400 * fill, 8); }
     }
   }
 

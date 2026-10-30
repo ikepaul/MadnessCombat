@@ -7,8 +7,6 @@ import { BootScene } from './scenes/BootScene';
 import { TitleScene } from './scenes/TitleScene';
 import { GameScene } from './scenes/GameScene';
 import { CoopLobbyScene } from './scenes/CoopLobbyScene';
-import { LabIndexScene } from './scenes/LabIndexScene';
-import { PoseEditorScene } from './scenes/PoseEditorScene';
 import { UIScene } from './scenes/UIScene';
 
 const game = new Phaser.Game({
@@ -20,7 +18,8 @@ const game = new Phaser.Game({
   // our own Web Audio engine (src/audio) owns the AudioContext
   audio: { noAudio: true },
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-  scene: [BootScene, TitleScene, GameScene, UIScene, LabIndexScene, PoseEditorScene, CoopLobbyScene],
+  // UXS-21: the lab scenes are added by BootScene behind `?lab` (their own chunk)
+  scene: [BootScene, TitleScene, GameScene, UIScene, CoopLobbyScene],
 });
 
 // dev only: lets a debugging session drive the sim from the console (window.__game)
