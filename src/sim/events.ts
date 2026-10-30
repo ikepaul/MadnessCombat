@@ -237,6 +237,8 @@ export interface GameEvents {
   bossSweep: At & { phase: 'windup' | 'push'; dir: 1 | -1; count: number };
   /** The summoned cannon: its shadow appears, it starts falling, it lands (crushing what's under it). */
   cannonDrop: { x: number; z: number; phase: 'shadow' | 'fall' | 'land' };
+  /** M14b STB-16: an actor left the world mid-room (`removeActor`: a script took him off, swept off the screen, fell into the void). */
+  actorRemoved: { actorId: number };
 }
 
 export type HitKind =

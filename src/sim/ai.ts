@@ -31,6 +31,11 @@ export interface AiState {
   ring: number;
   /** Depth this grunt drifts toward while waiting. */
   waitZ: number;
+  /**
+   * M14b ENC-14: dug in at this spot, facing `face` (the crate room's guards), until a player comes
+   * within TUNING.ai.holdRelease or gets behind him; then it's cleared for good.
+   */
+  hold?: { x: number; z: number; face: 1 | -1 };
   /** Re-pick waitZ after this many seconds. */
   driftT: number;
   /** Seconds spent in punch range (the wind-up before the first swing). */
@@ -428,6 +433,10 @@ function positionFor(world: World, a: Actor, p: Actor, w: WeaponDef, face: 1 | -
   // enemy-elite-bodyguard: stays at the VIP's side instead of chasing
   const vip = ai.guard !== undefined ? world.actorById(ai.guard) : undefined;
   if (vip && alive(vip)) return steer(a, clamp(vip.pos.x + (ai.guardSide ?? 1) * AI.guardGap, -inside, inside), vip.pos.z + (ai.guardSide ?? 1) * 0.25, 0.1);
+  // ENC-14: dug in until a player is close or round the back
+  const hold = ai.hold;
+  if (hold && world.activePlayers.some((q) => Math.hypot(q.pos.x - hold.x, q.pos.z - hold.z) < AI.holdRelease || (q.pos.x - hold.x) * hold.face < 0)) ai.hold = undefined;
+  if (ai.hold) return steer(a, ai.hold.x, ai.hold.z, 0.1);
   let tx = clamp(p.pos.x - face * ai.keep, -inside, inside);
   // no room on our side: go round to the other side
   if (Math.abs(tx - p.pos.x) < k0 * 0.6) tx = clamp(p.pos.x + face * ai.keep, -inside, inside);

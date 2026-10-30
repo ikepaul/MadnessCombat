@@ -93,6 +93,8 @@ export const TUNING = {
     recover: 1.1,
     /** Bullet hits that make him teleport away. */
     hitsToTeleport: 3,
+    /** M14b ENC-16: a loaded gun is dropped again when no player has had one for this long (s). invented */
+    regunAfter: 10,
     /** boss-clown clip 4: the zombie mini-boss with the sign takes 10% damage until it's out of his hands. */
     signArmour: 0.1,
   },
@@ -548,6 +550,8 @@ export const TUNING = {
     squadEngage: 1.4,
     /** enemy-elite-bodyguard: distance from the VIP (each guard on one side). invented */
     guardGap: 0.8,
+    /** M14b ENC-14: a grunt holding a spot (`ai.hold`, the crate room) leaves it once a player is this close (H) or behind him. invented */
+    holdRelease: 1.5,
     /** enemy-elite-bodyguard: hits to kill (invented; a head shot always kills). */
     bodyguardHits: 2,
     /** M9 boss-clown: the riot-helmet mini-boss takes 2 rifle head shots or 4 to the body. invented */

@@ -9,7 +9,7 @@ import { project } from '../../render/camera';
 import type { Beat, Seq } from '../../sim/sequencer';
 import { openExit } from '../../sim/stage';
 import type { RoomScript, SpawnOpts, WaveEntry } from '../../sim/waves';
-import type { World } from '../../sim/world';
+import { removeActor, type World } from '../../sim/world';
 import { canRaise, raiseCorpse } from '../../sim/zombies';
 import { stage2LateScripts } from './stage2Late';
 
@@ -120,7 +120,7 @@ function* office(s: Seq, _entry: string): Beat {
   peek.boss.phase = 'cameo';
   peek.pos.y = TUNING.boss.hover;
   yield S2.peek;
-  world.actors.splice(world.actors.indexOf(peek), 1);
+  removeActor(world, peek);
   world.events.emit('bossArrive', { actorId: peek.id, phase: 'leave', ...peek.pos });
   yield 0.6;
   world.openDoor(0);
@@ -142,8 +142,7 @@ function* runOff(s: Seq, a: Actor, x: number, z: number, door: number): Beat {
   world.openDoor(door);
   yield* s.moveTo(a, Math.sign(x) * (world.room.halfWidth - 0.35), z, 4);
   yield* s.moveTo(a, x, z, 1.5);
-  const i = world.actors.indexOf(a);
-  if (i >= 0) world.actors.splice(i, 1);
+  removeActor(world, a);
   world.events.emit('targetFled', { actorId: a.id, ...a.pos });
 }
 

@@ -103,12 +103,15 @@ export const STAGE3: StageDef = {
       // shoved (or knocked) into the void: down to the street
       exits: [{ id: 'void', kind: 'fall', x0: 99, x1: 99, z0: 99, z1: 99, to: 'street', entry: 'sky', locked: true }],
       script: stage3Scripts.camera,
+      // STB-02 (decision 10): axe throws from the camera room to the end of the stage
+      rules: { flags: ['axeThrows'] },
     },
     street: {
       room: STREET,
       entries: { sky: { x: 0.2, z: 9.2, facing: 1, from: 'sky' } },
       exits: [{ id: 'desert', kind: 'edge', ...EAST, to: 'desert', entry: 'west', locked: true }],
       script: stage3Scripts.street,
+      rules: { physics: 'improbable', flags: ['axeThrows'] },
     },
     desert: {
       room: DESERT,
@@ -116,24 +119,28 @@ export const STAGE3: StageDef = {
       // boss-halo clip 6: blasted through the box's wall into the next room
       exits: [{ id: 'blast', kind: 'blasted', x0: 99, x1: 99, z0: 99, z1: 99, to: 'vending', entry: 'hole', locked: true }],
       script: stage3Scripts.desert,
+      rules: { flags: ['axeThrows'] },
     },
     vending: {
       room: VENDING,
       entries: { hole: { x: -2.9, z: 9.2, facing: 1, from: 'thrown' } },
       exits: [{ id: 'east-door', kind: 'door', x0: 3.25, x1: 9, z0: 8.55, z1: 9.4, to: 'console', entry: 'west', locked: true }],
       script: stage3Scripts.vending,
+      rules: { flags: ['axeThrows'] },
     },
     console: {
       room: CONSOLE,
       entries: { west: { x: -2.9, z: 9.0, facing: 1, from: 'walk' } },
       exits: [{ id: 'east-door', kind: 'door', x0: 3.25, x1: 9, z0: 8.55, z1: 9.4, to: 'lift', entry: 'west', locked: true }],
       script: stage3Scripts.console,
+      rules: { flags: ['axeThrows'] },
     },
     lift: {
       room: LIFT,
       entries: { west: { x: -2.9, z: 9.0, facing: 1, from: 'walk' } },
       exits: [],
       script: stage3Scripts.lift,
+      rules: { flags: ['axeThrows'] },
     },
   },
 };

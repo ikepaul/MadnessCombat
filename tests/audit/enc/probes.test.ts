@@ -1,5 +1,5 @@
 // ENC audit: focused probes (AUDIT=1 npx vitest run tests/audit/enc/probes.test.ts). Each block
-// prints its numbers; the `expect`s pin the current (bad) behaviour so a fix flips them.
+// prints its numbers; the `expect`s pinned the bad behaviour (ENC-01/02 are flipped: fixed in M14b A1).
 import { describe, expect, it } from 'vitest';
 import { STAGE1 } from '../../../src/data/stages/stage1';
 import { INTRO, stage1From, waveB } from '../../../src/data/stages/stage1Script';
@@ -39,7 +39,7 @@ describe.skipIf(on)('ENC crashes found by the curve bots', () => {
       } catch (e) { threw = (e as Error).message; }
     }
     console.log(`ENC-01 brute mid-swing hit: ${threw || 'no crash'}`);
-    expect(threw).toMatch(/reading 't'/);
+    expect(threw).toBe(''); // fixed in M14b (STB-01)
   });
 
   it('ENC-02: a blade stuck in a living actor that is removed from the room crashes pullable()', () => {
@@ -56,7 +56,7 @@ describe.skipIf(on)('ENC crashes found by the curve bots', () => {
     let threw = '';
     try { tick(world, { pickup: true }, 3); } catch (e) { threw = (e as Error).message; }
     console.log(`ENC-02 stuck blade, owner gone: ${threw || 'no crash'}`);
-    expect(threw).toMatch(/reading 'state'/);
+    expect(threw).toBe(''); // fixed in M14b (STB-16)
   });
 });
 

@@ -287,7 +287,7 @@ function fightWaveA(style: Style, seed: number, reaction: number) {
 }
 function fightStage(stage: StageDef, room: string, style: Style, seed: number, reaction: number, give?: WeaponId) {
   const world = new World(stage.rooms[room].room);
-  (world as unknown as { seed: number }).seed = seed;
+  world.attempt = seed; // STB-08: room stages reseed on entry
   const hero = createActor('hero', 0, 9.2, 1);
   world.addPlayer(hero);
   stage.loadout(hero);
