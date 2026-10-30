@@ -8,6 +8,7 @@ import type { Actor } from '../../sim/actor';
 import { spawnBoss } from '../../sim/boss';
 import { placeCannon } from '../../sim/cannon';
 import type { Seq } from '../../sim/sequencer';
+import { stuckHint } from '../../sim/stage';
 import type { RoomScript, WaveEntry } from '../../sim/waves';
 import type { World } from '../../sim/world';
 import { STAGE1 } from './stage1';
@@ -62,8 +63,15 @@ export function* intro(s: Seq, cast: IntroCast) {
   yield* s.until(() => !!near() || npc.state !== 'free' || dead(npc));
   if (dead(npc)) return;
   const target = near() ?? hero;
-  if (ready(npc)) yield* s.act(npc, { attack: 'heavy', face: toward(npc, target) });
-  yield* s.until(() => target.state === 'knockback' || target.state === 'getUp' || dead(npc), 1);
+  // M14b ENC-17: the teaching cross knocks you flat but costs no life (the sparring jabs still can)
+  const shielded = TUNING.enc.scriptedHitsHurt ? [] : world.activePlayers.map((p) => ({ p, was: p.protected }));
+  for (const { p } of shielded) p.protected = true;
+  try {
+    if (ready(npc)) yield* s.act(npc, { attack: 'heavy', face: toward(npc, target) });
+    yield* s.until(() => target.state === 'knockback' || target.state === 'getUp' || dead(npc), 1);
+  } finally {
+    for (const { p, was } of shielded) p.protected = was;
+  }
   if (!dead(npc)) {
     s.run(function* caption(q: Seq) {
       yield* q.until(() => target.state === 'free' || dead(npc), 3);
@@ -100,8 +108,10 @@ export const GRENADE_BEAT = {
   dropHeight: 2.6,
   /** In front of the hero, this far (H). invented */
   ahead: 0.7,
-  /** Move on anyway if nobody throws it (s), so the stage can't stall here. invented */
-  timeout: 25,
+  /** Move on anyway if nobody throws it (s), so the stage can't stall here. invented; M14b ENC-18: 10 (25 = old) */
+  timeout: 10,
+  /** M14b ENC-18: the caption comes again this long after the drop if it hasn't gone off (s; 0 = old: once). invented */
+  recaption: 5,
   /** Explosion -> the boss appears (s). ep1 f1400 -> f1420 */
   after: 0.6,
 };
@@ -118,8 +128,13 @@ export function* grenadeBeat(s: Seq) {
     const x = Math.max(-lim, Math.min(lim, p.pos.x + p.facing * G.ahead));
     s.drop('grenade', x, p.pos.z, G.dropHeight);
   }
-  s.run(function* caption(q: Seq) { yield* q.card('A grenade. Pick it up ({key:use}), hold {key:grenade} to cook it, let go over the bodies.', 5, 'caption'); });
+  const text = 'A grenade. Pick it up ({key:use}), hold {key:grenade} to cook it, let go over the bodies.';
   let boom = false;
+  s.run(function* caption(q: Seq) {
+    yield* q.card(text, 5, 'caption');
+    // ENC-18: still not thrown: say it again
+    if (G.recaption > 0 && !boom) { yield Math.max(0, G.recaption - 5); if (!boom) yield* q.card(text, 5, 'caption'); }
+  });
   const off = world.events.on('explosion', () => (boom = true));
   yield* s.until(() => boom, G.timeout);
   off();
@@ -200,7 +215,26 @@ export const WAVE_B = {
   ] as { after: number; items: ('sawedoff' | 'knife' | 'pistol')[] }[],
   /** Breather after the boss's last zombie drops (s). invented */
   pause: 1.5,
+  /** M14b ENC-13 / ENC-20: prone taught once, at the first gun raised at you; the cannon's answer names it too. */
+  proneCaption: 'A gun on you: {key:dive} drops you flat under the fire.',
+  cannonCaption: 'They took the cannon. Jump the balls ({key:jump}) or drop flat ({key:dive}), or get up on it ({key:split} aims both ways).',
 };
+
+/** M14b ENC-20: wave A teaches the grab and throw, then the launcher, after this many of its kills. */
+export const WAVE_A_TEACH = {
+  grab: { after: 4, text: '{key:grab} grabs one of them; {key:grab} again throws him onto the pile.' },
+  launch: { after: 10, text: 'LMB stuns him; then RMB with the cursor high launches him, and LMB keeps him up.' },
+};
+
+/** Wave A's teaching captions, by kill count, until `over()` (the wave is done). */
+function* teachWaveA(s: Seq, over: () => boolean) {
+  const world = s.world, k0 = world.kills;
+  for (const step of [WAVE_A_TEACH.grab, WAVE_A_TEACH.launch]) {
+    yield* s.until(() => world.kills - k0 >= step.after || over());
+    if (over()) return;
+    yield* s.card(step.text, 5, 'caption');
+  }
+}
 
 export function* waveBBeat(s: Seq) {
   const world = s.world;
@@ -209,13 +243,22 @@ export function* waveBBeat(s: Seq) {
   s.music('riot');
   const killsAtStart = world.kills;
   const waves = s.run(function* wave(q: Seq) { yield* q.waves(waveB(cannon && cannon.x < 0 ? -1 : 1)); });
+  // M14b ENC-13 / ENC-20: prone, the real dodge, is taught once here: at the first gun raised at a hero
+  let aimed = false;
+  const offAim = world.events.on('aimStart', (e) => { if (world.players.some((p) => p.id === e.targetId)) aimed = true; });
   s.run(function* caption(q: Seq) {
-    yield* q.card('More of them. Grab what falls.', 3.5, 'caption');
-    if (!cannon) return;
-    // once someone works the cannon: how to deal with it (unless the wave ends first)
-    const manned = () => cannon.byId !== undefined && world.actorById(cannon.byId)?.kind === 'grunt';
-    yield* q.until(() => manned() || waves.done);
-    if (manned()) yield* q.card('They took the cannon. Jump the balls, or get up on it (Shift aims both ways).', 5, 'caption');
+    try {
+      yield* q.card('More of them. Grab what falls.', 3.5, 'caption');
+      // once someone works the cannon: how to deal with it (unless the wave ends first)
+      const manned = () => !!cannon && cannon.byId !== undefined && world.actorById(cannon.byId)?.kind === 'grunt';
+      yield* q.until(() => aimed || manned() || waves.done);
+      if (aimed && !manned() && !waves.done) yield* q.card(WAVE_B.proneCaption, 4, 'caption');
+      if (!cannon) return;
+      yield* q.until(() => manned() || waves.done);
+      if (manned()) yield* q.card(WAVE_B.cannonCaption, 5, 'caption');
+    } finally {
+      offAim();
+    }
   });
   const lim = world.room.halfWidth - 0.3;
   for (const d of WAVE_B.drops) {
@@ -308,6 +351,8 @@ export function stage1From(from: Stage1Beat = 'intro', onBeat?: (beat: Exclude<S
   const at = STAGE1_BEATS.indexOf(from);
   return function* stage1(s: Seq) {
     const world = s.world;
+    // STB-14: the stuck hint (the intro waits on walking up to the music)
+    s.run(stuckHint, 'stuckHint');
     if (at === 0) {
       const cast = placeIntroCast(s);
       // he lets go of the boombox the moment he dies, whatever killed him
@@ -330,7 +375,10 @@ export function stage1From(from: Stage1Beat = 'intro', onBeat?: (beat: Exclude<S
     if (at <= 1) {
       onBeat?.('riot');
       s.music('riot');
+      let riotOver = false;
+      s.run((q) => teachWaveA(q, () => riotOver), 'teachWaveA');
       yield* s.waves(STAGE1.rooms.arena.script);
+      riotOver = true;
     }
     // beat 3: blow up the pile
     if (at <= 2) { onBeat?.('grenade'); yield* grenadeBeat(s); }

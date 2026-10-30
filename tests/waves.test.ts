@@ -152,7 +152,12 @@ describe('grunt AI (enemy-grunt-unarmed)', () => {
 
   it('grunts without a token wait on the ring, 1.5-2.5 H away', () => {
     const { world, hero } = arena();
-    for (let i = 0; i < 60 * 20; i++) { tick(world); hero.hp = hero.maxHp; }
+    for (let i = 0; i < 60 * 20; i++) {
+      tick(world);
+      hero.hp = hero.maxHp;
+      // M14b: kept in the middle (a heavy into the corner leaves no room for a ring on that side)
+      if (hero.state !== 'free') { hero.state = 'free'; hero.pose.root = { r: 0, tx: 0, ty: 0, sx: 1, sy: 1 }; hero.flight = undefined; hero.pos = { x: 0, y: 0, z: 9.2 }; }
+    }
     const waiting = enemies(world).filter((a) => alive(a) && !a.entering && !world.tokens.has(a.id) && a.state === 'free');
     expect(waiting.length).toBeGreaterThan(0);
     for (const a of waiting) {

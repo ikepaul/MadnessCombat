@@ -438,7 +438,10 @@ function stepVolley(world: World, a: Actor, s: BossState, v: Extract<BossAct, { 
     c.timer = CN.firstShot;
   }
   a.facing = c.facing;
-  if (p) c.aimZ = Math.max(c.z - CN.aimBand, Math.min(c.z + CN.aimBand, p.pos.z));
+  // M14b ENC-11: his volleys reach the whole depth (no safe strip at the front); wave B's cannoneer
+  // keeps the narrow band (src/sim/ai.ts cannonStep)
+  const band = TUNING.enc.bossAimBand;
+  if (p) c.aimZ = Math.max(world.room.zFront, Math.min(world.room.zBack, Math.max(c.z - band, Math.min(c.z + band, p.pos.z))));
   if ((c.shots ?? 0) > 0) return;
   s.act = { kind: 'recover', t: 0, time: 0.6 };
   s.cannonIn = CN.every;

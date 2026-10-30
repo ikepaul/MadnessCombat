@@ -41,7 +41,7 @@ function* wall(s: Seq, _entry: string): Beat {
     s.lockInput(false);
   }
   s.spawn('grunt', 'pistol', 0.7, 9.1, unaware({ idle: 'smoke', face: 1 }));
-  caption(s, 'A guard, smoking. Sneak up behind him and press E: with empty hands, the wire.', 6);
+  caption(s, 'A guard, smoking. Sneak up behind him and press {key:use}: with empty hands, the wire.', 6);
 }
 
 /** Room 2, the corner + ladder: one guard facing your way. Peek, suppressed head shot, climb. */
@@ -51,7 +51,7 @@ function* corner(s: Seq, _entry: string): Beat {
   const g = s.spawn('grunt', 'pistol', 1.7, 9.55, unaware({ face: -1 }));
   caption(s, 'The suppressed pistol (LMB). A head shot from here, and nobody hears a thing.');
   yield* s.until(() => dead(g) || g.ai?.aware !== false, 30);
-  caption(s, 'The ladder: stand at it and press E to climb.', 4);
+  caption(s, 'The ladder: stand at it and press {key:use} to climb.', 4);
 }
 
 /** Room 3, rooftop A: two SMG guards by a box. Slip behind it, lean out, head shots. */
@@ -72,7 +72,7 @@ function* roofB(s: Seq, _entry: string): Beat {
   // once the tracker's blip sits in the middle: the hint
   const b = world.room.breach!;
   yield* s.until(() => world.players.some((p) => p.pos.x > b.x0 - 0.6 && p.pos.x < b.x1 + 0.6), 90);
-  caption(s, "He's right below. Cook a grenade (G) over the marked spot, then step back.", 6);
+  caption(s, "He's right below. Cook a grenade ({key:grenade}) over the marked spot, then step back.", 6);
 }
 
 /** Office door waves (research/stages.md room 5): baton and pistol grunts from both doors, ~16. */
@@ -186,7 +186,7 @@ function* corridor(s: Seq, _entry: string): Beat {
   yield* s.waves(corridorShotguns());
   const squad = s.run(function* squad(q: Seq) { yield* q.waves(corridorSquad()); });
   yield* s.until(() => world.actors.some((a) => a.variant === 'riot'));
-  caption(s, 'He leads with the rifle. Get close and take it off him (F).', 5);
+  caption(s, 'He leads with the rifle. Get close and take it off him ({key:grab}).', 5);
   const riot = world.actors.find((a) => a.variant === 'riot')!;
   yield* s.until(() => dead(riot));
   yield S2.bossAfter;
@@ -218,7 +218,8 @@ export function* bossInterruption(s: Seq): Beat {
   if (target && alive(target)) {
     const dir = (target.pos.x >= boss.pos.x ? 1 : -1) as 1 | -1;
     world.events.emit('bossFling', { actorId: boss.id, targetId: target.id, dir, ...boss.pos });
-    world.hitActor(boss, target, 'fling', dir, 0, { x: target.pos.x, y: target.pos.y + 0.6, z: target.pos.z });
+    // ENC-17: the cameo's fling knocks you across the room but costs no life
+    world.hitActor(boss, target, 'fling', dir, 0, { x: target.pos.x, y: target.pos.y + 0.6, z: target.pos.z }, 'body', { scripted: true });
   }
   yield 0.6;
   boss.pose.push = 0;

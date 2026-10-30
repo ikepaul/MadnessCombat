@@ -50,7 +50,7 @@ function* outside(s: Seq, _entry: string): Beat {
   // two guards; one goes inside, the other stays out for a smoke
   const going = s.spawn('grunt', 'pistol', 1.6, 9.6, unaware({ face: 1 }));
   s.spawn('grunt', 'pistol', 0.6, 9.2, unaware({ idle: 'smoke', face: 1 }));
-  caption(s, 'Two knives. In through the vent at the far end of the wall (E).', 5);
+  caption(s, 'Two knives. In through the vent at the far end of the wall ({key:use}).', 5);
   yield 1.2;
   if (alive(going) && going.ai?.aware === false) {
     going.ai.role = 'welder'; // (scripted: his brain idles while he walks off)
@@ -90,7 +90,7 @@ function* tables(s: Seq, _entry: string): Beat {
   const flipper = s.spawn('grunt', 'rifle', 1.0, 10.2, { face: -1 });
   flipper.ai!.flipper = true;
   s.spawn('grunt', null, -0.2, 9.8, { face: -1 });
-  caption(s, 'A gun runs dry: press again to throw it. Get up on the table (Space) to fight from above.', 6);
+  caption(s, 'A gun runs dry: press again to throw it. Get up on the table ({key:jump}) to fight from above.', 6);
   yield* s.waves(tableWaves());
   yield* s.until(() => foesLeft(world) === 0);
   world.openDoor(1);
@@ -150,7 +150,8 @@ function* camera(s: Seq, _entry: string): Beat {
   // the jetpack mini-boss rises out of the void with a machine gun
   for (const p of world.activePlayers) for (const k of [0, 1]) s.drop('pistol', Math.min(3.2, p.pos.x + 0.5 + k * 0.4), p.pos.z, 2.4);
   const boss = jetpackBoss(s, -2.4, 9.2);
-  caption(s, 'Over the drop, a machine gun. Get behind the crate, or grab one of them as a shield (pistol in the back hand, F).', 6);
+  // M14b ENC-13: the crate doesn't cover you from above (he fires down over it); lying flat does
+  caption(s, 'Over the drop, a machine gun. Down! {key:dive}: lie flat under his fire, or hold one of them as a shield (pistol in the back hand, {key:grab}).', 6);
   s.run(function* more(q: Seq) {
     for (let i = 0; i < 2; i++) { const a = q.spawn('grunt', null, 3.4, 8.8 + i * 0.6, { face: -1 }); flyIn(world, a, 1); yield 2.5; }
   });
@@ -251,7 +252,7 @@ function* street(s: Seq, _entry: string): Beat {
   const brute = s.spawn('grunt', null, v.x, v.z - 0.05, { face: -1 });
   brute.variant = 'vending';
   brute.hp = brute.maxHp = bossHp(world, TUNING.brute.hp);
-  caption(s, 'The vending machine is getting up. The street sign has reach: pull it out (E).', 5);
+  caption(s, 'The vending machine is getting up. The street sign has reach: pull it out ({key:use}).', 5);
   yield* s.until(() => dead(brute));
 
   // the mini-boss drops in with a scimitar: only pinning him to the tank finishes him

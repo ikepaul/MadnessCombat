@@ -244,6 +244,14 @@ export interface GameEvents {
    * i-frames, or a body held up as a shield (drawn as a flash + soft thud, no hit-stop).
    */
   hitAbsorbed: { actorId: number; x: number; y: number; z: number; reason: 'mercy' | 'getUp' | 'shield' };
+  /** M14b CMB-07: a grunt stomps a prone player: the drawn tell starts, then the stamp lands (`hit`) or finds nothing (`miss`). */
+  stomp: At & { targetId: number; phase: 'tell' | 'hit' | 'miss' };
+  /**
+   * M14b ENC-21 / STB-14: point the players at an exit: it just opened, or (`again`) the room has
+   * been quiet for TUNING.enc.stuckHint s. `side` = the screen edge to point at (0 = in the room,
+   * at x, z); `seconds` = how long the arrow shows. The HUD draws the arrow; the sting is audio's.
+   */
+  exitCue: { exit: string; kind: string; side: -1 | 0 | 1; x: number; z: number; seconds: number; again: boolean };
 }
 
 export type HitKind =

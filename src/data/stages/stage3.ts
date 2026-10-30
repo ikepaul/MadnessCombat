@@ -3,7 +3,7 @@
 // improbability mode starts and the floor falls away), and the clock-sky toy street (signed off
 // 2026-10-27). The street's far end leads on to the desert (M12), which ends the stage for now.
 import type { RoomDef } from '../../sim/room';
-import type { StageDef } from '../../sim/stage';
+import { exitTracker, type StageDef } from '../../sim/stage';
 import { newHand } from '../../sim/actor';
 import { stage3Scripts } from './stage3Script';
 
@@ -84,18 +84,22 @@ export const STAGE3: StageDef = {
       // a vent grille low in the wall (the old one is boarded over)
       exits: [{ id: 'vent', kind: 'vent', x0: 2.3, x1: 3.2, z0: 9.9, z1: 10.4, to: 'vent', entry: 'vent' }],
       script: stage3Scripts.outside,
+      // M14b ENC-21: stage 3 has a tracker too: it points at the way on
+      tracker: exitTracker,
     },
     vent: {
       room: VENT_ROOM,
       entries: { vent: { x: -1.1, z: 9.2, facing: 1, from: 'above' } },
       exits: [{ id: 'east-door', kind: 'door', x0: 3.25, x1: 9, z0: 8.55, z1: 9.4, to: 'tables', entry: 'west', locked: true }],
       script: stage3Scripts.vent,
+      tracker: exitTracker,
     },
     tables: {
       room: TABLES,
       entries: { west: { x: -3.0, z: 9.0, facing: 1, from: 'walk' } },
       exits: [{ id: 'east-door', kind: 'door', x0: 3.25, x1: 9, z0: 8.55, z1: 9.4, to: 'camera', entry: 'west', locked: true }],
       script: stage3Scripts.tables,
+      tracker: exitTracker,
     },
     camera: {
       room: CAMERA,
@@ -111,6 +115,7 @@ export const STAGE3: StageDef = {
       entries: { sky: { x: 0.2, z: 9.2, facing: 1, from: 'sky' } },
       exits: [{ id: 'desert', kind: 'edge', ...EAST, to: 'desert', entry: 'west', locked: true }],
       script: stage3Scripts.street,
+      tracker: exitTracker,
       rules: { physics: 'improbable', flags: ['axeThrows'] },
     },
     desert: {
@@ -126,6 +131,7 @@ export const STAGE3: StageDef = {
       entries: { hole: { x: -2.9, z: 9.2, facing: 1, from: 'thrown' } },
       exits: [{ id: 'east-door', kind: 'door', x0: 3.25, x1: 9, z0: 8.55, z1: 9.4, to: 'console', entry: 'west', locked: true }],
       script: stage3Scripts.vending,
+      tracker: exitTracker,
       rules: { flags: ['axeThrows'] },
     },
     console: {
@@ -133,6 +139,7 @@ export const STAGE3: StageDef = {
       entries: { west: { x: -2.9, z: 9.0, facing: 1, from: 'walk' } },
       exits: [{ id: 'east-door', kind: 'door', x0: 3.25, x1: 9, z0: 8.55, z1: 9.4, to: 'lift', entry: 'west', locked: true }],
       script: stage3Scripts.console,
+      tracker: exitTracker,
       rules: { flags: ['axeThrows'] },
     },
     lift: {

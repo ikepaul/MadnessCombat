@@ -248,8 +248,15 @@ export class World {
     return this.actors.find((a) => a.id === id);
   }
 
-  hitActor(by: Actor | undefined, target: Actor, kind: HitKind, dirX: number, dirZ: number, at: Vec3, part: 'head' | 'body' = 'body'): void {
-    applyHit(this, by, target, kind, dirX, dirZ, at, part);
+  /**
+   * `scripted` (M14b ENC-17): a teaching or cutscene hit (the boss's flings) knocks down as usual
+   * but costs no life or hp. The scripted kills (the sword dive, the stab) don't pass it.
+   */
+  hitActor(by: Actor | undefined, target: Actor, kind: HitKind, dirX: number, dirZ: number, at: Vec3, part: 'head' | 'body' = 'body', opts?: { scripted?: boolean }): void {
+    const shield = !!opts?.scripted && !TUNING.enc.scriptedHitsHurt;
+    const was = target.protected;
+    if (shield) target.protected = true;
+    try { applyHit(this, by, target, kind, dirX, dirZ, at, part); } finally { if (shield) target.protected = was; }
   }
 
   /** A bullet hit from `by` (src/sim/guns.ts): weapon damage, flinch or kill, blood. */
