@@ -10,6 +10,8 @@ export interface MenuItem {
   action?: () => void;
   /** Left / right on this row (a volume, a toggle). */
   adjust?: (dir: -1 | 1) => void;
+  /** The cursor left this row (UXS-09: a confirm row disarms). */
+  leave?: () => void;
 }
 
 const RED = '#c70f1b', WHITE = '#f2f2f3', GREY = '#5b5c61';
@@ -19,8 +21,10 @@ export class Menu {
   private marker: Phaser.GameObjects.Text;
   private index = 0;
   private offs: (() => void)[] = [];
-  /** While true the menu ignores keys (a key rebind is listening). */
-  hold = false;
+  private held = false;
+  /** While true the menu ignores keys (a key rebind is listening); releasing it redraws the rows. */
+  get hold(): boolean { return this.held; }
+  set hold(on: boolean) { this.held = on; if (!on) this.refresh(); }
   /** An action may replace this menu with another one: nothing runs on it after that. */
   private destroyed = false;
 
@@ -28,10 +32,10 @@ export class Menu {
     items.forEach((it, i) => {
       const t = scene.add.text(x, y + i * gap, '', { fontFamily: 'Anton', fontSize: `${size}px`, color: WHITE }).setOrigin(0, 0.5).setDepth(200);
       t.setInteractive({ useHandCursor: true });
-      t.on('pointerover', () => { if (!it.disabled) { this.index = i; this.refresh(); } });
+      t.on('pointerover', () => { if (!it.disabled) { this.select(i); this.refresh(); } });
       t.on('pointerdown', (p: Phaser.Input.Pointer) => {
         if (it.disabled || this.hold || this.destroyed) return;
-        this.index = i;
+        this.select(i);
         if (it.adjust) it.adjust(p.x > t.x + t.width * 0.6 ? 1 : -1);
         else it.action?.();
         this.refresh();
@@ -58,12 +62,20 @@ export class Menu {
     this.refresh();
   }
 
+  /** Move the cursor to row `i`; the row it leaves hears about it. */
+  private select(i: number): void {
+    if (i !== this.index) this.items[this.index]?.leave?.();
+    this.index = i;
+  }
+
   private move(d: number): void {
     const n = this.items.length;
+    let i = this.index;
     for (let k = 0; k < n; k++) {
-      this.index = (this.index + d + n) % n;
-      if (!this.items[this.index].disabled) break;
+      i = (i + d + n) % n;
+      if (!this.items[i].disabled) break;
     }
+    this.select(i);
     this.refresh();
   }
 

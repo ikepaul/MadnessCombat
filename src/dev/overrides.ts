@@ -44,3 +44,12 @@ export function applyOverrides(name: string, root: object): void {
     if (head === name) setPath(root, path, v);
   }
 }
+
+/**
+ * M14b (UXS-25): the HUD tag while F6 overrides are in force ("TUNED · 3"), so a playtest never
+ * runs on numbers that aren't in the repo without saying so. Empty without overrides.
+ */
+export function tunedTag(o: Record<string, number> = loadOverrides()): string {
+  const n = Object.keys(o).length;
+  return n > 0 ? `TUNED · ${n}` : '';
+}

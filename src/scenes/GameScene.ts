@@ -5,21 +5,6 @@ import { PALETTES, type PaletteId, paletteStage, STAGE_BLOOD, STAGE_PALETTE } fr
 import { TEST_ROOM } from '../data/rooms/testRoom';
 import { bindDebugKeys } from '../input/debugKeys';
 import { PlayerInput } from '../input/playerInput';
-import '../labs/aiLabs';
-import '../labs/bossLabs';
-import '../labs/hazardLabs';
-import '../labs/enemyLabs';
-import '../labs/stage2Labs';
-import '../labs/stage3Labs';
-import '../labs/gunLabs';
-import '../labs/meleeLabs';
-import '../labs/throwLabs';
-import '../labs/movementLabs';
-import '../labs/comboLabs';
-import '../labs/qolLabs';
-import '../labs/coopLabs';
-import '../labs/rageLabs';
-import '../labs/stage4Labs';
 import { getLab, type Lab } from '../labs/registry';
 import { CanvasLayer } from '../render/canvasLayer';
 import { paintBall, paintCannon } from '../render/canvas/cannonPainter';
@@ -63,6 +48,8 @@ import { BoomboxSource } from '../audio/boombox';
 import { FeelDirector } from '../feel/feel';
 import { FeelFx } from '../render/feelFx';
 import { inkWipe } from '../ui/transition';
+import { EndCardGate } from '../ui/endCard';
+import { edgeCounts, pauseOnBlur } from '../ui/focus';
 import { effectLevel, SETTINGS, toggleMute } from '../settings';
 import { LAST_STAGE, resumePoint, saveCheckpoint, stageFinished } from '../progress';
 import { debugEnabled } from '../input/debugKeys';
@@ -116,6 +103,9 @@ const activeEnemies = (w: World) => w.actors.filter((a) => a.ai && a.state !== '
 const RESTART_DELAY = 2;
 /** UXS-14: after this long dead, any action key restarts at once (s). invented */
 const RESTART_SKIP = 0.8;
+/** Real seconds (UXS-13's end card, UXS-15's focus guard). */
+const realNow = () => performance.now() / 1000;
+
 /** UXS-07: player 2 goes idle when no input has come from his laptop for this long (s). invented */
 const GUEST_SILENCE = 0.25;
 
@@ -160,6 +150,10 @@ export class GameScene extends Phaser.Scene {
   stageInfo?: { stage: number; room: string; targetBodyCount: number };
   /** Set when the room's wave script is done: the HUD shows the body-count card. */
   cleared = false;
+  /** UXS-15: when the window last got focus back (real seconds). */
+  private focusAt = -Infinity;
+  /** UXS-13: the end card's deaf time and the replay hold. */
+  endCard = new EndCardGate();
   /** Which player this laptop controls (0 = single player / host, 1 = co-op guest). */
   localPlayer = 0;
   /** M19: how far the stopped world is dimmed (0..1, eases in and out). */
@@ -194,6 +188,7 @@ export class GameScene extends Phaser.Scene {
     this.hostPaused = false;
     this.sentPaused = false;
     this.cleared = false;
+    this.endCard = new EndCardGate();
     this.leaving = false;
     this.stageInfo = undefined;
     this.coop = data.coop;
@@ -217,7 +212,7 @@ export class GameScene extends Phaser.Scene {
     // let the last body land before the end card; a finished stage unlocks the next (M13)
     this.world.events.on('roomCleared', () => {
       if (this.stageInfo && !this.lab && !data.testRoom && data.coop !== 'guest') stageFinished(this.stageInfo.stage);
-      this.time.delayedCall(1500, () => (this.cleared = true));
+      this.time.delayedCall(1500, () => { this.cleared = true; this.endCard.show(realNow()); });
     });
 
     this.roomLayer = new CanvasLayer(this, 'layer-room', 0);
@@ -297,7 +292,7 @@ export class GameScene extends Phaser.Scene {
     });
     // end card: Enter goes on to the next stage (after the last one: the credits), R replays this one, Esc to the title
     this.input.keyboard?.on('keydown-ENTER', () => {
-      if (!this.cleared || !host || this.lab) return;
+      if (!this.cleared || !host || this.lab || !this.endCard.ready(realNow())) return;
       const next = this.nextStage;
       if (next) this.scene.restart({ stage: next, coop: this.data_.coop, resume: false });
       else if (this.stageInfo?.stage === LAST_STAGE && !this.data_.coop) this.toTitle('credits');
@@ -305,11 +300,14 @@ export class GameScene extends Phaser.Scene {
     });
     // M18 co-op labs: N hands the partner bot its half of the move
     this.input.keyboard?.on('keydown-N', () => { if (this.lab?.partnerTask) this.bot.cued = true; });
-    this.input.keyboard?.on('keydown-R', () => { if (this.cleared && host) this.scene.restart({ ...this.data_, resume: false }); });
+    // UXS-13: replay is "hold R" (a reflex reload tap after the last kill keeps the card)
+    this.input.keyboard?.on('keydown-R', (e: KeyboardEvent) => { if (this.cleared && host && !e.repeat) this.endCard.pressR(realNow()); });
+    this.input.keyboard?.on('keyup-R', () => this.endCard.releaseR());
     // M13: Esc pauses (the pause menu), or leaves the end card for the title screen
     this.input.keyboard?.on('keydown-ESC', (e: KeyboardEvent) => {
       // UXS-06: the co-op end card and a guest whose host left go to the title too
-      if (this.cleared || this.hostLeft) { this.toTitle(); return; }
+      if (this.hostLeft) { this.toTitle(); return; }
+      if (this.cleared) { if (this.endCard.ready(realNow())) this.toTitle(); return; }
       (this.scene.get('ui') as UIScene).openPause(e);
     });
     // CMB-01: closing the tab (Ctrl + W, a stray click) while a stage runs asks first
@@ -318,6 +316,17 @@ export class GameScene extends Phaser.Scene {
       window.addEventListener('beforeunload', unload);
       this.events.once('shutdown', () => window.removeEventListener('beforeunload', unload));
     }
+    // UXS-15: single player pauses when the window loses focus (not while dead: that only stalls
+    // the restart), and the click that brings focus back doesn't skip the death wait
+    const blurPause = () => {
+      const w = this.world;
+      const dead = w.players.length > 0 && w.activePlayers.length === 0;
+      if (pauseOnBlur({ coop: this.coop, dev: !!this.lab || !!data.testRoom, menuOpen: this.menuOpen, cleared: this.cleared, dead })) (this.scene.get('ui') as UIScene).openPause();
+    };
+    const focus = () => (this.focusAt = realNow());
+    window.addEventListener('blur', blurPause);
+    window.addEventListener('focus', focus);
+    this.events.once('shutdown', () => { window.removeEventListener('blur', blurPause); window.removeEventListener('focus', focus); });
     // UXS-07: the guest's tab losing focus leaves player 2 standing, not running on
     if (data.coop === 'guest') {
       const blur = () => this.link?.sendInput(IDLE_COMMAND);
@@ -329,6 +338,8 @@ export class GameScene extends Phaser.Scene {
 
   /** UXS-05: the pause menu closed: keys pressed in it never reach the game. */
   pauseClosed(): void {
+    // CMB-17 / UXS-10: keys rebound in the pause menu apply now, not on the next room
+    if (this.input_.boundKeys !== JSON.stringify(SETTINGS.keys)) { this.input_.destroy(); this.input_ = new PlayerInput(this); }
     this.input_.consumeEdges();
     this.world.command = clearEdges(this.world.command);
     this.world.players.forEach(clearInputBuffer); // M14b CMB-08
@@ -573,6 +584,7 @@ export class GameScene extends Phaser.Scene {
       boombox?.update();
       return;
     }
+    if (this.cleared && this.endCard.replayDue(realNow())) { this.scene.restart({ ...this.data_, resume: false }); return; }
     this.world.friendlyThrow = SETTINGS.friendlyFire;
     this.world.difficulty = SETTINGS.difficulty;
     // M18: the wishbone tears only where the stage shows blood
@@ -590,7 +602,7 @@ export class GameScene extends Phaser.Scene {
       this.lab?.step?.(this.world);
     });
     if (steps > 0 || hasEdges(this.world.command)) this.input_.consumeEdges();
-    this.watchPlayerDeath(delta / 1000, !!frame && hasEdges(frame));
+    this.watchPlayerDeath(delta / 1000, !!frame && hasEdges(frame) && edgeCounts(realNow() - this.focusAt));
     this.render();
     if (!this.clock.halted) this.post.update();
     if (this.snaps) {

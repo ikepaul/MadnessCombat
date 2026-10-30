@@ -64,8 +64,8 @@ export class InkHud {
     }
     this.glyph = scene.add.graphics().setDepth(80);
     this.glyphText = scene.add.text(0, 0, '', { fontFamily: 'Anton', fontSize: '30px', color: INK }).setOrigin(0.5).setDepth(81);
-    this.glyphVerb = scene.add.text(0, 0, '', { fontFamily: 'Anton', fontSize: '24px', color: '#ffffff', stroke: INK, strokeThickness: 6 }).setOrigin(0, 0.5).setDepth(81);
-    this.glyphNote = scene.add.text(0, 0, '', { fontFamily: 'Anton', fontSize: '22px', color: '#ffffff', stroke: INK, strokeThickness: 6 }).setOrigin(0, 0.5).setDepth(81).setVisible(false);
+    this.glyphVerb = scene.add.text(0, 0, '', { fontFamily: 'Anton', fontSize: '26px', color: '#ffffff', stroke: INK, strokeThickness: 6 }).setOrigin(0, 0.5).setDepth(81);
+    this.glyphNote = scene.add.text(0, 0, '', { fontFamily: 'Anton', fontSize: '26px', color: '#ffffff', stroke: INK, strokeThickness: 6 }).setOrigin(0, 0.5).setDepth(81).setVisible(false);
     for (let i = 0; i < 4; i++) this.promptIcons.push(scene.add.image(0, 0, '__DEFAULT').setOrigin(0, 0.5).setDepth(81).setVisible(false));
     scene.events.once('shutdown', () => {
       if (this.heart !== undefined) audio()?.stop(this.heart, 0.3);

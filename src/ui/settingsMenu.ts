@@ -3,15 +3,18 @@
 import Phaser from 'phaser';
 import { audio } from '../audio/mixer';
 import { resetProgress } from '../progress';
-import { type Action, ACTION_LABELS, DEFAULT_KEYS, FRIENDLY_FIRE_LABELS, type FriendlyFire, keyText, RISKY_KEYS, SETTINGS, saveSettings } from '../settings';
+import { debugEnabled } from '../input/debugKeys';
+import { type Action, ACTION_LABELS, bindKey, DEFAULT_KEYS, FRIENDLY_FIRE_LABELS, type FriendlyFire, keyText, RISKY_KEYS, SETTINGS, saveSettings } from '../settings';
 import { DIFFICULTIES, DIFFICULTY_LABELS } from '../sim/difficulty';
+import { confirmItem } from './confirm';
 import type { MenuItem } from './menu';
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 const step = (v: number, d: number) => Math.max(0, Math.min(1, Math.round((v + d * 0.1) * 10) / 10));
 const apply = () => { saveSettings(); audio()?.applySettings(); };
 
-export function settingsItems(onControls: () => void, onBack: () => void): MenuItem[] {
+/** `inPause`: the pause menu's copy, without Reset progress (UXS-09). */
+export function settingsItems(onControls: () => void, onBack: () => void, inPause = false): MenuItem[] {
   const vol = (name: string, k: 'master' | 'music' | 'sfx'): MenuItem => ({
     label: () => `${name}   ◀ ${pct(SETTINGS[k])} ▶`,
     adjust: (d) => { SETTINGS[k] = step(SETTINGS[k], d); apply(); },
@@ -35,7 +38,8 @@ export function settingsItems(onControls: () => void, onBack: () => void): MenuI
     { label: () => `Thrown weapons hit your ally   ◀ ${FRIENDLY_FIRE_LABELS[SETTINGS.friendlyFire]} ▶`, action: () => cycleFriendly(1), adjust: (d) => cycleFriendly(d) },
     { label: () => `Co-op move hints   ◀ ${SETTINGS.coopHints ? 'on' : 'off'} ▶`, action: () => { SETTINGS.coopHints = !SETTINGS.coopHints; apply(); }, adjust: () => { SETTINGS.coopHints = !SETTINGS.coopHints; apply(); } },
     { label: 'Controls', action: onControls },
-    { label: () => 'Reset progress', action: () => resetProgress() },
+    // UXS-09: two presses, and only on the title screen
+    ...(inPause ? [] : [confirmItem('Reset progress', resetProgress, 'Progress reset')]),
     { label: 'Back', action: onBack },
   ];
 }
@@ -49,15 +53,30 @@ function keyName(e: KeyboardEvent): string | undefined {
 /** One row per action: Enter, then press the new key (Esc cancels). Plus "Defaults" and "Back". */
 export function controlsItems(scene: Phaser.Scene, listening: (on: boolean) => void, onBack: () => void): MenuItem[] {
   let waiting: Action | undefined;
+  // CMB-17 / UXS-10: what the last rebind did ("swapped with Jump", "F1 is reserved"), on that row
+  let note: { action: Action; text: string } | undefined;
   const rows: MenuItem[] = (Object.keys(ACTION_LABELS) as Action[]).map((a) => ({
     // CMB-01: Ctrl (Alt, Meta) can be bound, with a warning: Ctrl + W closes the tab mid-fight
-    label: () => `${ACTION_LABELS[a]}   ${waiting === a ? 'press a key…' : keyText(SETTINGS.keys[a])}${waiting !== a && RISKY_KEYS.includes(SETTINGS.keys[a]) ? '   ⚠ with W / Tab it can close or switch the tab' : ''}`,
+    label: () => {
+      if (waiting === a) return `${ACTION_LABELS[a]}   press a key…`;
+      const risky = RISKY_KEYS.includes(SETTINGS.keys[a]) ? '   ⚠ with W / Tab it can close or switch the tab' : '';
+      return `${ACTION_LABELS[a]}   ${keyText(SETTINGS.keys[a])}${note?.action === a && note.text ? `   ${note.text}` : risky}`;
+    },
     action: () => {
       waiting = a;
+      note = undefined;
       listening(true);
-      scene.input.keyboard!.once('keydown', (e: KeyboardEvent) => {
+      // the Enter that started listening can still arrive (Phaser queues key events): wait for a newer press
+      const armedAt = performance.now();
+      const kb = scene.input.keyboard!;
+      kb.on('keydown', function onKey(e: KeyboardEvent) {
+        if (e.timeStamp < armedAt) return;
+        kb.off('keydown', onKey);
         const n = keyName(e);
-        if (n && n !== 'ESC') { SETTINGS.keys[a] = n; saveSettings(); }
+        if (n && n !== 'ESC') {
+          const r = bindKey(a, n, debugEnabled());
+          note = { action: a, text: r.ok ? (r.swapped ? `⇄ swapped with ${ACTION_LABELS[r.swapped]}` : '') : `✕ ${r.reason}` };
+        }
         waiting = undefined;
         // let this key press finish before the menu listens again
         scene.time.delayedCall(50, () => listening(false));
@@ -66,7 +85,8 @@ export function controlsItems(scene: Phaser.Scene, listening: (on: boolean) => v
   }));
   return [
     ...rows,
-    { label: 'Defaults', action: () => { SETTINGS.keys = { ...DEFAULT_KEYS }; saveSettings(); } },
-    { label: 'Back (applies on the next room)', action: onBack },
+    { label: 'Defaults', action: () => { SETTINGS.keys = { ...DEFAULT_KEYS }; note = undefined; saveSettings(); } },
+    // CMB-17: the pause menu rebuilds the keys when it closes
+    { label: 'Back', action: onBack },
   ];
 }

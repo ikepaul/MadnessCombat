@@ -144,3 +144,27 @@ export const RISKY_KEYS = ['CTRL', 'ALT', 'META'];
 export function effectLevel(): EffectIntensity {
   return SETTINGS.reducedMotion ? 'off' : SETTINGS.effects;
 }
+
+/**
+ * M14b (CMB-17 / UXS-10): keys an action can never take: F1-F12 (debug, browser), Esc (pause),
+ * Enter (menus, end card), M (mute, always on).
+ */
+export const RESERVED_KEYS = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12', 'ESC', 'ENTER', 'M'];
+/** The debug set (src/input/debugKeys.ts): refused too while the debug keys are live (dev builds, `?debug`). */
+export const DEBUG_KEYS = ['PERIOD', 'ONE', 'TWO', 'THREE', 'P', 'K', 'L', 'Z'];
+
+export type BindResult = { ok: true; swapped?: Action } | { ok: false; reason: string };
+
+/**
+ * M14b (CMB-17 / UXS-10): bind `key` to `action`. A key another action uses swaps the two (so no
+ * key ever does two things); reserved keys (and the debug keys while they're live) are refused.
+ */
+export function bindKey(action: Action, key: string, debugLive = false): BindResult {
+  if (RESERVED_KEYS.includes(key) || (debugLive && DEBUG_KEYS.includes(key))) return { ok: false, reason: `${keyText(key)} is reserved` };
+  const keys = SETTINGS.keys;
+  const other = (Object.keys(keys) as Action[]).find((a) => a !== action && keys[a] === key);
+  if (other) keys[other] = keys[action];
+  keys[action] = key;
+  saveSettings();
+  return other ? { ok: true, swapped: other } : { ok: true };
+}

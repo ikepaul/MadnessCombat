@@ -4,12 +4,12 @@ import { type Action, SETTINGS } from '../settings';
 
 /**
  * Keyboard + mouse -> PlayerCommand (PLAN.md controls): WASD move (W/S = depth), Space jump,
- * C dive/prone (M14b: the default moved off Ctrl; bound to Ctrl, C stays a second key) and get up, mouse aim, LMB / RMB use the front / back hand (fire,
+ * C dive/prone (M14b: the default moved off Ctrl; no second dive key, CMB-17) and get up, mouse aim, LMB / RMB use the front / back hand (fire,
  * or punch when empty: light / heavy, uppercut when aimed steeply up), F grab / throw,
  * E pick up / pull out, R reload, Q throw the held weapon, G (hold) cook a grenade and release
  * to lob it, Shift (hold) split aim. Edges are latched until
  * the sim consumes them, so a press between ticks is never lost. M13: the keys come from the
- * settings (rebindable); C stays a second dive key while dive is on its default.
+ * settings (rebindable); `destroy()` lets the scene rebuild it after a rebind (CMB-17).
  */
 export class PlayerInput {
   private keys: Record<Action, Phaser.Input.Keyboard.Key>;
@@ -34,7 +34,6 @@ export class PlayerInput {
     this.keys = Object.fromEntries((Object.keys(SETTINGS.keys) as Action[]).map((a) => [a, key(a)])) as Record<Action, Phaser.Input.Keyboard.Key>;
     this.keys.jump.on('down', () => (this.jumpLatch = true));
     this.keys.dive.on('down', () => (this.diveLatch = true));
-    if (SETTINGS.keys.dive === 'CTRL') kb.addKey(K.C).on('down', () => (this.diveLatch = true));
     this.keys.grab.on('down', () => (this.grabLatch = true));
     this.keys.use.on('down', () => (this.pickupLatch = true));
     this.keys.reload.on('down', () => (this.reloadLatch = true));
@@ -42,12 +41,26 @@ export class PlayerInput {
     this.keys.fireMode.on('down', () => (this.modeLatch = true));
     this.keys.rage.on('down', () => (this.rageLatch = true));
     scene.input.mouse?.disableContextMenu();
-    scene.input.on('pointermove', () => (this.aimActive = true));
-    scene.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      this.aimActive = true;
-      if (p.button === 0) { this.attackLatch = 'light'; this.pressLatch[0] = true; }
-      else if (p.button === 2) { this.attackLatch = 'heavy'; this.pressLatch[1] = true; }
-    });
+    scene.input.on('pointermove', this.onMove);
+    scene.input.on('pointerdown', this.onDown);
+  }
+
+  private onMove = () => (this.aimActive = true);
+  private onDown = (p: Phaser.Input.Pointer) => {
+    this.aimActive = true;
+    if (p.button === 0) { this.attackLatch = 'light'; this.pressLatch[0] = true; }
+    else if (p.button === 2) { this.attackLatch = 'heavy'; this.pressLatch[1] = true; }
+  };
+
+  /** CMB-17: the keys this was built with (rebuild when the settings differ). */
+  readonly boundKeys = JSON.stringify(SETTINGS.keys);
+
+  /** CMB-17: drop the keys and pointer listeners (the scene builds a new one after a rebind). */
+  destroy(): void {
+    const kb = this.scene.input.keyboard;
+    for (const k of Object.values(this.keys)) { k.removeAllListeners(); kb?.removeKey(k); }
+    this.scene.input.off('pointermove', this.onMove);
+    this.scene.input.off('pointerdown', this.onDown);
   }
 
   /** Build this frame's command; latched edges are handed over once. */
