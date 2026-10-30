@@ -222,7 +222,7 @@ const LEVELS: Difficulty[] = ['noob', 'pro', 'hacker', 'notch'];
  */
 function stage2Room(room: keyof typeof STAGE2.rooms, d: Difficulty, seed: number, init: (world: World) => void, each: (world: World, hero: Actor) => Partial<PlayerCommand> | true) {
   const world = new World(STAGE2.rooms[room].room);
-  (world as unknown as { seed: number }).seed = seed;
+  world.attempt = seed; // STB-08: room stages reseed on entry
   world.difficulty = d;
   const hero = createActor('hero', 0, 9.2, 1);
   world.addPlayer(hero);

@@ -431,11 +431,16 @@ function downedTarget(world: World, a: Actor): Actor | undefined {
 }
 
 function downedInReach(world: World, a: Actor): boolean {
-  return downedTarget(world, a) !== undefined;
+  // CMB-12: only a living downed body turns a punch into the planted finisher (a corpse at your
+  // feet no longer roots a whiffed jab)
+  const o = downedTarget(world, a);
+  return !!o && alive(o);
 }
 
 function stepAttack(world: World, a: Actor): void {
-  const atk = a.attack!;
+  const atk = a.attack;
+  // STB-01: an 'attack' state with no attack left (a cleared swing) falls back to free
+  if (!atk) { enter(a, 'free'); return; }
   atk.t += world.dt;
   const tm = attackTiming(atk.kind, atk.weapon);
   snapStep(world, a, tm.startup);
@@ -550,7 +555,8 @@ export function applyHit(
   let damage = corpse || base <= 0 || (o.protected && kind !== 'pin') ? 0 : o.kind === 'hero' ? 1 : o.kind === 'zombie' ? zombieDamage(kind, base)
     // M11 the brute (~6 melee hits): every blow is one, bullets half, explosions three
     : o.variant === 'vending' ? (base >= 99 ? (kind === 'blast' ? 3 : o.hp) : kind === 'bullet' ? 0.5 : 1)
-    : o.variant === 'bodyguard' ? (part === 'head' || base >= 99 ? o.hp : 1)
+    // CMB-05: the bodyguard's one-hit head rule is for aimed or thrown hits (bullet, gun, knife), not punches
+    : o.variant === 'bodyguard' ? ((part === 'head' && (kind === 'bullet' || kind === 'gun' || kind === 'knife')) || base >= 99 ? o.hp : 1)
     : o.variant === 'agent' ? agentDamage(o, kind, base, combo) : base + (combo ? C_.bonus : 0);
   // the launcher sends him up alive; jabs only keep him up (the heavy that follows finishes it)
   if (launcher) damage = J.launchDamage;
@@ -586,7 +592,8 @@ export function applyHit(
   if (o.holding) releaseHeld(world, o);
   if (o.grabbedBy !== undefined) releaseFrom(world, o);
 
-  if (killed && o.kind === 'hero' && world.activePlayers.some((p) => p !== o)) {
+  // STB-04: a partner gone ahead through a co-op exit (parked) still counts as standing
+  if (killed && o.kind === 'hero' && world.players.some((p) => p !== o && (world.activePlayers.includes(p) || (!!p.parked && alive(p))))) {
     // co-op: out of lives with a teammate still standing -> knocked down into a revive circle
     o.goingDown = true;
     knockDown(world, o, kind === 'light' || kind === 'head' ? 'heavy' : kind, dirX, dirZ);
@@ -628,8 +635,9 @@ export function applyHit(
   }
   // M11: the hovering jetpack and the vending-machine brute don't go down: a flinch, nothing more
   if (o.hover !== undefined || o.variant === 'vending') {
-    if (o.state === 'attack' && o.hover !== undefined) o.attack = undefined;
-    if (o.state !== 'attack') { o.state = 'stun'; o.stateT = 0; o.stunFor = 0.12; }
+    // STB-01 / ENC-01: his attack was cleared above, so never stay in 'attack' without one
+    o.attack = undefined;
+    o.state = 'stun'; o.stateT = 0; o.stunFor = 0.12;
     o.pose.lean = -0.2;
     return;
   }

@@ -235,7 +235,8 @@ function* crates(s: Seq, _entry: string): Beat {
   const world = s.world;
   // dug in behind the crate, facing the lift
   const dug = [[2.45, 9.25], [2.9, 9.6], [3.2, 9.05]].map(([x, z], i) => s.spawn('grunt', i === 1 ? 'rifle' : 'pistol', x, z, { face: -1 }));
-  for (const g of dug) { g.ai!.keep = Math.abs(g.pos.x + 3) ; g.ai!.waitZ = g.pos.z; }
+  // ENC-14: they hold their spots (ai.hold) until flanked through the vent or rushed
+  for (const g of dug) g.ai!.hold = { x: g.pos.x, z: g.pos.z, face: -1 };
   caption(s, 'Dug in behind the crate. Back off, or go round: the vent overhead (E under it).', 6);
   yield* s.until(() => dug.every(dead), 90);
   caption(s, 'Behind you!', 2);

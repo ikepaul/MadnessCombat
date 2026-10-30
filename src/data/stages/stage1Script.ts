@@ -252,10 +252,23 @@ export function* ending(s: Seq) {
   if (!carrying() && !world.items.some((it) => it.kind === 'boombox')) {
     world.spawnItem('boombox', 'grunt', { x: INTRO.boombox.x, y: 0.4, z: INTRO.boombox.z }, { x: 0, y: 1, z: 0 }, 0);
   }
-  for (const it of world.items) if (it.kind === 'boombox') it.locked = false;
+  for (const it of world.items) {
+    if (it.kind !== 'boombox') continue;
+    it.locked = false;
+    // ENC-15: the boss's cannon (or any solid prop) landed on it: out to the nearest free floor spot
+    const spot = freeFloorSpot(world, it.pos.x, it.pos.z);
+    if (spot.x !== it.pos.x || spot.z !== it.pos.z) { it.pos = { x: spot.x, y: 0, z: spot.z }; it.vel = { x: 0, y: 0, z: 0 }; it.state = 'floor'; }
+  }
+  // ENC-15: the tracker points at it until someone carries it
+  world.tracker = (w) => {
+    const p = w.player, box = w.items.find((i) => i.kind === 'boombox');
+    if (!p || !box) return [0, 0];
+    return [Math.max(-1, Math.min(1, (box.pos.x - p.pos.x) / 3)), Math.max(-1, Math.min(1, (box.pos.z - p.pos.z) / 1.5))];
+  };
   const caption = s.run(function* caption(q: Seq) { yield* q.card('Quiet again. Go and get the music.', 5, 'caption'); });
   yield* s.until(() => !!carrying(), ENDING.waitPickup);
   caption.cancel();
+  world.tracker = undefined;
   if (carrying()) {
     // the dance: everyone still standing joins in
     s.music('outro');
@@ -263,6 +276,24 @@ export function* ending(s: Seq) {
     for (const p of world.activePlayers) p.pose.dancing = true;
     yield ENDING.dance;
   }
+}
+
+/** ENC-15: (x, z) if no solid prop stands on it, else the nearest floor point just clear of the props. */
+export function freeFloorSpot(world: World, x: number, z: number): { x: number; z: number } {
+  const room = world.room, m = TUNING.move.radius + 0.1, hw = room.halfWidth - 0.3;
+  const under = (px: number, pz: number) => room.props.some((p) => p.top > 0.3 && px > p.x0 - m && px < p.x1 + m && pz > p.z0 - m && pz < p.z1 + m);
+  if (!under(x, z)) return { x, z };
+  let best = { x, z }, bestD = Infinity;
+  for (let r = 0.1; r <= 4; r += 0.1) {
+    for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * Math.PI * 2;
+      const cx = Math.max(-hw, Math.min(hw, x + Math.cos(a) * r)), cz = Math.max(room.zFront + 0.1, Math.min(room.zBack - 0.3, z + Math.sin(a) * r * 0.5));
+      const d = Math.hypot(cx - x, cz - z);
+      if (!under(cx, cz) && d < bestD) { best = { x: cx, z: cz }; bestD = d; }
+    }
+    if (bestD < Infinity) return best;
+  }
+  return best;
 }
 
 /** The beats in order; `?beat=<name>` starts the stage at one (playtesting). */

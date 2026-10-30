@@ -8,7 +8,7 @@ import type { GoreLevel } from './gore';
 import { aboutFeet, lyingAt, STANDING } from '../anim/skeleton';
 import { TUNING } from '../data/tuning';
 import type { PaletteId } from '../data/palettes';
-import { type Actor, alive } from './actor';
+import { type Actor, alive, WORLD_ID_BASE } from './actor';
 import { enter, setClip } from './combat';
 import type { PlayerCommand } from './command';
 import type { GameEvents } from './events';
@@ -16,6 +16,7 @@ import type { Beat, Seq } from './sequencer';
 import type { RoomDef } from './room';
 import type { World } from './world';
 import { stepHatchClimb } from './elevator';
+import { setImprobable } from './improbability';
 
 const T = TUNING.stage;
 
@@ -68,6 +69,21 @@ export interface StageRoom {
   /** Runs while the players are in the room (enemies, NPCs, opening exits). */
   script?: (s: Seq, entry: string) => Beat;
   tracker?: Tracker;
+  /**
+   * M14b STB-02: rules the room owns, applied on entry (and dropped on leaving), so a restart from
+   * its checkpoint plays like the arrival: the physics mode and room flags (e.g. 'axeThrows').
+   */
+  rules?: RoomRules;
+}
+
+export interface RoomRules { physics?: 'normal' | 'improbable'; flags?: string[] }
+
+/** STB-02: set the entered room's rules; the last room's flags go, the physics mode follows the room. */
+export function applyRoomRules(world: World, rules: RoomRules | undefined): void {
+  for (const f of world.roomFlags) world.flags.delete(f);
+  world.roomFlags = [...(rules?.flags ?? [])];
+  for (const f of world.roomFlags) world.flags.add(f);
+  setImprobable(world, (rules?.physics ?? 'normal') === 'improbable');
 }
 
 export interface StageDef {
@@ -253,11 +269,27 @@ export function openExit(world: World, id: string, open = true): void {
   if (open) world.events.emit('exitOpen', { exit: id, kind: x.def.kind });
 }
 
-/** Load a room: clear the last one's cast and items, place the players, arm the exits (a checkpoint). */
-export function enterRoom(world: World, def: StageDef, roomId: string, entryId: string): void {
+/**
+ * STB-08: the RNG seed a room starts from (FNV-1a over stage, room, entry and attempt): a room is
+ * the same on arrival and after a restart from its checkpoint.
+ */
+export function roomSeed(stage: number, room: string, entry: string, attempt = 0): number {
+  let h = 0x811c9dc5;
+  for (const c of `${stage}/${room}/${entry}/${attempt}`) h = Math.imul(h ^ c.charCodeAt(0), 0x01000193);
+  return h | 0;
+}
+
+/**
+ * Load a room: clear the last one's cast and items, place the players, arm the exits (a checkpoint).
+ * `seed` (a checkpoint's saved `world.roomSeed`) overrides the room's own seed.
+ */
+export function enterRoom(world: World, def: StageDef, roomId: string, entryId: string, seed?: number): void {
   const r = def.rooms[roomId];
   if (!r) throw new Error(`unknown room ${roomId}`);
   const entry = r.entries[entryId] ?? Object.values(r.entries)[0];
+  // STB-08: the room's own RNG stream and id range (players keep theirs: they come from outside)
+  world.reseed(seed ?? roomSeed(def.stage, roomId, entryId, world.attempt));
+  world.ids.next = WORLD_ID_BASE * (2 + Math.max(0, Object.keys(def.rooms).indexOf(roomId)));
   // the old room's bodies and items go first: setRoom announces the change, and the scene
   // re-bakes the frozen corpses right then (they used to be painted into the next room)
   world.actors.splice(0, world.actors.length, ...world.players);
@@ -274,19 +306,63 @@ export function enterRoom(world: World, def: StageDef, roomId: string, entryId: 
   world.exitTaken = undefined;
   world.tracker = r.tracker;
   world.roomId = roomId;
+  applyRoomRules(world, r.rules);
   world.players.forEach((p, i) => placeAtEntry(p, entry, i));
   world.events.emit('roomEnter', { stage: def.stage, room: roomId, entry: entryId });
 }
 
+/**
+ * M14b slice B (CMB-08): clears the actor's input buffer on room entry. A no-op until that buffer
+ * exists; slice B fills it in (it is also called from the pause menu's close).
+ */
+export function clearInputBuffer(_a: Actor): void {}
+
+/**
+ * M14b STB-03 + STB-09: everything transient an actor carries from one room into the next is
+ * dropped on entry (and on an in-room warp). A grenade being cooked goes back into the pocket.
+ * Kept on purpose: hp, hands, grenades, rage (saved with the checkpoint).
+ */
+export function resetForRoom(a: Actor): void {
+  if (a.cook !== undefined || (a.attack?.kind === 'lob' && !a.attack.done)) { a.cook = undefined; a.grenades++; a.grenadeLatch = true; }
+  a.pose.grenade = undefined;
+  a.attack = undefined;
+  a.queued = undefined;
+  a.grabQueued = undefined;
+  a.guard = undefined;
+  a.pose.guard = undefined;
+  a.pose.telegraph = undefined;
+  a.pose.react = undefined;
+  a.pose.handsUp = undefined;
+  a.chain = undefined;
+  a.catchAt = undefined;
+  a.useHeldAt = undefined;
+  a.primedAt = undefined;
+  a.fallingAway = undefined;
+  a.skyFall = undefined;
+  a.hover = undefined;
+  a.ceilingStuck = undefined;
+  a.stunFor = 0;
+  a.flight = undefined;
+  a.holding = undefined;
+  a.grabbedBy = undefined;
+  a.grabbedBy2 = undefined;
+  a.takenBy = undefined;
+  a.carried = undefined;
+  a.spin = undefined;
+  a.tossT = undefined;
+  a.traversing = undefined;
+  a.parked = undefined;
+  a.pose.tuck = 0;
+  clearInputBuffer(a);
+}
+
 /** Players stand at the entry (co-op: player 2 just behind), dropping in or vaulting if it says so. */
 function placeAtEntry(p: Actor, e: EntryDef, i: number): void {
+  // STB-04: a hero killed on the way out stays dead (the scene restarts him at his checkpoint)
+  if (!alive(p)) return;
   // a downed co-op player gets back up for the new room with one life
-  if (p.state === 'downed' || !alive(p)) { p.hp = Math.max(1, p.hp); p.corpse = undefined; p.pose.dead = false; }
-  p.flight = undefined;
-  p.holding = undefined;
-  p.traversing = undefined;
-  p.parked = undefined;
-  p.pose.tuck = 0;
+  if (p.state === 'downed') { p.hp = Math.max(1, p.hp); p.corpse = undefined; p.pose.dead = false; }
+  resetForRoom(p);
   enter(p, 'free');
   p.pose.root = { ...STANDING };
   setClip(p, 'idle');
@@ -449,15 +525,17 @@ function* traverse(s: Seq, e: ExitDef): Beat {
 
 /**
  * The stage, room by room, from `roomId` (a checkpoint). Ends with the body-count card when an
- * exit leads nowhere (the last room built).
+ * exit leads nowhere (the last room built). `seed` (STB-08): the checkpoint's saved room seed for
+ * the first room (later rooms seed themselves).
  */
-export function stageRunner(def: StageDef, roomId = def.start.room, entryId = def.start.entry) {
+export function stageRunner(def: StageDef, roomId = def.start.room, entryId = def.start.entry, seed?: number) {
   return function* stage(s: Seq): Beat {
     const world = s.world;
-    let room = roomId, entry = entryId;
+    let room = roomId, entry = entryId, first: number | undefined = seed;
     for (;;) {
       s.cancelAll('stage');
-      enterRoom(world, def, room, entry);
+      enterRoom(world, def, room, entry, first);
+      first = undefined;
       const r = def.rooms[room];
       // the wipe uncovers the new room
       if (world.transition) { world.transition = false; world.events.emit('roomTransition', { phase: 'in', kind: 'door' }); }
@@ -490,6 +568,9 @@ export function stageRunner(def: StageDef, roomId = def.start.room, entryId = de
         world.events.emit('warp', { exit: e.id });
       }
       yield* traverse(s, e);
+      // STB-04: everyone died on the way out: no next room (and no checkpoint there); the scene
+      // restarts this one
+      if (world.players.length && world.players.every((p) => !alive(p))) { yield () => false; }
       for (const p of world.players) p.traversing = undefined;
       if (!e.to) {
         world.transition = false;

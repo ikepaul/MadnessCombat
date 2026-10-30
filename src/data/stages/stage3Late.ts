@@ -9,11 +9,13 @@ import { type Actor, alive } from '../../sim/actor';
 import { dropWall, startLastStand } from '../../sim/arena';
 import { type BossState, spawnBossCameo } from '../../sim/boss';
 import { die } from '../../sim/combat';
+import type { HitKind } from '../../sim/events';
+import { isWeapon } from '../weapons';
 import { bossHp } from '../../sim/difficulty';
 import type { Beat, Seq } from '../../sim/sequencer';
 import { openExit, takeExit } from '../../sim/stage';
 import type { RoomScript, WaveEntry } from '../../sim/waves';
-import type { World } from '../../sim/world';
+import { removeActor, type World } from '../../sim/world';
 import { canRaise, raiseCorpse } from '../../sim/zombies';
 
 const dead = (a: Actor) => a.state === 'dead';
@@ -117,6 +119,9 @@ function* desert(s: Seq, _entry: string): Beat {
 
 // ---------- room 9: the vending room ----------
 
+/** Hits that count in the sword duel: guns, a thrown knife, and (ENC-16) melee blows. */
+const DUEL_KINDS: HitKind[] = ['bullet', 'gun', 'knife', 'slash', 'smash', 'stab'];
+
 export function vendingGrunts(): RoomScript {
   const entries: WaveEntry[] = [[0.6, 'right', 'grunt', 'knife'], [1.2, 'right', 'grunt', null], [1.0, 'right', 'grunt', 'knife'], [1.0, 'right', 'grunt', 'baton']];
   return { spawns: [{ id: 'right', kind: 'door', door: 0 }], waves: [{ id: 'vending', threshold: 0, maxAlive: 3, entries }] };
@@ -142,12 +147,26 @@ function* vending(s: Seq, _entry: string): Beat {
   for (const p of world.activePlayers) s.drop('smg', Math.max(-3, Math.min(3, p.pos.x - p.facing * 0.5)), p.pos.z, 2.4);
   caption(s, 'He dives with a sword. Get out of the way, and hit him three times.', 5);
   // one hit counts per dive (playtest: an SMG burst landed all three at once and he was gone in a second)
+  // ENC-16: melee hits (sword, axe, club, knife stab) count too
   let hits = 0, scored = false;
   const off = world.events.on('hit', (e) => {
-    if (scored || e.actorId !== boss.id || (e.kind !== 'bullet' && e.kind !== 'gun' && e.kind !== 'knife')) return;
+    if (scored || e.actorId !== boss.id || !DUEL_KINDS.includes(e.kind)) return;
     scored = true;
     hits++;
   });
+  // ENC-16: a spent SMG doesn't end the duel: a loaded gun comes down again after a while without one
+  const regun = s.run(function* regun(q: Seq): Beat {
+    let without = 0;
+    for (;;) {
+      yield;
+      const armed = world.activePlayers.some((p) => p.hands.some((h) => !!h && isWeapon(h.item) && h.ammo + h.spare > 0));
+      without = armed ? 0 : without + world.dt;
+      if (without < D.regunAfter) continue;
+      without = 0;
+      const p = world.activePlayers[0];
+      if (p && !world.items.some((it) => it.state === 'floor' && isWeapon(it.kind) && (it.ammo ?? 0) > 0)) q.drop('smg', Math.max(-3, Math.min(3, p.pos.x - p.facing * 0.5)), p.pos.z, 2.4);
+    }
+  }, 'room:vending:regun');
   while (hits < D.hitsToTeleport) {
     const p = world.activePlayers[0];
     if (!p) break;
@@ -156,11 +175,12 @@ function* vending(s: Seq, _entry: string): Beat {
     yield D.recover;
   }
   off();
+  regun.cancel();
   caption(s, 'Hurt, he folds into himself and is gone.', 3);
   yield 0.4;
   // damaged enough: he implodes away
   world.events.emit('teleport', { actorId: boss.id, ...boss.pos });
-  if (world.actors.includes(boss)) world.actors.splice(world.actors.indexOf(boss), 1);
+  removeActor(world, boss);
   s.music(null);
   yield* s.until(() => !world.actors.some((a) => a.kind === 'zombie' && alive(a)), 30);
   world.openDoor(0);
@@ -215,7 +235,7 @@ function* consoleRoom(s: Seq, _entry: string): Beat {
     world.openDoor(1);
     yield* q.moveTo(target, world.room.halfWidth - 0.35, 8.95, 3);
     yield* q.moveTo(target, 3.9, 8.95, 1.5);
-    if (world.actors.includes(target)) world.actors.splice(world.actors.indexOf(target), 1);
+    removeActor(world, target);
     world.events.emit('targetFled', { actorId: target.id, ...target.pos });
   });
   yield 1.5;
@@ -252,9 +272,10 @@ function* lift(s: Seq, _entry: string): Beat {
 
   // the stab from behind
   yield 0.6;
-  world.flags.add('ending');
+  // STB-05: a hero who died in that 0.6 s gets the normal restart (the flag would block it)
   const p = world.activePlayers[0];
   if (!p) return;
+  world.flags.add('ending');
   // right behind you, inside the room (with your back to a wall he comes from the other side)
   const lim = world.room.halfWidth - 0.35;
   // within reach of the over-the-shoulder shot (M10b: RMB fires backward at him without turning)

@@ -1,13 +1,13 @@
 import type { GoreLevel } from './gore';
 import { lyingAt, rootToWorld, STANDING } from '../anim/skeleton';
 import { TUNING } from '../data/tuning';
-import { type Actor, type ActorKind, alive, createActor, type Vec3 } from './actor';
+import { type Actor, type ActorKind, alive, bindIds, createActor, type IdCounter, type Vec3, WORLD_ID_BASE } from './actor';
 import { type Ball, type Cannon, stepCannons } from './cannon';
-import { applyHit, stepActor, stepRevives } from './combat';
+import { applyHit, dropBody, stepActor, stepRevives } from './combat';
 import { clearEdges, IDLE_COMMAND, type PlayerCommand } from './command';
 import { assignTokens } from './ai';
 import { EventBus, type HitKind } from './events';
-import { type Item, type ItemKind, spawnItem, stepItems } from './items';
+import { type Item, type ItemKind, spawnItem, stepItems, unstick } from './items';
 import type { RoomDef } from './room';
 import type { WaveDirector } from './waves';
 import { stepProps } from './cover';
@@ -26,6 +26,40 @@ import type { Difficulty } from './difficulty';
 /** Props can change in play (a kicked-over table), so each World gets its own copies. */
 function ownProps(room: RoomDef): RoomDef {
   return { ...room, props: room.props.map((p) => ({ ...p })), decks: room.decks?.map((d) => ({ ...d, holes: d.holes.map((h) => ({ ...h })) })) };
+}
+
+/**
+ * M14b STB-16 / ENC-02: take `a` out of the world mid-room (a script walks him off, the boss
+ * teleports, a body swept off the screen or fallen into the void). Every such splice goes through
+ * here: blades stuck in him drop to the floor, what he carried is let go, whoever held him lets
+ * go, his tokens and scripted command go, and `actorRemoved` tells the co-op guest.
+ */
+export function removeActor(world: World, a: Actor): void {
+  const i = world.actors.indexOf(a);
+  if (i < 0) return;
+  world.actors.splice(i, 1);
+  const lim = world.room.halfWidth - 0.2;
+  for (const it of world.items) {
+    if (it.state === 'stuck' && it.stuckTo === a.id) {
+      unstick(it);
+      it.pos = { x: Math.max(-lim, Math.min(lim, it.pos.x)), y: Math.max(0, Math.min(it.pos.y, world.room.height - 0.2)), z: it.pos.z };
+    }
+    if (it.state === 'held' && it.heldBy === a.id) { it.state = 'air'; it.heldBy = undefined; it.vel = { x: 0, y: 0, z: 0 }; }
+  }
+  if (a.holding?.kind === 'actor') {
+    const o = world.actorById(a.holding.id);
+    if (o && o.grabbedBy === a.id) { o.grabbedBy = undefined; dropBody(o); }
+  }
+  a.holding = undefined;
+  for (const o of world.actors) {
+    if (o.holding?.kind === 'actor' && o.holding.id === a.id) o.holding = undefined;
+    if (o.grabbedBy2 === a.id) o.grabbedBy2 = undefined;
+    if (o.takenBy === a.id) o.takenBy = undefined;
+  }
+  a.grabbedBy = undefined;
+  world.tokens.delete(a.id);
+  world.scripted.delete(a.id);
+  world.events.emit('actorRemoved', { actorId: a.id });
 }
 
 /** Door animation state: `open` 0 (closed) .. 1 (open), moving toward `target`. */
@@ -59,6 +93,15 @@ export class World {
   doors: DoorState[] = [];
   /** Seeded RNG so the sim stays reproducible in tests. */
   private seed = 0x2f6b1c3d;
+  /**
+   * STB-08: the seed the current room started from (`enterRoom` reseeds from stage, room, entry and
+   * `attempt`; the shell can save it with the checkpoint and pass it back to `stageRunner`).
+   */
+  roomSeed = 0x2f6b1c3d;
+  /** STB-08: which try at the room this is (part of the room seed; 0 = the same room every time). */
+  attempt = 0;
+  /** STB-08: this world's id counter (bound while it steps; `enterRoom` restarts it per room). */
+  readonly ids: IdCounter = { next: WORLD_ID_BASE };
 
   /** M9 room graph (src/sim/stage.ts): the current room's exits, the one taken, the wipe running. */
   exits: ExitState[] = [];
@@ -87,6 +130,8 @@ export class World {
   elevator?: ElevatorState;
   /** One-off story flags (a title card shown once per stage, not again after a checkpoint restart). */
   readonly flags = new Set<string>();
+  /** M14b STB-02: the flags in `flags` that the current room's rules set (cleared on leaving it). */
+  roomFlags: string[] = [];
   /** Tracker HUD blip for this room (world-objective-radar). */
   tracker?: Tracker;
   /** The stage's id for the current room (rooms share ids across stages only by accident). */
@@ -174,6 +219,11 @@ export class World {
     return this.tick / TUNING.simHz;
   }
 
+  /** STB-08: restart the RNG from `seed` (room entry, a checkpoint's saved seed). */
+  reseed(seed: number): void {
+    this.seed = this.roomSeed = seed | 0;
+  }
+
   rng(): number {
     // mulberry32
     let t = (this.seed = (this.seed + 0x6d2b79f5) | 0);
@@ -208,13 +258,19 @@ export class World {
   }
 
   spawnItem(kind: ItemKind, skin: ActorKind, pos: Vec3, vel: Vec3, spin: number): Item {
-    return spawnItem(this, kind, skin, pos, vel, spin);
+    const prev = bindIds(this.ids);
+    try { return spawnItem(this, kind, skin, pos, vel, spin); } finally { bindIds(prev); }
   }
 
   /** Debug/lab: drop `n` settled corpses at random floor points (corpse-layer stress test). */
   spawnCorpses(n: number): void {
     const r = this.room;
-    for (let i = 0; i < n; i++) {
+    const prev = bindIds(this.ids);
+    try { for (let i = 0; i < n; i++) this.spawnCorpse(r); } finally { bindIds(prev); }
+  }
+
+  private spawnCorpse(r: RoomDef): void {
+    {
       const a = createActor('grunt', (this.rng() * 2 - 1) * (r.halfWidth - 0.6), r.zFront + this.rng() * (r.zBack - r.zFront - 0.2), this.rng() < 0.5 ? 1 : -1, { dead: true });
       a.pose.root = lyingAt(this.rng() < 0.7 ? -Math.PI / 2 : Math.PI / 2);
       a.pose.clip = 'lying';
@@ -225,6 +281,12 @@ export class World {
   }
 
   step(): void {
+    // STB-08: everything created during this tick takes its id from this world
+    const prev = bindIds(this.ids);
+    try { this.stepTick(); } finally { bindIds(prev); }
+  }
+
+  private stepTick(): void {
     this.tick++;
     // M19: a rage fatality stops the world for everyone but the hero and his victims
     if (this.rage) {
@@ -248,7 +310,7 @@ export class World {
       stepActor(this, a, this.commandFor(a), this.dt);
     }
     // M8: bodies the boss swept off the screen are gone for good
-    for (const a of gone) this.actors.splice(this.actors.indexOf(a), 1);
+    for (const a of gone) removeActor(this, a);
     this.commands = this.commands.map(clearEdges);
     for (const [id, c] of this.scripted) this.scripted.set(id, clearEdges(c));
     stepRevives(this, this.dt);

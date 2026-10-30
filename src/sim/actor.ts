@@ -317,6 +317,8 @@ export interface Actor {
   grenades: number;
   /** Cooking a grenade: seconds since the pin was pulled. */
   cook?: number;
+  /** M14b STB-03: a cook was cancelled by a room change; G must be let go before the next pin. */
+  grenadeLatch?: boolean;
   /** M17: world time E went down with both hands full (a click picks the hand, the release takes the smart pick). */
   useHeldAt?: number;
   /** World time F was last pressed (catching a thrown weapon, throw-catch-return). */
@@ -370,10 +372,26 @@ export interface Actor {
 /** Produces the actor's intent each tick (labs now, grunt AI in M3). */
 export type Brain = (actor: Actor, dt: number) => import('./command').PlayerCommand;
 
-let nextId = 1;
+/**
+ * STB-08: ids come from the counter bound by the world being stepped (`World.step` binds its own,
+ * and `enterRoom` restarts it at the room's base), so a room gets the same ids on arrival and after
+ * a restart. Outside a step (scene setup, labs, tests, debug keys) the default counter is used; its
+ * range stays below every world's (`WORLD_ID_BASE`).
+ */
+export interface IdCounter { next: number }
+export const WORLD_ID_BASE = 1 << 20;
+const defaultIds: IdCounter = { next: 1 };
+let ids = defaultIds;
 
 export function newId(): number {
-  return nextId++;
+  return ids.next++;
+}
+
+/** Make `newId` draw from `c` (undefined = the default counter); returns the previous counter. */
+export function bindIds(c: IdCounter | undefined): IdCounter {
+  const prev = ids;
+  ids = c ?? defaultIds;
+  return prev;
 }
 
 /** Dummies created with `held` get that item loaded in their front hand. */

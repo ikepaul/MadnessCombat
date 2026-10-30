@@ -11,7 +11,7 @@ import { dropBlock, flyIn, overVoid, setImprobable, startCollapse } from '../../
 import type { Beat, Seq } from '../../sim/sequencer';
 import { openExit, takeExit } from '../../sim/stage';
 import type { RoomScript, SpawnOpts, WaveEntry } from '../../sim/waves';
-import type { World } from '../../sim/world';
+import { removeActor, type World } from '../../sim/world';
 import { raiseCorpse } from '../../sim/zombies';
 import { stage3LateScripts } from './stage3Late';
 
@@ -55,7 +55,7 @@ function* outside(s: Seq, _entry: string): Beat {
   if (alive(going) && going.ai?.aware === false) {
     going.ai.role = 'welder'; // (scripted: his brain idles while he walks off)
     yield* s.moveTo(going, 4.3, 9.6, 4);
-    if (alive(going)) world.actors.splice(world.actors.indexOf(going), 1);
+    if (alive(going)) removeActor(world, going);
   }
 }
 
@@ -114,7 +114,6 @@ export function cameraWaves(): RoomScript {
  */
 function* camera(s: Seq, _entry: string): Beat {
   const world = s.world;
-  world.flags.add('axeThrows');
   yield* s.waves(cameraWaves());
   yield* s.until(() => foesLeft(world) === 0);
 
@@ -283,7 +282,7 @@ function* street(s: Seq, _entry: string): Beat {
   mb.hover = 6;
   world.events.emit('jetpack', { actorId: mb.id, phase: 'away', ...mb.pos });
   yield 1.2;
-  if (world.actors.includes(mb)) world.actors.splice(world.actors.indexOf(mb), 1);
+  removeActor(world, mb);
   s.lockInput(false);
   caption(s, 'He went that way.', 3);
   openExit(world, 'desert');

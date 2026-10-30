@@ -211,7 +211,7 @@ function makeWorld(stage: 1 | 2 | 3, room: string, entry: string | undefined, ha
   }
   const def = DEFS[stage];
   const world = new World(def.rooms[room].room);
-  (world as unknown as { seed: number }).seed = seed;
+  world.attempt = seed; // STB-08: room stages reseed on entry
   world.gore = def.gore ?? 'normal';
   const hero = createActor('hero', 0, 9.2, 1);
   world.addPlayer(hero);

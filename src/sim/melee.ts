@@ -266,6 +266,8 @@ export function lobHeldGrenade(world: World, a: Actor, it: Item, aim?: ScreenPoi
  * your hand. Needs a free hand and a grenade.
  */
 export function stepGrenade(world: World, a: Actor, cmd: PlayerCommand, dt: number): void {
+  // STB-03: G still held from the last room pulls no new pin until it is let go
+  if (a.grenadeLatch) { if (cmd.grenade) return; a.grenadeLatch = undefined; }
   if (a.cook !== undefined) {
     a.cook += dt;
     a.pose.grenade = true;
@@ -315,7 +317,9 @@ export function pullable(world: World, a: Actor): Item | undefined {
     if (MELEE[it.kind].twoHanded && (a.hands[0] || a.hands[1])) continue;
     // a blade pinning a body stays in it
     if (it.stuckTo !== undefined && world.actorById(it.stuckTo)?.corpse?.pinned) continue;
-    if (it.stuckTo !== undefined && alive(world.actorById(it.stuckTo)!)) continue;
+    // STB-16: a host already gone from the world doesn't hold it (removeActor unsticks it the same tick)
+    const host = it.stuckTo !== undefined ? world.actorById(it.stuckTo) : undefined;
+    if (host && alive(host)) continue;
     const d = Math.hypot(it.pos.x - a.pos.x, (it.pos.z - a.pos.z) * 1.5);
     if (d <= THROWN.pullRange && d < bestD) { best = it; bestD = d; }
   }

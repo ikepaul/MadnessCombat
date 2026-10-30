@@ -7,7 +7,7 @@ import { lyingAt } from '../anim/skeleton';
 import { GRAVITY, TUNING } from '../data/tuning';
 import { type Actor, alive } from './actor';
 import { applyHit, setClip } from './combat';
-import type { World } from './world';
+import { removeActor, type World } from './world';
 
 const I = TUNING.improbability, CO = TUNING.collapse, FB = TUNING.fallingBlock;
 
@@ -104,7 +104,7 @@ export function stepCollapse(world: World, dt: number): void {
     a.pos.y -= (CO.fallSpeed * a.fallingAway!) * dt;
     if (a.fallingAway! >= CO.fallTime && a.playerIndex === undefined) gone.push(a);
   }
-  for (const a of gone) world.actors.splice(world.actors.indexOf(a), 1);
+  for (const a of gone) removeActor(world, a);
   if (gone.length) world.events.emit('corpseThawed', { actorId: gone[0].id });
 }
 
