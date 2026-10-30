@@ -48,6 +48,13 @@ export const TUNING = {
     hero: { airAccel: 14, airSpeed: 1.15 },
     /** design/art-direction.md: 2-frame (30 fps) landing squash. */
     landSquash: 2 / 30,
+    /**
+     * M14b CMB-09: a jump pressed this long (s) before landing jumps on the landing tick, and one
+     * pressed this long (s) after walking off an edge still jumps (coyote time). 0 = the old
+     * behaviour. invented
+     */
+    buffer: 0.1,
+    coyote: 0.08,
   },
 
   prone: {
@@ -304,6 +311,27 @@ export const TUNING = {
     tough: 6,
     /** decided with the user: every kill the player makes heals this much (up to max). */
     healPerKill: 1,
+    /**
+     * M14b ENC-03 (decided 2026-10-28): after losing a life the hero ignores further hits for this
+     * long (s), scaled by difficulty (`mercyScale`: Noob 0.5 s, Pro 0.3, Hacker 0.225, Notch 0.15).
+     * Scripted lethal hits (the boss's cameo, the last stand) go through. 0 = the old behaviour.
+     */
+    mercy: 0.3,
+    mercyScale: { noob: 5 / 3, pro: 1, hacker: 0.75, notch: 0.5 } as Record<string, number>,
+  },
+
+  /** M14b slice B input buffering (design/audit/cmb.md CMB-08, CMB-10, CMB-16). All invented. */
+  input: {
+    /**
+     * CMB-08: jump / dive / attack / grab / E pressed while busy (a move, a flinch, getting up,
+     * standing up, in the air) are kept this long (s) and replayed on the first free ground tick.
+     * 0 = the old behaviour (only punches and grabs during a move were kept).
+     */
+    buffer: 0.15,
+    /** CMB-10: a semi-auto press this close (s) to the end of the cooldown fires on the first ready tick. 0 = dropped (old). */
+    shotLatch: 0.1,
+    /** CMB-16: inside one move the first press of a different kind wins (false = the last press wins, old). */
+    firstDifferentWins: true,
   },
 
   /** Unarmed attacks. Frame counts are on the 30 fps key grid (the clips in poses.json match). */
@@ -330,6 +358,12 @@ export const TUNING = {
     buffer: 0.2,
     /** Aim this steeply above horizontal (radians) to turn a heavy punch into an uppercut. invented */
     uppercutAimAngle: Math.PI / 4,
+    /**
+     * M14b CMB-13/14: a weapon swing at a living body on the floor stabs / hits down at it
+     * (planted, swing damage), the knife isn't thrown while one is in reach, and an uppercut at
+     * one is a heavy finisher. false = the old behaviour. invented
+     */
+    weaponFinisher: true,
     /** M17 (design/qol-pass.md): the hero's melee depth band is wider than the enemies' 0.2 H. invented */
     hero: { depthBand: 0.3 },
   },
@@ -427,6 +461,13 @@ export const TUNING = {
     impact: 2 / 30,
     /** Player hurt flash. invented */
     hurtFlash: 0.2,
+    /**
+     * M14b CMB-06: the stun of the 1st, 2nd and 3rd+ light hit of a chain (s), so a jab rhythm
+     * can't lock forever. [0.7, 0.7, 0.7] = the old behaviour. invented
+     */
+    chainStun: [0.7, 0.45, 0.25] as readonly number[],
+    /** CMB-06: riot and tough targets (more hp than a grunt) shrug off this jab of a chain and the ones after it (0 = never, old). invented */
+    toughShrug: 4,
     /** move-knockdown-getup: a knockdown drops the weapon ~0.5-1 H away, ep1 f1739. */
     dropDistance: [0.5, 1.0] as const,
   },
@@ -459,6 +500,12 @@ export const TUNING = {
     bounceUp: 2.2,
     /** How far the body leans back for the kick (rad). */
     lean: 0.35,
+    /**
+     * M14b CMB-11: coming down, dive kicks only this high (H) above the ground; lower, it dives on
+     * landing. 0 = always kick (old). invented: the plan's 0.3 H is ~2 ticks before touchdown at
+     * the fall speed (7 H/s), so "3 ticks before landing" (the finding's test) needs 0.5.
+     */
+    minHeight: 0.5,
   },
 
   /** melee-grab-throw. */

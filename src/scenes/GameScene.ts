@@ -51,7 +51,7 @@ import { STAGE1, type StageRoomId } from '../data/stages/stage1';
 import { STAGE1_BEATS, type Stage1Beat, stage1From } from '../data/stages/stage1Script';
 import { STAGE2 } from '../data/stages/stage2';
 import { STAGE3 } from '../data/stages/stage3';
-import { outOfSight, type StageDef, stageRunner } from '../sim/stage';
+import { clearInputBuffer, outOfSight, type StageDef, stageRunner } from '../sim/stage';
 import { coopLink, type CoopLink } from '../net/link';
 import { applySnapshot, type Snapshot, SnapshotWriter } from '../net/snapshot';
 import { paintReviveBar, paintReviveCircle } from '../render/canvas/revivePainter';
@@ -330,6 +330,7 @@ export class GameScene extends Phaser.Scene {
   pauseClosed(): void {
     this.input_.consumeEdges();
     this.world.command = clearEdges(this.world.command);
+    this.world.players.forEach(clearInputBuffer); // M14b CMB-08
   }
 
   setPalette(id: PaletteId): void {

@@ -239,6 +239,11 @@ export interface GameEvents {
   cannonDrop: { x: number; z: number; phase: 'shadow' | 'fall' | 'land' };
   /** M14b STB-16: an actor left the world mid-room (`removeActor`: a script took him off, swept off the screen, fell into the void; the co-op guest drops it too). */
   actorRemoved: { actorId: number };
+  /**
+   * M14b ENC-03 / CMB-15 / VIS-19: a hit that landed but did nothing: the hero's mercy window, get-up
+   * i-frames, or a body held up as a shield (drawn as a flash + soft thud, no hit-stop).
+   */
+  hitAbsorbed: { actorId: number; x: number; y: number; z: number; reason: 'mercy' | 'getUp' | 'shield' };
 }
 
 export type HitKind =
