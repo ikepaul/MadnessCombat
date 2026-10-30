@@ -453,10 +453,13 @@ export class GameScene extends Phaser.Scene {
     if (!data.palette) this.paletteId = def.palette;
     this.stageInfo = { stage: def.stage, room, targetBodyCount: def.targetBodyCount };
     const world = this.world;
+    const save = (room: string, entry: string) => saveCheckpoint({ stage: def.stage, room, entry, seed: world.roomSeed, kills: world.kills, players: world.players.map((p) => ({ hands: structuredClone(p.hands), grenades: p.grenades, rage: p.rage ? structuredClone(p.rage) : undefined })) });
     world.events.on('roomEnter', (e) => {
-      saveCheckpoint({ stage: e.stage, room: e.room, entry: e.entry, seed: world.roomSeed, kills: world.kills, players: world.players.map((p) => ({ hands: structuredClone(p.hands), grenades: p.grenades, rage: p.rage ? structuredClone(p.rage) : undefined })) });
+      save(e.room, e.entry);
       if (this.stageInfo) this.stageInfo.room = e.room;
     });
+    // ENC-19: a mid-room checkpoint (the corridor after the boss's fling): a restart resumes there
+    world.events.on('checkpoint', (e) => save(e.room, e.entry));
   }
 
   /** Stage route: the room, the player(s) in the middle, and the wave script from the chosen wave. */

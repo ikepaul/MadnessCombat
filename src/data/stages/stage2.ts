@@ -153,7 +153,9 @@ export const STAGE2: StageDef = {
     },
     corridor: {
       room: CORRIDOR,
-      entries: { east: { x: 2.9, z: 8.8, facing: -1, from: 'walk' } },
+      // ENC-19: 'afterCameo' = the mid-room checkpoint after the boss's fling (a restart starts at the zombies)
+      entries: { east: { x: 2.9, z: 8.8, facing: -1, from: 'walk' }, afterCameo: { x: 2.6, z: 8.9, facing: -1, from: 'walk' } },
+      checkpoints: ['afterCameo'],
       exits: [{ id: 'west-door', kind: 'door', x0: -9, x1: -3.25, z0: 8.3, z1: 9.25, to: 'elevator', entry: 'door', locked: true }],
       tracker: [-0.9, 0.3],
       script: stage2Scripts.corridor,

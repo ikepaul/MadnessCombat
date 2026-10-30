@@ -321,7 +321,8 @@ export function render(recipe: Recipe, sr: number, seed: number): Float32Array {
       const b = new Buf(sr, 0.22);
       tone(b, (t) => (t < 0.07 ? 660 : 990), ad(0.003, 0.08), 0.8);
       tone(b, (t) => (t < 0.07 ? 1320 : 1980), ad(0.003, 0.05), 0.25);
-      return normalise(b.d, 0.4);
+      // M14b (2026-10-30): 0.4 -> 0.5, so the "!" meets its -22 dB loudness target (VIS-13)
+      return normalise(b.d, 0.5);
     }
     case 'strain': {
       // the wire takedown: a taut creaking wire and a choked struggle, ~1.4 s
