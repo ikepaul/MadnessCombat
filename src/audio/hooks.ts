@@ -1,6 +1,7 @@
 // Sim events -> sounds (PLAN.md M4: hook all M1-M3 events). The sim never calls audio; this
 // subscribes to a world's events. Layering follows design/audio-direction.md.
 import { type SoundId } from '../data/audio';
+import { TUNING } from '../data/tuning';
 import type { WeaponId } from '../data/weapons';
 import { project } from '../render/camera';
 import type { HitKind } from '../sim/events';
@@ -41,6 +42,8 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
     if (e.kind === 'takedown') return;
     const p = at(e.x, e.y, e.z);
     if (e.damage <= 0) {
+      // VIS-19: a held shield sounds on its own `shieldHit`
+      if (world.actorById(e.actorId)?.grabbedBy !== undefined) return;
       if (e.kind !== 'head') play('impact', { ...p, gain: 0.5 }); // punching a corpse
       return;
     }
@@ -66,6 +69,26 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
   world.events.on('grab', (e) => play('grab', at(e.x, e.y, e.z)));
   world.events.on('throw', (e) => play('whooshThrow', at(e.x, e.y, e.z)));
   world.events.on('heal', () => play('heal', {}));
+  // M14b VIS-08: take-offs, a teammate going down / back up, enemies walking in from an edge, a hand coming off
+  world.events.on('jump', (e) => { play('cloth', at(e.x, e.y, e.z, { gain: 0.5 })); play('whooshLight', at(e.x, e.y + 0.4, e.z, { gain: 0.5, rate: 0.85 })); });
+  world.events.on('playerDown', (e) => { play('voxHurt', at(e.x, e.y + 0.6, e.z, { rate: 0.75 })); play('downCue', { rate: 0.6 }); });
+  world.events.on('revive', () => play('heal', {}));
+  world.events.on('spawn', (e) => {
+    const r = world.room;
+    if (Math.abs(e.x) <= r.halfWidth - TUNING.move.radius) return; // doors have their own creak (the sim's `entering` rule)
+    const step: SoundId = r.outdoor ? 'stepDirt' : 'stepConcrete';
+    const edge = Math.sign(e.x) * r.halfWidth;
+    play(step, at(edge, 0, e.z, { gain: 0.5 }));
+    play(step, at(edge, 0, e.z, { gain: 0.5, delay: 0.28 }));
+  });
+  world.events.on('dismember', (e) => play('dismember', at(e.x, e.y, e.z)));
+  // VIS-19: bullets into a held body land at full weight; a body that falls apart drops
+  world.events.on('shieldHit', (e) => {
+    play('impact', at(e.x, e.y, e.z));
+    if (e.broke) play('bodyFall', at(e.x, e.y, e.z, { delay: 0.05 }));
+  });
+  // ENC-03 / CMB-15: a hit absorbed (mercy window, get-up, shield): a soft thud, nothing else
+  world.events.on('hitAbsorbed', (e) => play('absorb', at(e.x, e.y + 0.5, e.z)));
   // guns (M5)
   const SHOT: Record<WeaponId, SoundId> = {
     pistol: 'shotPistol', pistolSuppressed: 'shotSuppressed', deagle: 'shotDeagle', smg: 'shotSmg',

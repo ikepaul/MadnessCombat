@@ -2,7 +2,8 @@
 // hit-stop, screen shake, chromatic split and kill-cam requests. Plain TS so the numbers can
 // be asserted in tests; the render side (src/render/feelFx.ts) and the audio engine carry them out.
 import { FEEL } from '../data/feel';
-import { WEAPONS } from '../data/weapons';
+import { isWeapon, WEAPONS } from '../data/weapons';
+import type { Actor } from '../sim/actor';
 import type { HitKind } from '../sim/events';
 import type { World } from '../sim/world';
 
@@ -15,6 +16,17 @@ export interface FeelSink {
   killCam(at?: { x: number; y: number; z: number }): void;
   /** M19: hold time at `scale` for `seconds` of real time (a rage fatality's slow-mo); 0 seconds ends it. */
   slowMo?(scale: number, seconds: number): void;
+}
+
+/** VIS-12: who gets the boss-phase kill stop: the bosses and the mini-bosses (riot helmet, vending brute, jetpack, the sign zombie). */
+export function bossLike(a: Actor): boolean {
+  return a.kind === 'boss' || a.variant === 'riot' || a.variant === 'vending' || !!a.pose.jetpack || a.damageScale !== undefined;
+}
+
+/** The shooter's gun fires full auto (a selector on single shot doesn't count). */
+function autoGun(world: World, id: number): boolean {
+  const h = world.actorById(id)?.hands.find((x) => !!x && isWeapon(x.item));
+  return !!h && isWeapon(h.item) && WEAPONS[h.item].auto && !h.semi;
 }
 
 const HEAVY_KINDS: HitKind[] = ['heavy', 'uppercut', 'finisher', 'sweep', 'body', 'wall', 'slash', 'smash', 'stab', 'knife', 'blast', 'pin'];
@@ -35,7 +47,9 @@ export class FeelDirector {
         return;
       }
       const heavy = HEAVY_KINDS.includes(e.kind) || e.damage >= 2;
-      this.stop(heavy ? FEEL.hitStop.heavy : FEEL.hitStop.light);
+      // VIS-12: automatic weapons' bullets get at most autoFireMax each
+      const stop = heavy ? FEEL.hitStop.heavy : FEEL.hitStop.light;
+      this.stop(e.kind === 'bullet' && autoGun(world, e.attackerId) ? Math.min(stop, FEEL.hitStop.autoFireMax) : stop);
       // a combo hit lands harder
       const combo = e.combo ? 1.5 : 1;
       this.sink.shake((heavy ? FEEL.shake.heavyHit : FEEL.shake.lightHit) * combo, FEEL.shake.decayMin);
@@ -55,7 +69,9 @@ export class FeelDirector {
         this.sink.shake(FEEL.shake.kill, FEEL.shake.decayMax);
         return;
       }
-      this.stop(FEEL.hitStop.kill);
+      // VIS-12: a boss's (or mini-boss's) last hit lands longer
+      const victim = world.actorById(e.actorId);
+      this.stop(victim && bossLike(victim) ? FEEL.hitStop.bossPhaseKill : FEEL.hitStop.kill);
       this.sink.shake(FEEL.shake.kill, FEEL.shake.decayMax);
       this.sink.chromatic(FEEL.chromatic.kill.px, FEEL.chromatic.kill.frames);
       const t = this.now();
@@ -104,6 +120,27 @@ export class FeelDirector {
     world.events.on('wallHit', (e) => {
       if (e.speed > 2) this.sink.shake(FEEL.shake.wall, FEEL.shake.decayMin + 0.1);
     });
+    // M14b VIS-11: set pieces move the screen (all under the explosion's 14; FeelFx scales by effect intensity)
+    const landing = () => {
+      if (FEEL.shake.setPiece > 0) this.sink.shake(FEEL.shake.setPiece, FEEL.shake.decayMax);
+      if (FEEL.hitStop.setPiece > 0) this.stop(FEEL.hitStop.setPiece);
+    };
+    world.events.on('blockDrop', (e) => { if (e.phase === 'land') landing(); });
+    world.events.on('wallDrop', (e) => { if (e.phase === 'land') landing(); });
+    const prop = () => { if (FEEL.shake.prop > 0) this.sink.shake(FEEL.shake.prop, FEEL.shake.decayMin + 0.1); };
+    world.events.on('doorSmash', prop);
+    world.events.on('propToppled', prop);
+    world.events.on('vendingSmash', prop);
+    const blow = () => {
+      if (FEEL.hitStop.setPiece <= 0) return;
+      this.stop(FEEL.hitStop.setPiece);
+      this.sink.chromatic(FEEL.chromatic.killCam.px, FEEL.chromatic.killCam.frames);
+    };
+    world.events.on('swordDive', (e) => { if (e.phase === 'hit') blow(); });
+    world.events.on('stab', blow);
+    // VIS-19: each bullet into a held body
+    world.events.on('shieldHit', () => { if (FEEL.shake.shield > 0) this.sink.shake(FEEL.shake.shield, FEEL.shake.decayMin); });
+    // ENC-03 / CMB-15 (hitAbsorbed): no hit-stop, no shake, by design (the flash and the thud carry it)
   }
 
   /** Hit-stop within the budget: never more than FEEL.hitStop.maxPerSecond in any second. */

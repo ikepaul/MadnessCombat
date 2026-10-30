@@ -73,7 +73,7 @@ describe('stage 1 music cues (assets/music/cues.json)', () => {
 
   it("the stage's room keeps the delivered combat track (cues without files fall back to it)", () => {
     const arena = (cues.rooms as Record<string, { combat: string | null }>)['stage1-arena'];
-    expect(arena.combat).toBe('madness-combat-v1');
-    expect(tracks['madness-combat-v1'].stems).toEqual(['MadnessCombat.V1.wav']);
+    expect(arena.combat).toBe('combat-v1');
+    expect(tracks['combat-v1'].stems).toEqual(['combat_v1.ogg']);
   });
 });

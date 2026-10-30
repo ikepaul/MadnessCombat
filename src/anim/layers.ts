@@ -1,6 +1,7 @@
 // Procedural layers on top of the keyframed clip (design/art-direction.md, "Animation"):
 // walk cycle, idle breathing, airborne tuck, hit lean and stun wobble. Aim and recoil act on
 // the front hand and live in the painter, since they need the screen projection.
+import { FEEL } from '../data/feel';
 import type { Actor } from '../sim/actor';
 import { blendIn, sampleClip } from './clips';
 import { applyIdle } from './idles';
@@ -62,8 +63,13 @@ function applyReaction(a: Actor, s: Skeleton): void {
  */
 function applyDeath(a: Actor, s: Skeleton): void {
   const d = a.pose.death, c = a.corpse;
-  if (!d || !c || c.phase !== 'tumble') return;
-  const e = smooth(clamp01(c.t / 0.15));
+  if (!d || !c) return;
+  // M14b VIS-06: the way down fades out over the settle instead of vanishing on the landing tick
+  const fade = FEEL.pose.slumpBlend;
+  let e: number;
+  if (c.phase === 'tumble') e = smooth(clamp01(c.t / 0.15));
+  else if (c.phase === 'settled' && fade > 0 && c.t < fade) e = 1 - smooth(c.t / fade);
+  else return;
   if (d === 'drop') {
     s.body[1] += 0.1 * e;
     s.head[1] += 0.12 * e; s.head[2] += 0.4 * e;
@@ -91,7 +97,11 @@ export interface Layered {
   bob: number;
 }
 
-export function buildSkeleton(a: Actor, time: number): Layered {
+/**
+ * `walk` (M14b VIS-16, the painter's src/anim/drawn.ts): the walk cycle with a weight that eases in
+ * and out; without it the sim's `walkPhase` is used as is (on or off).
+ */
+export function buildSkeleton(a: Actor, time: number, walk?: { phase: number; weight: number }): Layered {
   const p = a.pose;
   const sk = drawnClip(a);
   const s = {} as Skeleton;
@@ -114,21 +124,24 @@ export function buildSkeleton(a: Actor, time: number): Layered {
   applyIdle(a, s, time);
 
   const quiet = p.dead || a.state === 'down' || a.state === 'knockback';
-  const stepping = p.walkPhase !== undefined;
-  const ph = p.walkPhase ?? 0;
+  // w = how much of the walk shows (1 while stepping; eased by the painter at starts and stops)
+  const w = walk ? walk.weight : p.walkPhase !== undefined ? 1 : 0;
+  const stepping = w > 0;
+  const ph = walk ? walk.phase : p.walkPhase ?? 0;
   const breath = time * BREATH_RATE + a.id * 1.7;
-  const bob = quiet ? 0 : stepping ? Math.abs(Math.sin(ph)) * 0.014 : Math.sin(breath) * 0.004;
-  const swing = stepping ? Math.sin(ph) * 0.07 : 0;
+  const bob = quiet ? 0 : Math.abs(Math.sin(ph)) * 0.014 * w + Math.sin(breath) * 0.004 * (1 - w);
+  // VIS-16: amplitude stride / 2π, a quarter cycle behind the lift (FEEL.pose.walkSwing / walkSwingLag)
+  const swing = stepping ? (FEEL.pose.walkSwingLag ? -Math.cos(ph) : Math.sin(ph)) * FEEL.pose.walkSwing * w : 0;
   const tuck = p.tuck;
 
   s.footF[0] += swing;
   s.footB[0] -= swing;
-  s.footF[1] -= (stepping ? Math.max(0, Math.sin(ph)) * 0.035 : 0) + tuck * 0.12;
-  s.footB[1] -= (stepping ? Math.max(0, -Math.sin(ph)) * 0.035 : 0) + tuck * 0.08;
+  s.footF[1] -= Math.max(0, Math.sin(ph)) * 0.035 * w + tuck * 0.12;
+  s.footB[1] -= Math.max(0, -Math.sin(ph)) * 0.035 * w + tuck * 0.08;
   // walking while punching: the feet step, the hands stay on the punch
   const handSwing = a.state === 'attack' ? 0 : swing;
   s.handB[0] -= handSwing * 0.6 + tuck * 0.03;
-  s.handB[1] += -tuck * 0.12 + (quiet || a.state === 'attack' ? 0 : stepping ? Math.cos(ph) * 0.02 : Math.sin(breath + 1) * 0.008);
+  s.handB[1] += -tuck * 0.12 + (quiet || a.state === 'attack' ? 0 : Math.cos(ph) * 0.02 * w + Math.sin(breath + 1) * 0.008 * (1 - w));
   if (!p.held) {
     s.handF[0] += handSwing * 0.6 + tuck * 0.04;
     s.handF[1] += -tuck * 0.14 + (quiet ? 0 : Math.sin(breath) * 0.008);
