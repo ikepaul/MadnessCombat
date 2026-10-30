@@ -34,7 +34,7 @@ import { type BotState, newBotState, partnerCommand } from '../dev/partnerBot';
 import { paintDoor, paintProp, paintRoom } from '../render/canvas/roomPainter';
 import { paintLockShadow, paintLockWall, paintTank } from '../render/canvas/sceneryPainter';
 import { TUNING } from '../data/tuning';
-import { FEEL } from '../data/feel';
+import { FEEL, INTENSITY_SCALE } from '../data/feel';
 import { Decals } from '../render/decals';
 import { PostFx } from '../render/post';
 import { Vfx } from '../render/vfx';
@@ -43,8 +43,8 @@ import { isWeapon, WEAPON_IDS, WEAPONS } from '../data/weapons';
 import { lyingAt } from '../anim/skeleton';
 import { type Actor, alive, createActor, meleeBand } from '../sim/actor';
 import { snapTarget } from '../sim/combat';
-import { FixedClock } from '../sim/clock';
-import { hasEdges, mergeEdges } from '../sim/command';
+import { DeathTimer, FixedClock } from '../sim/clock';
+import { clearEdges, hasEdges, IDLE_COMMAND, mergeEdges } from '../sim/command';
 import { WaveDirector } from '../sim/waves';
 import { World } from '../sim/world';
 import { STAGE1, type StageRoomId } from '../data/stages/stage1';
@@ -62,8 +62,9 @@ import { BoomboxSource } from '../audio/boombox';
 import { FeelDirector } from '../feel/feel';
 import { FeelFx } from '../render/feelFx';
 import { inkWipe } from '../ui/transition';
-import { cycleEffects, effectLevel, saveSettings, SETTINGS } from '../settings';
-import { LAST_STAGE, PROGRESS, saveCheckpoint, stageFinished } from '../progress';
+import { effectLevel, SETTINGS, toggleMute } from '../settings';
+import { LAST_STAGE, resumePoint, saveCheckpoint, stageFinished } from '../progress';
+import { debugEnabled } from '../input/debugKeys';
 import type { UIScene } from './UIScene';
 
 /** One music system for the game (survives room restarts). */
@@ -112,6 +113,10 @@ const activeEnemies = (w: World) => w.actors.filter((a) => a.ai && a.state !== '
 
 /** Seconds after the player dies before the room restarts (checkpoint per room, PLAN.md M3). */
 const RESTART_DELAY = 2;
+/** UXS-14: after this long dead, any action key restarts at once (s). invented */
+const RESTART_SKIP = 0.8;
+/** UXS-07: player 2 goes idle when no input has come from his laptop for this long (s). invented */
+const GUEST_SILENCE = 0.25;
 
 /**
  * Runs the fixed-step world and draws it: baked room layer, baked decal layer (blood),
@@ -135,7 +140,20 @@ export class GameScene extends Phaser.Scene {
   private gunFx!: GunFx;
   private decals!: Decals;
   private input_!: PlayerInput;
-  private deadFor = 0;
+  /** STB-07 / UXS-14: the death -> restart wait (holds while paused; a key skips it after 0.8 s). */
+  private death = new DeathTimer(RESTART_DELAY, RESTART_SKIP);
+  /** The pause menu is open on this laptop (UIScene sets it; the guest's clock never runs). */
+  menuOpen = false;
+  /** UXS-06: a co-op status line for the HUD ("Host paused", "Host left (Esc: title)", "Player 2 left"). */
+  netNote = '';
+  /** UXS-06: the guest's host is gone (Esc goes to the title). */
+  private hostLeft = false;
+  /** UXS-06: the host's pause menu is open (from its snapshot). */
+  private hostPaused = false;
+  /** UXS-07: when player 2's laptop last sent input (performance.now() ms). */
+  private lastInputAt = 0;
+  /** UXS-06: the paused flag the guest saw last (a pause sends one more snapshot). */
+  private sentPaused = false;
   private data_: GameSceneData = {};
   /** Stage route info for the HUD (end card target). */
   stageInfo?: { stage: number; room: string; targetBodyCount: number };
@@ -168,7 +186,12 @@ export class GameScene extends Phaser.Scene {
     this.clock = new FixedClock();
     this.paletteId = data.palette ?? 'neutral';
     this.cannonHits = 0;
-    this.deadFor = 0;
+    this.death = new DeathTimer(RESTART_DELAY, RESTART_SKIP);
+    this.menuOpen = false;
+    this.netNote = '';
+    this.hostLeft = false;
+    this.hostPaused = false;
+    this.sentPaused = false;
     this.cleared = false;
     this.leaving = false;
     this.stageInfo = undefined;
@@ -204,7 +227,8 @@ export class GameScene extends Phaser.Scene {
     // feel layer: sim events -> hit-stop, shake, chromatic, kill cam (+ audio through the engine)
     const engine = audio();
     this.feelFx = new FeelFx(this.cameras.main, this.clock, this.post, engine);
-    new FeelDirector(this.world, this.feelFx, () => this.clock.tick * this.clock.dt);
+    // VIS-10: the hit-stop budget counts real (unpaused) seconds
+    new FeelDirector(this.world, this.feelFx, () => this.clock.realTime);
     if (engine) {
       engine.warmUp();
       engine.setRoomReverb(this.world.room.outdoor ? 'outdoor' : 'medium');
@@ -255,7 +279,8 @@ export class GameScene extends Phaser.Scene {
 
     // the guest's world is a puppet of the host's: time controls stay with the host
     const host = data.coop !== 'guest';
-    bindDebugKeys(this, {
+    // CMB-02 / UXS-04: the debug set only in dev builds or with ?debug; M (mute) always
+    bindDebugKeys(this, debugEnabled(), {
       toggleOverlay: () => (this.overlay = !this.overlay),
       toggleSlowMo: () => { if (host) this.clock.timeScale = this.clock.timeScale === 1 ? 0.25 : 1; },
       togglePause: () => { if (host) this.clock.paused = !this.clock.paused; },
@@ -267,12 +292,7 @@ export class GameScene extends Phaser.Scene {
       raiseAll: () => { if (host) raiseAll(this.world); },
       // M13 playtest pass: every invented number, live (dev builds only)
       toggleTuning: import.meta.env.DEV ? toggleTuningPanel : undefined,
-      cycleEffects: () => cycleEffects(),
-      toggleMute: () => {
-        SETTINGS.master = SETTINGS.master > 0 ? 0 : 0.8;
-        saveSettings();
-        audio()?.applySettings();
-      },
+      toggleMute: () => { toggleMute(); audio()?.applySettings(); },
     });
     // end card: Enter goes on to the next stage (after the last one: the credits), R replays this one, Esc to the title
     this.input.keyboard?.on('keydown-ENTER', () => {
@@ -287,10 +307,29 @@ export class GameScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-R', () => { if (this.cleared && host) this.scene.restart({ ...this.data_, resume: false }); });
     // M13: Esc pauses (the pause menu), or leaves the end card for the title screen
     this.input.keyboard?.on('keydown-ESC', (e: KeyboardEvent) => {
-      if (this.cleared) { if (!this.data_.coop) this.toTitle(); return; }
+      // UXS-06: the co-op end card and a guest whose host left go to the title too
+      if (this.cleared || this.hostLeft) { this.toTitle(); return; }
       (this.scene.get('ui') as UIScene).openPause(e);
     });
+    // CMB-01: closing the tab (Ctrl + W, a stray click) while a stage runs asks first
+    if (!this.lab && !data.testRoom) {
+      const unload = (e: BeforeUnloadEvent) => { if (this.cleared) return; e.preventDefault(); e.returnValue = ''; };
+      window.addEventListener('beforeunload', unload);
+      this.events.once('shutdown', () => window.removeEventListener('beforeunload', unload));
+    }
+    // UXS-07: the guest's tab losing focus leaves player 2 standing, not running on
+    if (data.coop === 'guest') {
+      const blur = () => this.link?.sendInput(IDLE_COMMAND);
+      window.addEventListener('blur', blur);
+      this.events.once('shutdown', () => window.removeEventListener('blur', blur));
+    }
     this.scene.launch('ui');
+  }
+
+  /** UXS-05: the pause menu closed: keys pressed in it never reach the game. */
+  pauseClosed(): void {
+    this.input_.consumeEdges();
+    this.world.command = clearEdges(this.world.command);
   }
 
   setPalette(id: PaletteId): void {
@@ -362,6 +401,8 @@ export class GameScene extends Phaser.Scene {
 
   /** Leave for the title screen (the pause menu, the end card, after the credits), under the ink wipe (revamp F2). */
   toTitle(view?: 'credits'): void {
+    // UXS-06: leaving co-op drops the link, so the other laptop hears about it
+    if (this.coop && !this.leaving) this.link?.leave();
     const go = () => {
       this.scene.stop('ui');
       this.scene.start('title', { view: view ?? 'main' });
@@ -378,7 +419,7 @@ export class GameScene extends Phaser.Scene {
 
   /** M9: a room-graph stage from its start, a checkpoint, or `&room=`. */
   private setupRoomStage(def: StageDef, data: GameSceneData): void {
-    const saved = PROGRESS.checkpoint;
+    const saved = resumePoint();
     const cp = data.resume !== false && !data.room && saved?.stage === def.stage && saved.room && def.rooms[saved.room] ? saved : undefined;
     const room = data.room && data.room in def.rooms ? data.room : cp?.room ?? def.start.room;
     const entry = cp?.entry ?? (room === def.start.room ? def.start.entry : Object.keys(def.rooms[room].entries)[0]);
@@ -417,7 +458,21 @@ export class GameScene extends Phaser.Scene {
     if (data.wave) {
       const start = Math.max(0, def.script.waves.findIndex((w) => w.id === data.wave));
       this.world.director = new WaveDirector(def.script, start);
-    } else this.world.seq.run(stage1From(data.beat && (STAGE1_BEATS as readonly string[]).includes(data.beat) ? data.beat as Stage1Beat : 'intro'));
+    } else {
+      // STB-06 / UXS-01: each beat is a checkpoint; a restart or Continue starts the script at the saved beat
+      const isBeat = (b?: string): b is Stage1Beat => !!b && (STAGE1_BEATS as readonly string[]).includes(b);
+      const saved = resumePoint();
+      const cp = data.resume === true && roomId === 'arena' && saved?.stage === 1 && isBeat(saved.entry) ? saved : undefined;
+      const beat: Stage1Beat = cp ? cp.entry as Stage1Beat : isBeat(data.beat) ? data.beat : 'intro';
+      if (cp) {
+        this.world.kills = cp.kills;
+        this.world.players.forEach((p, i) => { const r = cp.players[i]?.rage; if (r) p.rage = structuredClone(r); });
+      }
+      const world = this.world;
+      this.world.seq.run(stage1From(beat, (b) => {
+        saveCheckpoint({ stage: 1, room: 'arena', entry: b, kills: world.kills, players: world.players.map((p) => ({ hands: structuredClone(p.hands), grenades: p.grenades, rage: p.rage ? structuredClone(p.rage) : undefined })) });
+      }));
+    }
     this.stageInfo = { stage: STAGE1.stage, room: roomId, targetBodyCount: STAGE1.targetBodyCount };
   }
 
@@ -425,9 +480,12 @@ export class GameScene extends Phaser.Scene {
   private startHosting(): void {
     const link = (this.link = coopLink('host'));
     const snaps = (this.snaps = new SnapshotWriter(this.world, Date.now(), () => this.paletteId));
-    link.onInput = (cmd) => (this.world.commands[1] = mergeEdges(this.world.commands[1], cmd));
-    // a (re)joining guest gets the whole room first
-    link.onPeer = (connected) => { if (connected) { snaps.needFull = true; snaps.joining = true; } };
+    link.onInput = (cmd) => { this.lastInputAt = performance.now(); this.world.commands[1] = mergeEdges(this.world.commands[1], cmd); };
+    // a (re)joining guest gets the whole room first; UXS-07: a guest who left stops moving
+    link.onPeer = (connected) => {
+      if (connected) { snaps.needFull = true; snaps.joining = true; this.netNote = ''; this.lastInputAt = performance.now(); }
+      else { this.world.commands[1] = IDLE_COMMAND; this.netNote = 'Player 2 left'; }
+    };
   }
 
   /** Co-op guest: an empty puppet world until the host's first snapshot arrives. */
@@ -436,6 +494,8 @@ export class GameScene extends Phaser.Scene {
     this.world.puppet = true;
     const link = (this.link = coopLink('guest'));
     link.onSnap = (s) => this.applySnap(s);
+    // UXS-06: the host closed the game or quit to the title
+    link.onPeer = (connected) => { this.hostLeft = !connected; };
   }
 
   /** Guest: show the host's world. A new session (the host restarted the room) restarts this scene. */
@@ -459,6 +519,7 @@ export class GameScene extends Phaser.Scene {
       this.world.setRoom(room);
     }
     applySnapshot(this.world, s);
+    this.hostPaused = !!s.paused;
     // the host's palette: the stage's colours, and whether it shows blood (the guest used to stay 'neutral', without blood)
     if (s.palette && s.palette !== this.paletteId) this.setPalette(s.palette);
     if (s.full) this.bakeCorpses();
@@ -499,9 +560,10 @@ export class GameScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     if (this.coop === 'guest') {
-      // player 2: send this frame's input to the host, draw the host's world
-      this.link?.sendInput(this.input_.read());
+      // player 2: send this frame's input to the host (idle while his own menu is open, UXS-05), draw the host's world
+      this.link?.sendInput(this.menuOpen ? IDLE_COMMAND : this.input_.read());
       this.input_.consumeEdges();
+      this.netNote = this.hostLeft ? 'Host left (Esc: title)' : this.hostPaused ? 'Host paused' : '';
       this.render();
       this.post.update();
       this.feelFx.update(delta / 1000);
@@ -513,8 +575,11 @@ export class GameScene extends Phaser.Scene {
     this.world.difficulty = SETTINGS.difficulty;
     // M18: the wishbone tears only where the stage shows blood
     this.world.blood = this.blood;
-    // keep an edge latched until a tick actually consumes it
-    this.world.command = mergeEdges(this.world.command, this.input_.read());
+    // keep an edge latched until a tick actually consumes it; UXS-05: nothing is read while the menu is open
+    const frame = this.clock.pausedByMenu ? undefined : this.input_.read();
+    if (frame) this.world.command = mergeEdges(this.world.command, frame);
+    // UXS-07: player 2's laptop went quiet (tab asleep, Wi-Fi gone): he stops instead of repeating his last input
+    if (this.link?.peer && performance.now() - this.lastInputAt > GUEST_SILENCE * 1000) this.world.commands[1] = IDLE_COMMAND;
     const steps = this.clock.advance(delta / 1000, () => {
       // M18: no laptop for player 2 here (`?coop=bot`, the co-op labs): the partner bot plays him
       const p2 = this.world.players[1];
@@ -523,11 +588,13 @@ export class GameScene extends Phaser.Scene {
       this.lab?.step?.(this.world);
     });
     if (steps > 0 || hasEdges(this.world.command)) this.input_.consumeEdges();
-    this.watchPlayerDeath(delta / 1000);
+    this.watchPlayerDeath(delta / 1000, !!frame && hasEdges(frame));
     this.render();
-    this.post.update();
+    if (!this.clock.halted) this.post.update();
     if (this.snaps) {
-      if (this.link?.peer && (steps > 0 || this.snaps.needFull)) this.link.sendSnap(this.snaps.take());
+      // UXS-06: a pause (or its end) reaches the guest even though no tick ran
+      const paused = this.clock.pausedByMenu, flip = paused !== this.sentPaused;
+      if (this.link?.peer && (steps > 0 || this.snaps.needFull || flip)) { this.snaps.paused = paused; this.sentPaused = paused; this.link.sendSnap(this.snaps.take()); }
       else if (!this.link?.peer) this.snaps.drop();
     }
     this.feelFx.update(delta / 1000);
@@ -537,14 +604,12 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** PLAN.md M3: player death -> restart the room. Co-op: once nobody is left standing. */
-  private watchPlayerDeath(dt: number): void {
-    if (this.world.players.length === 0 || this.world.activePlayers.length > 0) return;
-    // co-op: the last one standing went through an exit (his partner comes along, revived)
-    if (this.world.players.some((p) => p.parked)) return;
+  private watchPlayerDeath(dt: number, anyKey: boolean): void {
+    const w = this.world;
+    // co-op: the last one standing went through an exit (his partner comes along, revived);
     // M10: the stage 2 ending kills the hero on purpose (world-last-stand): the end card, not a restart
-    if (this.world.flags.has('ending') || this.cleared) return;
-    this.deadFor += dt * this.clock.timeScale;
-    if (this.deadFor >= RESTART_DELAY) this.restart();
+    const dead = w.players.length > 0 && w.activePlayers.length === 0 && !w.players.some((p) => p.parked) && !w.flags.has('ending') && !this.cleared;
+    if (this.death.update(dt, { dead, halted: this.clock.halted, anyKey, timeScale: this.clock.timeScale })) this.restart();
   }
 
   /** Draw actors, items, props, cannons and balls far-to-near, then particles. */
@@ -559,6 +624,8 @@ export class GameScene extends Phaser.Scene {
       this.roomLayer.upload();
     }
     const flashes = effectLevel() !== 'off';
+    // VIS-04: room-filling flashes follow effect intensity / reduced motion
+    const roomFlash = INTENSITY_SCALE[effectLevel()];
     this.actorLayer.clear();
     // doors sit in the side walls, behind everything in the room
     this.world.room.doors.forEach((d, i) => paintDoor(ctx, this.world.room, d, this.world.doors[i]?.open ?? 0, pal));
@@ -615,8 +682,8 @@ export class GameScene extends Phaser.Scene {
       for (const d of list) if (d.id !== undefined && top.has(d.id)) d.draw();
     } else for (const d of list) d.draw();
     for (const p of this.world.players) if (p.state === 'downed') paintReviveBar(ctx, p);
-    this.vfx.draw(ctx);
-    this.gunFx.draw(ctx);
+    this.vfx.draw(ctx, roomFlash);
+    this.gunFx.draw(ctx, roomFlash);
     this.actorLayer.upload();
     this.decalLayer.flush();
     this.corpseLayer.flush();

@@ -418,7 +418,8 @@ export class Vfx {
     this.chunks = this.chunks.filter((c) => c.life < 6);
   }
 
-  draw(ctx: Ctx): void {
+  /** `flashes` (0..1, VIS-04): room-filling flashes scaled by effect intensity. */
+  draw(ctx: Ctx, flashes = 1): void {
     // M19 rage: ink streaks behind dashes, white slash lines, the ignite ring
     ctx.lineCap = 'round';
     for (const st of this.streaks) {
@@ -491,8 +492,8 @@ export class Vfx {
       ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
     }
     ctx.globalAlpha = 1;
-    for (const b of this.booms) this.drawBoom(ctx, b);
-    for (const b of this.bolts) this.drawBolt(ctx, b);
+    for (const b of this.booms) this.drawBoom(ctx, b, flashes);
+    for (const b of this.bolts) this.drawBolt(ctx, b, flashes);
     for (const sp of this.sparks) this.drawSparks(ctx, sp);
     ctx.lineCap = 'round';
     for (const p of this.parries) {
@@ -564,15 +565,18 @@ export class Vfx {
   }
 
   /** Explosion: additive flash lighting the room, then a big white starburst (2 frames). */
-  private drawBoom(ctx: Ctx, b: Boom): void {
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, 700);
-    g.addColorStop(0, `rgba(255,236,200,${0.12 * b.left})`);
-    g.addColorStop(1, 'rgba(255,236,200,0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(b.x - 700, b.y - 700, 1400, 1400);
-    ctx.restore();
+  private drawBoom(ctx: Ctx, b: Boom, flashes: number): void {
+    // VIS-04: the room flash follows effect intensity; the starburst itself always draws
+    if (flashes > 0) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, 700);
+      g.addColorStop(0, `rgba(255,236,200,${0.12 * b.left * flashes})`);
+      g.addColorStop(1, 'rgba(255,236,200,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(b.x - 700, b.y - 700, 1400, 1400);
+      ctx.restore();
+    }
     const r = b.s * (0.55 + 0.2 * (4 - b.left));
     ctx.save();
     ctx.translate(b.x, b.y);
@@ -594,14 +598,14 @@ export class Vfx {
    * Lightning (design/art-direction.md M8: jagged, cyan-white, 2 frames + afterglow): a room flash
    * and the full bolt with forks while it's live, then only a fading cyan trace.
    */
-  private drawBolt(ctx: Ctx, b: { from: ScreenPoint; to: ScreenPoint; s: number; seed: number; left: number }): void {
+  private drawBolt(ctx: Ctx, b: { from: ScreenPoint; to: ScreenPoint; s: number; seed: number; left: number }, flashes = 1): void {
     const live = b.left > GLOW_TICKS, k = live ? 1 : b.left / GLOW_TICKS;
     const len = Math.hypot(b.to[0] - b.from[0], b.to[1] - b.from[1]);
     const n = Math.max(6, Math.round(len / (0.12 * b.s))), amp = 0.06 * b.s;
-    if (live) {
+    if (live && flashes > 0) {
       ctx.save(); ctx.globalCompositeOperation = 'lighter';
       const g = ctx.createRadialGradient(b.to[0], b.to[1], 0, b.to[0], b.to[1], 900);
-      g.addColorStop(0, 'rgba(170,230,255,0.22)'); g.addColorStop(1, 'rgba(170,230,255,0)');
+      g.addColorStop(0, `rgba(170,230,255,${0.22 * flashes})`); g.addColorStop(1, 'rgba(170,230,255,0)');
       ctx.fillStyle = g; ctx.fillRect(b.to[0] - 900, b.to[1] - 900, 1800, 1800);
       ctx.restore();
     }

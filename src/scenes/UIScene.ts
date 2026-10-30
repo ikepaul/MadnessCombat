@@ -8,7 +8,7 @@ import { project } from '../render/camera';
 import { drawDebugGrid, rulerLabels } from '../render/debugOverlay';
 import { type Actor, stateLabel } from '../sim/actor';
 import { BODY, HEAD } from '../sim/hurtbox';
-import { SETTINGS } from '../settings';
+import { fillKeys, SETTINGS } from '../settings';
 import type { GameScene } from './GameScene';
 import { StageHud } from '../render/stageHud';
 import { Menu, type MenuItem } from '../ui/menu';
@@ -26,6 +26,8 @@ export class UIScene extends Phaser.Scene {
   private letterT = 0;
   private flashLeft = 0;
   private info!: Phaser.GameObjects.Text;
+  /** UXS-06: the co-op status line ("Host paused", "Player 2 left"...). */
+  private netText!: Phaser.GameObjects.Text;
   private labText!: Phaser.GameObjects.Text;
   private rulers: Phaser.GameObjects.Text[] = [];
   /** Per player row: last hp seen, seconds of pop left after losing / regaining a life. */
@@ -68,6 +70,7 @@ export class UIScene extends Phaser.Scene {
     );
     const box = { fontFamily: 'Inter', fontSize: '18px', color: '#ffffff', backgroundColor: '#000000aa', padding: { x: 8, y: 4 } };
     this.info = this.add.text(16, 12, '', box);
+    this.netText = this.add.text(960, 60, '', { fontFamily: 'Inter', fontSize: '30px', color: '#ffffff', backgroundColor: '#000000cc', padding: { x: 18, y: 10 } }).setOrigin(0.5, 0).setDepth(195).setVisible(false);
     this.labText = this.add.text(16, 1080 - 48, '', { ...box, wordWrap: { width: 1880 } }).setVisible(!!game.lab).setOrigin(0, 1).setY(1080 - 16);
     this.pipRows = [];
     this.pipLabels = [0, 1].map(() => this.add.text(0, 0, '', { fontFamily: 'Inter', fontSize: '20px', color: '#ffffff', stroke: INK, strokeThickness: 4, fontStyle: 'bold' }).setOrigin(0, 0.5));
@@ -90,7 +93,8 @@ export class UIScene extends Phaser.Scene {
       this.scriptCardUntil = game.world.time + e.seconds;
       this.titleCard.setVisible(e.style === 'title');
       this.caption.setVisible(e.style === 'caption');
-      (e.style === 'title' ? (this.titleCard.getByName('text') as Phaser.GameObjects.Text) : this.caption).setText(e.text);
+      // M14b caption key helper: `{key:dive}` -> the key bound to dive
+      (e.style === 'title' ? (this.titleCard.getByName('text') as Phaser.GameObjects.Text) : this.caption).setText(fillKeys(e.text));
     });
   }
 
@@ -128,7 +132,9 @@ export class UIScene extends Phaser.Scene {
     const game = this.scene.get('game') as GameScene;
     if (this.pause) { this.closePause(); return; }
     const host = game.coop !== 'guest';
-    if (host) game.clock.paused = true;
+    // VIS-10 / STB-11 / UXS-05: the menu halts the sim, feel FX and input (the debug pause F3 stays apart)
+    game.menuOpen = true;
+    if (host) game.clock.pausedByMenu = true;
     const bg = this.add.rectangle(0, 0, 1920, 1080, 0x000000, 0.72).setOrigin(0, 0).setDepth(190);
     const title = this.add.text(200, 220, 'PAUSED', { fontFamily: 'Anton', fontSize: '96px', color: '#f2f2f3' }).setDepth(200);
     const show = (view: 'main' | 'settings' | 'controls') => {
@@ -158,7 +164,9 @@ export class UIScene extends Phaser.Scene {
     this.pause.title.destroy();
     this.pause = undefined;
     this.pauseClosedAt = performance.now();
-    if (game.coop !== 'guest') game.clock.paused = false;
+    game.menuOpen = false;
+    if (game.coop !== 'guest') game.clock.pausedByMenu = false;
+    game.pauseClosed();
   }
 
   update(_time: number, delta: number): void {
@@ -167,6 +175,7 @@ export class UIScene extends Phaser.Scene {
     this.drawPips(game, delta / 1000);
     this.drawLetterbox(game, delta / 1000);
     this.drawCounter(game);
+    this.netText.setVisible(!!game.netNote).setText(game.netNote);
     this.stageHud.update();
     this.inkHud.update(delta / 1000);
     if (game.world.time >= this.scriptCardUntil) { this.titleCard.setVisible(false); this.caption.setVisible(false); }
@@ -187,7 +196,7 @@ export class UIScene extends Phaser.Scene {
     this.drawHurtboxes(game);
     const c = game.clock;
     this.info.setText(
-      `tick ${game.world.tick}  ·  ${this.game.loop.actualFps.toFixed(0)} fps  ·  ${c.paused ? 'PAUSED (F4 step)' : `${c.timeScale}×`}  ·  palette ${game.paletteId}${game.blood ? ' (blood)' : ''}  ·  effects ${SETTINGS.effects} (V)  ·  ${SETTINGS.master > 0 ? 'sound on' : 'muted'} (M)  ·  actors ${game.world.actors.length}`,
+      `tick ${game.world.tick}  ·  ${this.game.loop.actualFps.toFixed(0)} fps  ·  ${c.paused ? 'PAUSED (F4 step)' : `${c.timeScale}×`}  ·  palette ${game.paletteId}${game.blood ? ' (blood)' : ''}  ·  effects ${SETTINGS.effects}  ·  ${SETTINGS.muted ? 'muted' : 'sound on'} (M)  ·  actors ${game.world.actors.length}`,
     );
   }
 
@@ -209,7 +218,7 @@ export class UIScene extends Phaser.Scene {
       const episode = target ? `${vs} the episode's ${target}\n` : '';
       // co-op: only the host restarts the room
       const next = game.nextStage;
-      const again = game.coop === 'guest' ? 'waiting for the host'
+      const again = game.coop === 'guest' ? 'waiting for the host  ·  Esc: title'
         : next ? `Enter: on to Stage ${next}  ·  R: Stage ${game.stageInfo!.stage} again  ·  Esc: title`
           : game.stageInfo?.stage === 3 && !game.coop ? 'Enter: credits  ·  R: Stage 3 again  ·  Esc: title' : 'Enter: fight again  ·  Esc: title';
       (this.card.getByName('sub') as Phaser.GameObjects.Text).setText(`${episode}${again}`);

@@ -54,6 +54,8 @@ function coopRelay(): Plugin {
       });
       server.ws.on('coop:input', (data, client) => relay.input(client, data));
       server.ws.on('coop:snap', (data, client) => relay.snap(client, data));
+      // M14b (UXS-06): Esc in the lobby / quit to the title: the other laptop hears the peer left
+      server.ws.on('coop:bye', (_data, client) => relay.closed(client));
     },
   };
 }

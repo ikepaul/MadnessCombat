@@ -92,6 +92,8 @@ export interface Snapshot {
   cannons?: World['cannons'];
   balls?: World['balls'];
   lastKillKind?: ActorKind;
+  /** M14b (UXS-06): the host's pause menu is open (the guest shows "Host paused"). */
+  paused?: boolean;
   /** Sim events since the last snapshot, in order. */
   events: [keyof GameEvents, unknown][];
 }
@@ -120,6 +122,8 @@ export class SnapshotWriter {
    * guest would miss that tick's events (the ink wipe uncovering the new room, M9).
    */
   joining = true;
+  /** UXS-06: the host's pause menu is open (sent with the next snapshot). */
+  paused = false;
 
   constructor(private world: World, private session: number, private palette: () => PaletteId = () => 'neutral') {
     world.events.onAny((type, payload) => {
@@ -143,7 +147,7 @@ export class SnapshotWriter {
       items: w.items, doors: w.doors.map((d) => d.open), props: w.room.props, cannons: w.cannons, balls: w.balls, kills: w.kills, lastKillKind: w.lastKillKind,
       elevator: w.elevator, decks: w.room.decks,
       physics: w.physics, gore: w.gore, exits: w.exits, blocks: w.blocks, stage3Room: { void: w.room.void, crack: w.room.crack, vending: w.room.vending, lockWalls: w.room.lockWalls, outdoor: w.room.outdoor },
-      lockWalls: w.lockWalls, lastStand: w.lastStand, rage: w.rage,
+      lockWalls: w.lockWalls, lastStand: w.lastStand, rage: w.rage, paused: this.paused || undefined,
       events: full && this.joining ? [] : this.events,
     };
     this.events = [];
@@ -159,6 +163,11 @@ export class SnapshotWriter {
  * event handlers (corpse baking, VFX at an actor) see the actors as of that frame.
  */
 export function applySnapshot(world: World, s: Snapshot): void {
+  // M14b (UXS-08): a full snapshot lists every actor: anything else on the guest was removed on the host
+  if (s.full) {
+    const ids = new Set(s.actors.map((a) => a.id));
+    for (let i = world.actors.length - 1; i >= 0; i--) if (!ids.has(world.actors[i].id)) world.actors.splice(i, 1);
+  }
   for (const as of s.actors) {
     let a = world.actorById(as.id);
     if (!a) {
@@ -221,7 +230,15 @@ export function applySnapshot(world: World, s: Snapshot): void {
   if (s.balls) world.balls = s.balls;
   s.doors.forEach((open, i) => { if (world.doors[i]) world.doors[i].open = open; });
   world.tick = s.tick;
-  for (const [type, payload] of s.events) world.events.emit(type, payload as never);
+  for (const [type, payload] of s.events) {
+    // UXS-08: the host spliced an actor out (a script, the void, a sweep): the puppet drops it too
+    if (type === 'actorRemoved') {
+      const id = (payload as GameEvents['actorRemoved']).actorId;
+      const i = world.actors.findIndex((a) => a.id === id);
+      if (i >= 0) world.actors.splice(i, 1);
+    }
+    world.events.emit(type, payload as never);
+  }
   // after the replay: the puppet's own kill listener would count the replayed kills again
   world.kills = s.kills;
   world.lastKillKind = s.lastKillKind;

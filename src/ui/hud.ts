@@ -11,7 +11,7 @@ import { paintGrenade } from '../render/canvas/weaponPainter';
 import { paintHeld } from '../render/canvas/characterPainter';
 import type { GameScene } from '../scenes/GameScene';
 import { STAGE_NAMES } from '../scenes/TitleScene';
-import { SETTINGS } from '../settings';
+import { effectLevel, SETTINGS } from '../settings';
 import type { Actor, Hand } from '../sim/actor';
 import { TUNING } from '../data/tuning';
 import { emptyGun, type PickupPlan, pickupPlan } from '../sim/guns';
@@ -315,9 +315,11 @@ export class InkHud {
   // ---------- C4: hurt edges, last life ----------
 
   private drawHurt(me: Actor | undefined, dt: number): void {
+    const still = effectLevel() === 'off';
     for (const i of [0, 1] as const) {
       this.edgeT[i] = Math.max(0, this.edgeT[i] - dt / 0.5);
-      this.edges[i].setAlpha(this.edgeT[i] * this.edgeT[i]);
+      // UXS-17: half-alpha hurt edges with effects off / reduced motion
+      this.edges[i].setAlpha(this.edgeT[i] * this.edgeT[i] * (still ? 0.5 : 1));
     }
     const last = !!me && me.maxHp > 1 && me.hp === 1 && me.state !== 'dead' && me.state !== 'downed' && !this.game.cleared;
     if (last) {
@@ -325,7 +327,8 @@ export class InkHud {
       // a double beat ~70 per minute
       const ph = (this.lowT * 1.15) % 1;
       const beat = Math.exp(-ph * 9) + 0.6 * Math.exp(-Math.max(0, ph - 0.22) * 9) * (ph > 0.22 ? 1 : 0);
-      this.low.setAlpha(Math.min(1, this.lowT / 0.4) * (0.35 + 0.35 * beat));
+      // UXS-17: a steady vignette (no heartbeat pulse) with effects off / reduced motion
+      this.low.setAlpha(Math.min(1, this.lowT / 0.4) * (still ? 0.5 : 0.35 + 0.35 * beat));
       if (this.heart === undefined) this.heart = audio()?.play('heartbeat', {});
     } else {
       this.lowT = 0;

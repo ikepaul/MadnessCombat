@@ -126,7 +126,8 @@ export class GunFx {
     }
   }
 
-  draw(ctx: Ctx): void {
+  /** `flashes` (0..1, VIS-04): the muzzle room light scaled by effect intensity. */
+  draw(ctx: Ctx, flashes = 1): void {
     for (const d of this.debris) paintDebris(ctx, d.kind, d.x, d.y, d.angle, d.s);
     for (const p of this.puffs) {
       ctx.globalAlpha = 0.5 * (1 - p.life / p.max);
@@ -151,12 +152,13 @@ export class GunFx {
       ctx.beginPath(); ctx.moveTo(t.x, t.y); ctx.lineTo(t.x + t.dx, t.y + t.dy); ctx.stroke();
     }
     // room light flash first (additive), then tracers, then the flash stars on top
+    // VIS-04: the room light follows effect intensity (`flashes` 0..1); the star and tracers always draw
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     for (const f of this.flashes) {
-      if (!f.light) continue;
+      if (!f.light || flashes <= 0) continue;
       const g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, 520);
-      g.addColorStop(0, `rgba(${FLASH_GLOW},0.22)`);
+      g.addColorStop(0, `rgba(${FLASH_GLOW},${0.22 * flashes})`);
       g.addColorStop(1, `rgba(${FLASH_GLOW},0)`);
       ctx.fillStyle = g;
       ctx.fillRect(f.x - 520, f.y - 520, 1040, 1040);

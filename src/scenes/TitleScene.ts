@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { INK } from '../data/palettes';
-import { LAST_STAGE, PROGRESS } from '../progress';
+import { beginRun, LAST_STAGE, PROGRESS } from '../progress';
 import { Menu, type MenuItem } from '../ui/menu';
 import { controlsItems, settingsItems } from '../ui/settingsMenu';
 import { creditsText } from '../ui/credits';
@@ -57,7 +57,7 @@ export class TitleScene extends Phaser.Scene {
 
   private show(view: NonNullable<TitleData['view']>): void {
     this.clear();
-    const at = (items: MenuItem[], back?: () => void, size = 44, gap = 64) => (this.menu = new Menu(this, items, 1060, 530, back, size, gap));
+    const at = (items: MenuItem[], back?: () => void, size = 44, gap = 64, y = 530) => (this.menu = new Menu(this, items, 1060, y, back, size, gap));
     if (view === 'main') {
       const cp = PROGRESS.checkpoint;
       const canContinue = !!cp && (cp.stage > 1 || !!cp.room);
@@ -65,8 +65,11 @@ export class TitleScene extends Phaser.Scene {
         { label: () => (cp ? `Continue · stage ${cp.stage}` : 'Continue'), disabled: !canContinue, action: () => this.play(cp!.stage, true) },
         { label: 'New game', action: () => this.play(1, false) },
         { label: 'Stage select', action: () => this.show('stages') },
-        { label: 'Co-op (host)', action: () => this.show('coop') },
-        { label: 'Co-op (join)', action: () => this.scene.start('coop-lobby', { role: 'guest', stage: 1 }) },
+        // UXS-06 (decided): co-op needs the dev server's relay, so production builds hide it until there's a server
+        ...(import.meta.env.DEV ? [
+          { label: 'Co-op (host)', action: () => this.show('coop') },
+          { label: 'Co-op (join)', action: () => this.scene.start('coop-lobby', { role: 'guest', stage: 1 }) },
+        ] : []),
         { label: 'Settings', action: () => this.show('settings') },
         { label: 'Credits', action: () => this.show('credits') },
       ]);
@@ -93,12 +96,13 @@ export class TitleScene extends Phaser.Scene {
       at(rows, () => this.show('main'));
     } else if (view === 'settings') {
       this.heading('SETTINGS');
-      at(settingsItems(() => this.show('controls'), () => this.show('main')), () => this.show('main'), 34, 50);
+      at(settingsItems(() => this.show('controls'), () => this.show('main')), () => this.show('main'), 34, 44); // UXS-11: the last row stays on screen
     } else if (view === 'controls') {
       this.heading('CONTROLS');
       const items = controlsItems(this, (on) => { if (this.menu) this.menu.hold = on; }, () => this.show('settings'));
-      at(items, () => this.show('settings'), 26, 36);
-      this.layer.push(this.add.text(1000, 1040, 'Mouse: aim, LMB / RMB use the front / back hand. Enter on a row, then press the new key.', { fontFamily: 'Inter', fontSize: '20px', color: '#9a9ba0' }));
+      // UXS-11: the help line sits under the heading and the rows end above the bottom edge (no overlap at 1280x720)
+      at(items, () => this.show('settings'), 26, 29, 575);
+      this.layer.push(this.add.text(1000, 498, 'Mouse: aim, LMB / RMB use the front / back hand.\nEnter on a row, then press the new key.', { fontFamily: 'Inter', fontSize: '20px', color: '#9a9ba0' }));
     } else {
       this.heading('CREDITS');
       this.layer.push(this.add.text(1000, 520, creditsText(), { fontFamily: 'Inter', fontSize: '22px', color: '#d9d9dc', wordWrap: { width: 840 }, lineSpacing: 8 }));
@@ -115,6 +119,7 @@ export class TitleScene extends Phaser.Scene {
 
   /** Host co-op on this stage (`resume` = from the saved room checkpoint); the lobby waits for player 2. */
   private host(stage: number, resume: boolean): void {
+    beginRun(resume);
     this.scene.start('coop-lobby', { role: 'host', stage, resume });
   }
 
@@ -123,6 +128,7 @@ export class TitleScene extends Phaser.Scene {
     // revamp F2: ink over the title, then the stage (with its card, even when resuming a checkpoint)
     this.menu?.destroy();
     this.menu = undefined;
+    beginRun(resume);
     requestStageCard();
     inkWipe(this, 'out', () => this.scene.start('game', { stage, resume }));
   }

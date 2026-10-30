@@ -1,6 +1,7 @@
 // Revamp F2: the ink wipe between screens (title -> stage -> end card -> title), the same
 // diagonal ink sweep as the room transitions (src/render/stageHud.ts), run on real time.
 import Phaser from 'phaser';
+import { effectLevel } from '../settings';
 
 const INK_HEX = 0x141416;
 const W = 1920, H = 1080;
@@ -8,6 +9,8 @@ const W = 1920, H = 1080;
 const SLANT = 360;
 /** Seconds per wipe. invented (the room wipe is 0.35 s) */
 const WIPE = 0.35;
+/** UXS-17: with effects off / reduced motion the wipe is a plain fade this long (s). invented */
+const FADE = 0.2;
 
 /** A stage started from a menu shows its stage card even when it resumes a checkpoint. */
 let cardPending = false;
@@ -30,8 +33,19 @@ export function takeStageCard(): boolean {
 export function inkWipe(scene: Phaser.Scene, kind: 'out' | 'in', done?: () => void): void {
   const g = scene.add.graphics().setDepth(5000).setScrollFactor(0);
   const t0 = performance.now();
+  const fade = effectLevel() === 'off';
   const draw = () => {
-    const u = Math.min(1, (performance.now() - t0) / 1000 / WIPE);
+    const u = Math.min(1, (performance.now() - t0) / 1000 / (fade ? FADE : WIPE));
+    if (fade) {
+      g.clear();
+      g.fillStyle(INK_HEX, kind === 'out' ? u : 1 - u);
+      g.fillRect(0, 0, W, H);
+      if (u < 1) return;
+      scene.events.off('update', draw);
+      if (kind === 'in') g.destroy();
+      done?.();
+      return;
+    }
     const e = u * u * (3 - 2 * u);
     const lead = -SLANT + e * (W + SLANT * 2);
     g.clear();

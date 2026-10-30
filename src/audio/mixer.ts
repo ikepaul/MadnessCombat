@@ -19,8 +19,24 @@ export interface PlayOptions {
   delay?: number;
 }
 
-/** A playing voice; `pan` and `base` (gain before depth) let place() move a looping source. */
-interface Live { src: AudioBufferSourceNode; gain: GainNode; pan?: StereoPannerNode; base?: number }
+/**
+ * A playing voice; `pan` and `base` (gain before depth) let place() move a looping source. `rate`
+ * is its playback rate outside the kill cam (VIS-01: the kill cam restores to it, never stacks).
+ */
+interface Live { src: AudioBufferSourceNode; gain: GainNode; pan?: StereoPannerNode; base?: number; rate: number }
+
+/** The part of an AudioParam the kill cam schedules (a fake one in tests). */
+export type RateParam = Pick<AudioParam, 'cancelScheduledValues' | 'setValueAtTime'>;
+
+/**
+ * VIS-01: one voice under the kill cam: slowed by `factor` from `t`, back to its own base rate at
+ * `until`. Earlier schedules are cancelled, so two kill cams in a row never leave it slowed.
+ */
+export function scheduleKillCamRate(p: RateParam, base: number, t: number, until: number, factor: number): void {
+  p.cancelScheduledValues(t);
+  p.setValueAtTime(base * factor, t);
+  p.setValueAtTime(base, until);
+}
 
 const dbToGain = (db: number) => 10 ** (db / 20);
 
@@ -113,7 +129,7 @@ export class AudioEngine {
   }
 
   applySettings(): void {
-    this.master.gain.value = SETTINGS.master;
+    this.master.gain.value = SETTINGS.muted ? 0 : SETTINGS.master;
     for (const [bus, g] of Object.entries(this.buses) as [Bus, GainNode][]) {
       g.gain.value = BUS_GAIN[bus] * (bus === 'music' ? SETTINGS.music : SETTINGS.sfx);
     }
@@ -184,12 +200,15 @@ export class AudioEngine {
     const def: SoundDef = SOUNDS[id];
     const bufs = this.buffersFor(id);
     const c = this.ctx, now = c.currentTime;
-    const rate = (1 + (Math.random() * 2 - 1) * AUDIO.pitchJitter) * (o.rate ?? 1) * (this.inKillCam ? AUDIO.killCamRate : 1);
+    const baseRate = (1 + (Math.random() * 2 - 1) * AUDIO.pitchJitter) * (o.rate ?? 1);
+    const rate = baseRate * (this.inKillCam ? AUDIO.killCamRate : 1);
     const v = this.pool.start(id, def.variants, def.limit, now, def.loop ? Infinity : bufs[0].duration / rate);
     if (v.steal !== undefined) this.stop(v.steal, 0.02);
     const src = c.createBufferSource();
     src.buffer = bufs[v.variant];
     src.playbackRate.value = rate;
+    // started inside the kill cam: back to its own rate when the kill cam ends
+    if (this.inKillCam) src.playbackRate.setValueAtTime(baseRate, this.killCamUntil);
     src.loop = !!def.loop;
     const gain = c.createGain();
     const depthDb = AUDIO.depthDb * Math.max(0, Math.min(1, o.depth ?? 0));
@@ -204,7 +223,7 @@ export class AudioEngine {
       pan.connect(send).connect(this.reverb);
     }
     src.start(o.delay ? now + o.delay : 0);
-    this.live.set(v.voiceId, { src, gain, pan, base: def.gain * (o.gain ?? 1) });
+    this.live.set(v.voiceId, { src, gain, pan, base: def.gain * (o.gain ?? 1), rate: baseRate });
     src.onended = () => this.live.delete(v.voiceId);
     return v.voiceId;
   }
@@ -225,7 +244,7 @@ export class AudioEngine {
     const pan = c.createStereoPanner();
     src.connect(g).connect(pan).connect(this.buses[bus]);
     if (reverb > 0) { const send = c.createGain(); send.gain.value = reverb; pan.connect(send).connect(this.reverb); }
-    this.live.set(id, { src, gain: g, pan, base: gain });
+    this.live.set(id, { src, gain: g, pan, base: gain, rate: 1 });
     this.place(id, o, 0);
     src.start();
     return id;
@@ -278,21 +297,32 @@ export class AudioEngine {
     g.linearRampToValueAtTime(1, t + hold + AUDIO.duckRelease);
   }
 
-  /** Kill cam: low-pass ~1.2 kHz + slower playback for `seconds`, with a tape-stop whoosh in. */
-  killCam(seconds: number): void {
+  /**
+   * Kill cam: low-pass ~1.2 kHz + slower playback for `seconds`, with a tape-stop whoosh in
+   * (`whoosh` false: picking up again after the pause menu).
+   */
+  killCam(seconds: number, whoosh = true): void {
     const f = this.lowpass.frequency, t = this.ctx.currentTime;
-    this.play('tapeStop');
+    if (whoosh) this.play('tapeStop');
     this.killCamUntil = t + seconds;
     f.cancelScheduledValues(t);
     f.setValueAtTime(f.value, t);
     f.exponentialRampToValueAtTime(AUDIO.killCamLowpass, t + 0.08);
     f.setValueAtTime(AUDIO.killCamLowpass, t + seconds);
     f.exponentialRampToValueAtTime(20000, t + seconds + 0.25);
-    for (const l of this.live.values()) {
-      l.src.playbackRate.setValueAtTime(l.src.playbackRate.value * AUDIO.killCamRate, t);
-      l.src.playbackRate.setValueAtTime(l.src.playbackRate.value, t + seconds);
-    }
+    for (const l of this.live.values()) scheduleKillCamRate(l.src.playbackRate, l.rate, t, t + seconds, AUDIO.killCamRate);
     this.duck(seconds);
+  }
+
+  /** STB-11: the pause menu opened inside a kill cam: filter open, every voice back at its own rate now. */
+  killCamEnd(): void {
+    if (!this.inKillCam) return;
+    const f = this.lowpass.frequency, t = this.ctx.currentTime;
+    this.killCamUntil = t;
+    f.cancelScheduledValues(t);
+    f.setValueAtTime(f.value, t);
+    f.exponentialRampToValueAtTime(20000, t + 0.05);
+    for (const l of this.live.values()) { l.src.playbackRate.cancelScheduledValues(t); l.src.playbackRate.setValueAtTime(l.rate, t); }
   }
 
   /** Music bus fade for a layer (music system). */

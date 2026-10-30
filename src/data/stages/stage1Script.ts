@@ -67,7 +67,7 @@ export function* intro(s: Seq, cast: IntroCast) {
   if (!dead(npc)) {
     s.run(function* caption(q: Seq) {
       yield* q.until(() => target.state === 'free' || dead(npc), 3);
-      if (!dead(npc)) yield* q.card('Get up and hit back: Ctrl into him for a low sweep, then punch him while he is down.', 5, 'caption');
+      if (!dead(npc)) yield* q.card('Get up and hit back: {key:dive} into him for a low sweep, then punch him while he is down.', 5, 'caption');
     });
   }
 
@@ -118,7 +118,7 @@ export function* grenadeBeat(s: Seq) {
     const x = Math.max(-lim, Math.min(lim, p.pos.x + p.facing * G.ahead));
     s.drop('grenade', x, p.pos.z, G.dropHeight);
   }
-  s.run(function* caption(q: Seq) { yield* q.card('A grenade. Pick it up (E), hold G to cook it, let go over the bodies.', 5, 'caption'); });
+  s.run(function* caption(q: Seq) { yield* q.card('A grenade. Pick it up ({key:use}), hold {key:grenade} to cook it, let go over the bodies.', 5, 'caption'); });
   let boom = false;
   const off = world.events.on('explosion', () => (boom = true));
   yield* s.until(() => boom, G.timeout);
@@ -300,8 +300,11 @@ export function freeFloorSpot(world: World, x: number, z: number): { x: number; 
 export const STAGE1_BEATS = ['intro', 'riot', 'grenade', 'boss', 'waveB', 'ending'] as const;
 export type Stage1Beat = (typeof STAGE1_BEATS)[number];
 
-/** The whole stage, beat by beat (from `from`: the beats before it are skipped). */
-export function stage1From(from: Stage1Beat = 'intro') {
+/**
+ * The whole stage, beat by beat (from `from`: the beats before it are skipped). M14b (STB-06 /
+ * UXS-01): `onBeat` is called as each beat after the intro starts (the shell saves a checkpoint).
+ */
+export function stage1From(from: Stage1Beat = 'intro', onBeat?: (beat: Exclude<Stage1Beat, 'intro'>) => void) {
   const at = STAGE1_BEATS.indexOf(from);
   return function* stage1(s: Seq) {
     const world = s.world;
@@ -325,16 +328,18 @@ export function stage1From(from: Stage1Beat = 'intro') {
 
     // beat 2: the riot (wave A)
     if (at <= 1) {
+      onBeat?.('riot');
       s.music('riot');
       yield* s.waves(STAGE1.rooms.arena.script);
     }
     // beat 3: blow up the pile
-    if (at <= 2) yield* grenadeBeat(s);
+    if (at <= 2) { onBeat?.('grenade'); yield* grenadeBeat(s); }
     // beat 4: the boss
-    if (at <= 3) yield* bossFight(s);
+    if (at <= 3) { onBeat?.('boss'); yield* bossFight(s); }
     // beat 5: wave B, with pickups and a grunt on the cannon
-    if (at <= 4) yield* waveBBeat(s);
+    if (at <= 4) { onBeat?.('waveB'); yield* waveBBeat(s); }
     // beat 6: the boombox, the dance, the body-count card
+    onBeat?.('ending');
     yield* ending(s);
     s.clear();
   };
