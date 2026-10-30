@@ -68,6 +68,9 @@ describe('UXS-12: saves are versioned and sanitized', () => {
     // a checkpoint in a room that doesn't exist is dropped; a real one survives
     expect(progress.sanitizeProgress({ unlocked: 3, checkpoint: { stage: 2, room: 'nowhere', entry: '' } }).checkpoint).toBeUndefined();
     expect(progress.sanitizeProgress({ unlocked: 2, checkpoint: { stage: 2, room: 'office', entry: 'hole', kills: 3.7, players: 'x' } }).checkpoint).toEqual({ stage: 2, room: 'office', entry: 'hole', kills: 3, players: [] });
+    // STB-08: the room's seed survives the sanitizer, junk seeds are dropped
+    expect(progress.sanitizeProgress({ unlocked: 2, checkpoint: { stage: 2, room: 'office', entry: 'hole', seed: 12345 } }).checkpoint?.seed).toBe(12345);
+    expect(progress.sanitizeProgress({ unlocked: 2, checkpoint: { stage: 2, room: 'office', entry: 'hole', seed: 'x' } }).checkpoint?.seed).toBeUndefined();
   });
 });
 

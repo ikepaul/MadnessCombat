@@ -18,7 +18,8 @@ export interface Checkpoint {
   stage: number;
   room: string;
   entry: string;
-  // TODO(M14b STB-08): save the room's seed here once slice A1's per-room reseed API is on main.
+  /** STB-08: the room's seed (`world.roomSeed`), so a restart replays the same room. */
+  seed?: number;
   kills: number;
   /** M19: the rage bar too (a death restores the value the room was entered with). */
   players: (Pick<Actor, 'hands' | 'grenades'> & { rage?: Actor['rage'] })[];
@@ -69,7 +70,8 @@ function sanitizeCheckpoint(raw: unknown): Checkpoint | undefined {
   if (stage === 1 && room && !(STAGE1_BEATS as readonly string[]).includes(entry)) return undefined;
   const kills = typeof c.kills === 'number' && Number.isFinite(c.kills) ? Math.max(0, Math.floor(c.kills)) : 0;
   const players = (Array.isArray(c.players) ? c.players : []).filter((p) => !!p && typeof p === 'object' && Array.isArray((p as { hands?: unknown }).hands)) as Checkpoint['players'];
-  return { stage, room, entry, kills, players };
+  const seed = typeof c.seed === 'number' && Number.isInteger(c.seed) ? c.seed : undefined;
+  return { stage, room, entry, seed, kills, players };
 }
 
 /** UXS-12: a saved (or hand-edited, or older) progress object -> valid progress; bad fields come back as defaults. */

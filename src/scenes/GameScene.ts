@@ -434,12 +434,12 @@ export class GameScene extends Phaser.Scene {
       if (saved) { p.hands = structuredClone(saved.hands); p.grenades = saved.grenades; if (saved.rage) p.rage = structuredClone(saved.rage); }
     });
     if (cp) { this.world.kills = cp.kills; this.world.flags.add(`s${def.stage}-title`); }
-    this.world.seq.run(stageRunner(def, room, entry), 'stage');
+    this.world.seq.run(stageRunner(def, room, entry, cp?.seed), 'stage');
     if (!data.palette) this.paletteId = def.palette;
     this.stageInfo = { stage: def.stage, room, targetBodyCount: def.targetBodyCount };
     const world = this.world;
     world.events.on('roomEnter', (e) => {
-      saveCheckpoint({ stage: e.stage, room: e.room, entry: e.entry, kills: world.kills, players: world.players.map((p) => ({ hands: structuredClone(p.hands), grenades: p.grenades, rage: p.rage ? structuredClone(p.rage) : undefined })) });
+      saveCheckpoint({ stage: e.stage, room: e.room, entry: e.entry, seed: world.roomSeed, kills: world.kills, players: world.players.map((p) => ({ hands: structuredClone(p.hands), grenades: p.grenades, rage: p.rage ? structuredClone(p.rage) : undefined })) });
       if (this.stageInfo) this.stageInfo.room = e.room;
     });
   }
