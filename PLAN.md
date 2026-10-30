@@ -457,75 +457,75 @@ Labs: `enemy-agent`, `gun-fire-mode`, `move-stairs`, `melee-blade-deflect`, `wor
 Every line starts with its audit id. One PR per slice: A first and alone, then B here with C, D, E as parallel sessions (never two writers on the same files), F last. New numbers are marked invented in `TUNING`/`FEEL`; each slice edits only its own blocks; new event types go at the end of the union in `events.ts`.
 
 Build, **A Stability** (all bugs; may go as A1 sim + A2 shell/audio):
-- [ ] **baseline** Write `design/audit/baseline.md` before any fix: typecheck/test/build timings, bundle sizes, the soak table (`SOAK=1`), sim ms/tick and frame times (visible pane, real GPU) in s1 wave B, s2 office, s3 street and desert with 60 bodies and full effects, co-op bytes/s.
-- [ ] STB-08 Reseed `world.rng` on room entry from (stage, room, entry, attempt); a per-world id counter; the seed saved with the checkpoint. Re-baseline every seeded probe once, right after.
-- [ ] STB-16 / ENC-02 Guard `pullable` against a missing host **and** add one `removeActor(world, a)` used by every script splice: it unsticks the actor's items, clears holders and emits `actorRemoved`.
-- [ ] STB-01 / ENC-01 Never leave `state 'attack'` without an attack (brute/hover no-flinch branch → 0.12 s stun); `stepAttack` falls back to free.
-- [ ] STB-05 Stage 3 ending: set `ending` only after the `!p` check; a death there restarts normally.
-- [ ] ENC-16 The sword duel counts melee hits (slash/smash/stab); a loaded gun is re-dropped if the player has none for 10 s (invented).
-- [ ] CMB-01 (+ the caption key helper of CMB-17 / UXS-10) Captions take key placeholders from `SETTINGS.keys`; then dive defaults to C (Ctrl bindable with a warning), plus a `beforeunload` confirm while a stage runs.
-- [ ] STB-06 / ENC-05 / UXS-01 Stage 1 beat checkpoints (riot, grenade, boss, waveB, ending); `restart` and Continue resume the beat through `stage1From`, kills restored.
-- [ ] UXS-03 + UXS-12 Saves get a `version` and a sanitizer; the checkpoint only moves forward by one order key (stage, room index, beat index).
-- [ ] STB-02 Room rules owned by the room (`StageRoom.rules`: physics, flags), applied on entry: improbability in the street, `axeThrows` from the camera room to the end of stage 3.
-- [ ] STB-03 + STB-09 One `resetForRoom(actor)` on entry (cook → grenade given back; attack/queued/grabQueued/guard, pose fields, timers; the new input buffer too). Rage is kept (saved with the checkpoint).
-- [ ] STB-04 `placeAtEntry` revives only `downed` players; a co-op partner killed while the other is parked goes `downed`.
-- [ ] STB-12 Data lint test: every wave entry's spawn id and door index exist (stages 1–3 and PR #43's scripts).
-- [ ] CMB-02 / UXS-04 Debug keys only in dev or with `?debug`; M stays (restores the volume), V only in Settings.
-- [ ] CMB-05 The bodyguard's head rule only for bullet/gun/knife hits.
-- [ ] CMB-12 Only living downed bodies (or a corpse held as a shield) trigger the finisher.
-- [ ] ENC-14 The crate room's guards hold their spots (`ai.hold`) until flanked or the player is within 1.5 H.
-- [ ] ENC-15 Ending: a boombox under a solid prop moves to the nearest free floor spot, with a marker.
-- [ ] ENC-08 Verify on PR #43 that the lobby hold-up happens on Noob (tagged entries); fix here if not.
-- [ ] VIS-01 The kill cam restores each live voice to its stored base rate (no stacking).
-- [ ] VIS-04 / UXS-17 Reduced motion / effects off: room flashes scaled by intensity (muzzle star and tracers stay), no kill-cam wash, static grain, a steady last-life vignette, half-alpha hurt edges, wipes as a 0.2 s fade. Gameplay telegraphs stay at full.
-- [ ] VIS-10 / STB-10 / STB-11 / STB-07 / UXS-14 / UXS-05 **One clock change**: the menu pauses everything (sim, feel FX, kill-cam filter, death timer, input: nothing read while open, edges and buffer cleared on close); `pausedByMenu` apart from the F3 pause; the hit-stop budget in real time and hit-stop skipped (or divided) inside slow-mo, M19's rage beat included; F4 consumes hit-stop ticks; after 0.8 s dead any action key restarts. One test in `tests/clock.test.ts`.
-- [ ] UXS-06 (S parts) Esc in the co-op lobby and on the co-op end card → title; the guest sees "Host paused" / "Host left (Esc: title)"; the host sees "Player 2 left"; Co-op hidden in production builds.
-- [ ] UXS-07 P2's command goes idle on `onPeer(false)` or after 250 ms without input (invented); the guest sends idle on blur.
-- [ ] UXS-08 The guest prunes actors missing from full snapshots and on `actorRemoved`.
-- [ ] UXS-11 Controls screen: no overlap with the help line at 1280×720.
-- [ ] **soak** Promote `tests/audit/harness.ts` + `soak.test.ts` to `tests/soak.test.ts` (fast subset always on: every room 20 s, masher seed 1; full run `SOAK=1`); invariant checks reusable in dev builds.
+- [x] **baseline** Write `design/audit/baseline.md` before any fix: typecheck/test/build timings, bundle sizes, the soak table (`SOAK=1`), sim ms/tick and frame times (visible pane, real GPU) in s1 wave B, s2 office, s3 street and desert with 60 bodies and full effects, co-op bytes/s.
+- [x] STB-08 Reseed `world.rng` on room entry from (stage, room, entry, attempt); a per-world id counter; the seed saved with the checkpoint. Re-baseline every seeded probe once, right after.
+- [x] STB-16 / ENC-02 Guard `pullable` against a missing host **and** add one `removeActor(world, a)` used by every script splice: it unsticks the actor's items, clears holders and emits `actorRemoved`.
+- [x] STB-01 / ENC-01 Never leave `state 'attack'` without an attack (brute/hover no-flinch branch → 0.12 s stun); `stepAttack` falls back to free.
+- [x] STB-05 Stage 3 ending: set `ending` only after the `!p` check; a death there restarts normally.
+- [x] ENC-16 The sword duel counts melee hits (slash/smash/stab); a loaded gun is re-dropped if the player has none for 10 s (invented).
+- [x] CMB-01 (+ the caption key helper of CMB-17 / UXS-10) Captions take key placeholders from `SETTINGS.keys`; then dive defaults to C (Ctrl bindable with a warning), plus a `beforeunload` confirm while a stage runs.
+- [x] STB-06 / ENC-05 / UXS-01 Stage 1 beat checkpoints (riot, grenade, boss, waveB, ending); `restart` and Continue resume the beat through `stage1From`, kills restored.
+- [x] UXS-03 + UXS-12 Saves get a `version` and a sanitizer; the checkpoint only moves forward by one order key (stage, room index, beat index).
+- [x] STB-02 Room rules owned by the room (`StageRoom.rules`: physics, flags), applied on entry: improbability in the street, `axeThrows` from the camera room to the end of stage 3.
+- [x] STB-03 + STB-09 One `resetForRoom(actor)` on entry (cook → grenade given back; attack/queued/grabQueued/guard, pose fields, timers; the new input buffer too). Rage is kept (saved with the checkpoint).
+- [x] STB-04 `placeAtEntry` revives only `downed` players; a co-op partner killed while the other is parked goes `downed`.
+- [x] STB-12 Data lint test: every wave entry's spawn id and door index exist (stages 1–3 and PR #43's scripts).
+- [x] CMB-02 / UXS-04 Debug keys only in dev or with `?debug`; M stays (restores the volume), V only in Settings.
+- [x] CMB-05 The bodyguard's head rule only for bullet/gun/knife hits.
+- [x] CMB-12 Only living downed bodies (or a corpse held as a shield) trigger the finisher.
+- [x] ENC-14 The crate room's guards hold their spots (`ai.hold`) until flanked or the player is within 1.5 H.
+- [x] ENC-15 Ending: a boombox under a solid prop moves to the nearest free floor spot, with a marker.
+- [x] ENC-08 Verify on PR #43 that the lobby hold-up happens on Noob (tagged entries); fix here if not.
+- [x] VIS-01 The kill cam restores each live voice to its stored base rate (no stacking).
+- [x] VIS-04 / UXS-17 Reduced motion / effects off: room flashes scaled by intensity (muzzle star and tracers stay), no kill-cam wash, static grain, a steady last-life vignette, half-alpha hurt edges, wipes as a 0.2 s fade. Gameplay telegraphs stay at full.
+- [x] VIS-10 / STB-10 / STB-11 / STB-07 / UXS-14 / UXS-05 **One clock change**: the menu pauses everything (sim, feel FX, kill-cam filter, death timer, input: nothing read while open, edges and buffer cleared on close); `pausedByMenu` apart from the F3 pause; the hit-stop budget in real time and hit-stop skipped (or divided) inside slow-mo, M19's rage beat included; F4 consumes hit-stop ticks; after 0.8 s dead any action key restarts. One test in `tests/clock.test.ts`.
+- [x] UXS-06 (S parts) Esc in the co-op lobby and on the co-op end card → title; the guest sees "Host paused" / "Host left (Esc: title)"; the host sees "Player 2 left"; Co-op hidden in production builds.
+- [x] UXS-07 P2's command goes idle on `onPeer(false)` or after 250 ms without input (invented); the guest sends idle on blur.
+- [x] UXS-08 The guest prunes actors missing from full snapshots and on `actorRemoved`.
+- [x] UXS-11 Controls screen: no overlap with the help line at 1280×720.
+- [x] **soak** Promote `tests/audit/harness.ts` + `soak.test.ts` to `tests/soak.test.ts` (fast subset always on: every room 20 s, masher seed 1; full run `SOAK=1`); invariant checks reusable in dev builds.
 
 Build, **B Controls & combat** (`src/input/`, `movement.ts`, `combat.ts`, `melee.ts`, `guns.ts`, `items.ts`, `hitscan.ts`, `aim.ts`):
-- [ ] ENC-03 (+ CMB-15) Hero mercy window `TUNING.health.mercy` **0.3 s** (decided), scaled by difficulty in proportion (Noob 0.5 s, Notch 0.15 s); hero only; scripted lethal hits exempt (stage 2 ending, stage 3 stab, last stand). One "absorbed" response (event; flash + soft thud, no hit-stop) shared with get-up i-frames (CMB-15) and shield hits (VIS-19).
-- [ ] CMB-06 Stun shrinks within a chain (0.7 → 0.45 → 0.25 s, invented); riot/tough targets shrug off the 4th consecutive jab. With a shorter or blended `stun` clip.
-- [ ] CMB-08 One generic edge buffer per actor (0.15 s, invented) for jump/dive/attack/grab/E, replayed on the first free ground tick; weapon swings queue. Cleared on pause close and room entry; the host buffers the guest's edges through `mergeEdges`.
-- [ ] CMB-09 `TUNING.jump.buffer` 0.1 s, `coyote` 0.08 s (invented).
-- [ ] CMB-16 Inside one move, the first press of a different kind wins.
-- [ ] CMB-10 A shot pressed in the last 0.1 s of cooldown fires on the first ready tick (invented).
-- [ ] CMB-11 Air kick only ≥ 0.3 H above the ground; lower, the dive is buffered for the landing.
-- [ ] CMB-13 + CMB-14 Weapon finisher: a swing/stab at a downed body hits it (planted, swing damage); the knife isn't tossed with a downed body in reach; an uppercut at a downed body = a heavy finisher.
-- [ ] CMB-04 Shotgun pellet damage 1 (or one shot capped at 4 on agent/riot).
+- [x] ENC-03 (+ CMB-15) Hero mercy window `TUNING.health.mercy` **0.3 s** (decided), scaled by difficulty in proportion (Noob 0.5 s, Notch 0.15 s); hero only; scripted lethal hits exempt (stage 2 ending, stage 3 stab, last stand). One "absorbed" response (event; flash + soft thud, no hit-stop) shared with get-up i-frames (CMB-15) and shield hits (VIS-19).
+- [x] CMB-06 Stun shrinks within a chain (0.7 → 0.45 → 0.25 s, invented); riot/tough targets shrug off the 4th consecutive jab. With a shorter or blended `stun` clip.
+- [x] CMB-08 One generic edge buffer per actor (0.15 s, invented) for jump/dive/attack/grab/E, replayed on the first free ground tick; weapon swings queue. Cleared on pause close and room entry; the host buffers the guest's edges through `mergeEdges`.
+- [x] CMB-09 `TUNING.jump.buffer` 0.1 s, `coyote` 0.08 s (invented).
+- [x] CMB-16 Inside one move, the first press of a different kind wins.
+- [x] CMB-10 A shot pressed in the last 0.1 s of cooldown fires on the first ready tick (invented).
+- [x] CMB-11 Air kick only ≥ 0.3 H above the ground; lower, the dive is buffered for the landing.
+- [x] CMB-13 + CMB-14 Weapon finisher: a swing/stab at a downed body hits it (planted, swing damage); the knife isn't tossed with a downed body in reach; an uppercut at a downed body = a heavy finisher.
+- [x] CMB-04 Shotgun pellet damage 1 (or one shot capped at 4 on agent/riot).
 
 Build, **C Encounters & pacing** (`ai.ts`, `waves.ts`, `boss.ts`, `stealth.ts`, `zombies.ts`, `stage.ts`, `src/data/stages/*`):
-- [ ] ENC-09 Zombies get their own cap (`TUNING.zombie.maxAttackers` 4, invented) and keep the swing gap; a squad charge is uncapped only while ≤ 3 are alive.
-- [ ] ENC-17 Scripted teaching/cutscene hits (`hitActor(..., { scripted: true })`) knock down without damage; the sparring jabs may still cost a life.
-- [ ] ENC-13 The jetpack caption teaches prone (and the shield); prone taught once in wave B.
-- [ ] ENC-20 Captions for grab/throw and the launcher in wave A, prone in wave B, keys from the bindings; a teaching-map test.
-- [ ] ENC-21 + STB-14 `exitOpen` → an edge arrow + sting; a stage 3 tracker; a room with no activity and no enemy for 20 s re-shows its last caption.
-- [ ] ENC-12 (shrunk) Draw the existing wind-up (`pose.telegraph`) for the knockdown heavy, ≥ 0.3 s before the active frame.
-- [ ] CMB-07 Adjacent unarmed grunts stomp a prone hero after a ≥ 0.3 s drawn tell (finisher geometry, invented numbers); prone stays the bullet dodge; the low slash stays.
-- [ ] ENC-11 Boss volleys aim across the whole depth (no safe strip); wave B's cannoneer keeps the narrow band.
-- [ ] ENC-18 (shrunk) Grenade beat timeout 10 s, its caption repeated at 5 s (invented). The trickle lull is PR #43's.
-- [ ] ENC-22 Difficulty scales the mercy window (with ENC-03); the gun telegraph becomes a per-difficulty number, default 0.4 s on every level.
+- [x] ENC-09 Zombies get their own cap (`TUNING.zombie.maxAttackers` 4, invented) and keep the swing gap; a squad charge is uncapped only while ≤ 3 are alive.
+- [x] ENC-17 Scripted teaching/cutscene hits (`hitActor(..., { scripted: true })`) knock down without damage; the sparring jabs may still cost a life.
+- [x] ENC-13 The jetpack caption teaches prone (and the shield); prone taught once in wave B.
+- [x] ENC-20 Captions for grab/throw and the launcher in wave A, prone in wave B, keys from the bindings; a teaching-map test.
+- [x] ENC-21 + STB-14 `exitOpen` → an edge arrow + sting; a stage 3 tracker; a room with no activity and no enemy for 20 s re-shows its last caption.
+- [x] ENC-12 (shrunk) Draw the existing wind-up (`pose.telegraph`) for the knockdown heavy, ≥ 0.3 s before the active frame.
+- [x] CMB-07 Adjacent unarmed grunts stomp a prone hero after a ≥ 0.3 s drawn tell (finisher geometry, invented numbers); prone stays the bullet dodge; the low slash stays.
+- [x] ENC-11 Boss volleys aim across the whole depth (no safe strip); wave B's cannoneer keeps the narrow band.
+- [x] ENC-18 (shrunk) Grenade beat timeout 10 s, its caption repeated at 5 s (invented). The trickle lull is PR #43's.
+- [x] ENC-22 Difficulty scales the mercy window (with ENC-03); the gun telegraph becomes a per-difficulty number, default 0.4 s on every level.
 
 Build, **D Look & sound** (`src/render/`, `src/anim/` except aim, `poses.json`, `src/feel/`, `src/data/feel.ts`, `src/audio/`, `src/data/audio.ts`):
-- [ ] VIS-02 / UXS-02 + VIS-03 + UXS-21 (stem) + UXS-24 Music, one owner of `music.ts`: decoded buffers cached per track, sources stopped, a track already playing carries on into the next room that uses it, a one-stem track plays through the room (`music(null)` still silences); the stem shipped as OGG under a neutral name (WAV master outside `assets/`; cues and `tests/hazard.test.ts` updated); `<title>` = the game title.
-- [ ] VIS-06 Blend the drawn root into the slump (shortest angle, over the blend time); ease the landing angle over 3 ticks. Render only.
-- [ ] VIS-07 The thrown body's flight starts where it was drawn; a grabbed body lerps to its hold offset over 3 ticks. Render only.
-- [ ] VIS-08 + VIS-19 Sounds for `jump`, `playerDown`, `revive`, edge `spawn` (footsteps at the edge), `dismember`; shield hits get mist + full `impact`, a shield break `bodyFall` + gibs; `holdUp`/`surrender` wired or deleted. Draws B's absorbed response.
-- [ ] VIS-15 Facing turn over 2 frames, head first (revamp A3); render only, the sim's facing stays instant.
-- [ ] VIS-16 Walk swing amplitude = stride / 2π (the quick step of revamp A4).
-- [ ] VIS-17 Players drawn last at equal depth.
-- [ ] VIS-11 + VIS-12 Shake + hit-stop for `blockDrop`/`wallDrop` landings, `doorSmash`, `propToppled`, `vendingSmash`, the sword dive and the stab (under the explosion's 14); `bossPhaseKill` used for boss kills; `autoFireMax` applied or deleted.
+- [x] VIS-02 / UXS-02 + VIS-03 + UXS-21 (stem) + UXS-24 Music, one owner of `music.ts`: decoded buffers cached per track, sources stopped, a track already playing carries on into the next room that uses it, a one-stem track plays through the room (`music(null)` still silences); the stem shipped as OGG under a neutral name (WAV master outside `assets/`; cues and `tests/hazard.test.ts` updated); `<title>` = the game title.
+- [x] VIS-06 Blend the drawn root into the slump (shortest angle, over the blend time); ease the landing angle over 3 ticks. Render only.
+- [x] VIS-07 The thrown body's flight starts where it was drawn; a grabbed body lerps to its hold offset over 3 ticks. Render only.
+- [x] VIS-08 + VIS-19 Sounds for `jump`, `playerDown`, `revive`, edge `spawn` (footsteps at the edge), `dismember`; shield hits get mist + full `impact`, a shield break `bodyFall` + gibs; `holdUp`/`surrender` wired or deleted. Draws B's absorbed response.
+- [x] VIS-15 Facing turn over 2 frames, head first (revamp A3); render only, the sim's facing stays instant.
+- [x] VIS-16 Walk swing amplitude = stride / 2π (the quick step of revamp A4).
+- [x] VIS-17 Players drawn last at equal depth.
+- [x] VIS-11 + VIS-12 Shake + hit-stop for `blockDrop`/`wallDrop` landings, `doorSmash`, `propToppled`, `vendingSmash`, the sword dive and the stab (under the explosion's 14); `bossPhaseKill` used for boss kills; `autoFireMax` applied or deleted.
 
 Build, **E Shell & tech** (`src/ui/`, `src/scenes/`, `settings.ts`, `progress.ts`, `src/net/`, `src/dev/`):
-- [ ] CMB-17 / UXS-10 Binding a used key swaps the two actions (and says so); F1–F6, Esc, Enter and debug keys refused; `PlayerInput` rebuilt when the pause menu closes; the C alias dropped once dive is rebound.
-- [ ] UXS-15 Single player pauses on window blur (not while dead; the click that returns focus doesn't skip the restart).
-- [ ] UXS-09 "Reset progress" needs a second press; not in the pause menu.
-- [ ] UXS-13 The end card ignores keys for 0.6 s (invented); replay is hold R.
-- [ ] UXS-16 (shrunk) Minimum 26 px for text the player must read, captions 34 px.
-- [ ] UXS-21 (labs) Labs lazy-loaded behind `?lab`; `chunkSizeWarningLimit` back to 1000.
-- [ ] UXS-25 A "TUNED · n" tag in dev builds while F6 overrides are active.
+- [x] CMB-17 / UXS-10 Binding a used key swaps the two actions (and says so); F1–F6, Esc, Enter and debug keys refused; `PlayerInput` rebuilt when the pause menu closes; the C alias dropped once dive is rebound.
+- [x] UXS-15 Single player pauses on window blur (not while dead; the click that returns focus doesn't skip the restart).
+- [x] UXS-09 "Reset progress" needs a second press; not in the pause menu.
+- [x] UXS-13 The end card ignores keys for 0.6 s (invented); replay is hold R.
+- [x] UXS-16 (shrunk) Minimum 26 px for text the player must read, captions 34 px.
+- [x] UXS-21 (labs) Labs lazy-loaded behind `?lab`; `chunkSizeWarningLimit` back to 1000.
+- [x] UXS-25 A "TUNED · n" tag in dev builds while F6 overrides are active.
 
 Build, **F Tuning & playtest** (`src/data/tuning.ts` values):
 - [ ] CMB-03 Re-run the CMB style probe (`tests/audit/cmb`) on PR #43 + B + C; add melee-only healing as an F6 switch (e.g. `TUNING.health.healOn: 'all' | 'melee'`, default `'all'`), decided in the playtest. No aim-settle.

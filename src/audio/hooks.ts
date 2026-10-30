@@ -343,6 +343,14 @@ export function hookWorldAudio(world: World, engine: AudioEngine): void {
   });
   // spawn variety: someone's coming in behind the player (a door also plays its own sound)
   world.events.on('flank', (e) => play('whistle', at(e.x, e.y, e.z, { gain: 0.7, rate: 1.15 })));
+  // M14b CMB-07: the prone stomp: a wind-up tell, then a heavy stamp (or a stamp on the floor)
+  world.events.on('stomp', (e) => {
+    if (e.phase === 'tell') play('telegraph', at(e.x, e.y + 0.3, e.z, { gain: 0.8 }));
+    else if (e.phase === 'hit') play('impactHeavy', at(e.x, e.y, e.z));
+    else play('thump', at(e.x, e.y, e.z, { gain: 0.7 }));
+  });
+  // M14b ENC-21: an exit just opened (or the room has been quiet): a short sting, softer on a repeat
+  world.events.on('exitCue', (e) => play('ding', at(e.x, 1, e.z, { gain: e.again ? 0.5 : 0.8 })));
   world.events.on('doorOpen', (e) => {
     const d = world.room.doors[e.door];
     if (d) play('door', at(d.wall === 'left' ? -world.room.halfWidth : world.room.halfWidth, 1, (d.z0 + d.z1) / 2));
