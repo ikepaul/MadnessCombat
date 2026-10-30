@@ -21,10 +21,11 @@ const BOTS: Record<string, (seed: number) => Bot> = {
 
 /**
  * Rooms that wait on one scripted trick the bots can't do (STB-14: the intro talk, the elevator's
- * roof and cables, disarming the target, pinning the street's mini-boss to the tank). Their
- * "softlock" suspects are expected there until slice C's stuck hints; every other rule still counts.
+ * roof and cables, disarming the target, pinning the street's mini-boss to the tank) were exempt
+ * from the softlock rule until M14b slice C's stuck hints (src/sim/stage.ts `stuckHint`); no
+ * longer: every violation counts. Add a room here only with a reason.
  */
-const TRICK_ROOMS = new Set(['1/intro', '2/elevator', '2/final', '3/street']);
+const TRICK_ROOMS = new Set<string>();
 const counts = (key: string, v: Violation) => !(v.rule === 'softlock' && TRICK_ROOMS.has(key));
 
 function row(label: string, r: RunResult): string {

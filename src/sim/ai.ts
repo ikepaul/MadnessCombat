@@ -17,12 +17,18 @@ import { clamp, moveWithCollision } from './collision';
 import { IDLE_COMMAND, type PlayerCommand } from './command';
 import type { Cannon } from './cannon';
 import { castRay } from './hitscan';
+import { circleHits } from './hurtbox';
 import { notHoldable } from './items';
 import { canFlip } from './cover';
 import { alert, checkHeld, lookOut } from './stealth';
 import type { World } from './world';
 
-const AI = TUNING.ai, R = AI.ranged;
+const AI = TUNING.ai, R = AI.ranged, E = TUNING.enc;
+
+/** M14b ENC-22: the gun grunts' aim telegraph at this difficulty (s). */
+export function gunTelegraph(world: World): number {
+  return E.gunTelegraph[world.difficulty] ?? R.telegraph;
+}
 
 export interface AiState {
   /** Seconds until the next swing is allowed. */
@@ -80,6 +86,10 @@ export interface AiState {
   role?: 'cannon' | 'welder' | 'roof';
   /** M9 world-breach: caught off guard by an entry from above, this many seconds left. */
   surpriseT?: number;
+  /** M14b ENC-12: seconds into the drawn wind-up of a heavy punch (undefined = none under way). */
+  tellT?: number;
+  /** M14b CMB-07: seconds into the stomp's tell on a prone player (undefined = none under way). */
+  stompT?: number;
 }
 
 export function newAiState(world: World): AiState {
@@ -106,8 +116,14 @@ function usesTokens(world: World, a: Actor): boolean {
   return !l || !alive(l) || world.activePlayers.some((p) => dist(a, p) < AI.squadEngage);
 }
 
-/** Zombies and a charging squad don't wait for a token. */
-const uncapped = (a: Actor) => a.kind === 'zombie' || !!a.ai?.charge;
+/**
+ * A charging squad doesn't wait for a token (M14b ENC-09: only while TUNING.enc.chargeUncapped or
+ * fewer of it are left). Zombies queue against their own cap instead (assignTokens).
+ */
+function uncapped(world: World, a: Actor): boolean {
+  if (!a.ai?.charge || a.kind === 'zombie') return false;
+  return world.actors.filter((o) => o.ai?.charge && alive(o)).length <= E.chargeUncapped;
+}
 
 /** Can be shot at: standing (no get-up i-frames, not knocked flat). */
 const shootable = (p: Actor) => p.state === 'free' || p.state === 'attack' || p.state === 'stun';
@@ -153,9 +169,25 @@ export function assignTokens(world: World): void {
     if (a.ai && !tokens.has(a.id)) a.ai.target = nearestPlayer(world, a)?.id;
   }
   for (const a of world.actors) {
-    if (a.ai && uncapped(a) && !tokens.has(a.id) && a.ai.target !== undefined && a.state === 'free' && !a.entering && usesTokens(world, a)) {
+    if (a.ai && uncapped(world, a) && !tokens.has(a.id) && a.ai.target !== undefined && a.state === 'free' && !a.entering && usesTokens(world, a)) {
       tokens.add(a.id);
       a.ai.ready = 0;
+    }
+  }
+  // ENC-09: zombies (the slow horde) get their own, higher cap per player, nearest first; their
+  // tokens still count against the grunts' cap, as before
+  for (const p of standing) {
+    let used = 0;
+    for (const id of tokens) { const o = world.actorById(id); if (o?.kind === 'zombie' && o.ai?.target === p.id) used++; }
+    if (used >= E.zombieMaxAttackers) continue;
+    const waiting = world.actors
+      .filter((a) => a.kind === 'zombie' && a.ai && usesTokens(world, a) && !tokens.has(a.id) && a.ai.target === p.id && a.state === 'free' && !a.entering)
+      .sort((a, b) => dist(a, p) - dist(b, p));
+    for (const a of waiting) {
+      if (used >= E.zombieMaxAttackers) break;
+      tokens.add(a.id);
+      a.ai!.ready = 0;
+      used++;
     }
   }
   for (const p of standing) {
@@ -163,7 +195,7 @@ export function assignTokens(world: World): void {
     for (const id of tokens) if (world.actorById(id)?.ai?.target === p.id) used++;
     if (used >= AI.maxAttackers) continue;
     const waiting = world.actors
-      .filter((a) => a.ai && usesTokens(world, a) && !tokens.has(a.id) && a.ai.target === p.id && a.state === 'free' && !a.entering)
+      .filter((a) => a.ai && a.kind !== 'zombie' && usesTokens(world, a) && !tokens.has(a.id) && a.ai.target === p.id && a.state === 'free' && !a.entering)
       .sort((a, b) => dist(a, p) - dist(b, p));
     for (const a of waiting) {
       if (used >= AI.maxAttackers) break;
@@ -352,7 +384,7 @@ function rangedStep(world: World, a: Actor, p: Actor, gun: NonNullable<ReturnTyp
     if (!shootable(p)) { stopAiming(world, a); return { ...IDLE_COMMAND, face, aim: lowered }; }
     ai.aimT += dt;
     // M14: an armed zombie takes longer over it
-    const tel = a.kind === 'zombie' ? TUNING.zombie.gunTelegraph : R.telegraph;
+    const tel = a.kind === 'zombie' ? TUNING.zombie.gunTelegraph : gunTelegraph(world);
     a.pose.telegraph = Math.min(1, ai.aimT / tel);
     if (ai.aimT + 1e-6 < tel) return { ...IDLE_COMMAND, face, aim: chestAim(p) };
     // someone stepped into the line during the telegraph: usually hold fire
@@ -496,11 +528,28 @@ function meleeStep(world: World, a: Actor, p: Actor, face: 1 | -1, dt: number): 
     // punch (or weapon) spot on our side of the player, on the player's depth
     tx = p.pos.x - face * stand;
     tz = p.pos.z;
+    // CMB-07: a prone player next to an unarmed grunt gets stomped, after a drawn tell
+    const stomp = stompStep(world, a, p, dt, !!(a.hands[0] || a.hands[1]));
+    if (stomp) { ai.tellT = undefined; return stomp; }
     const dx = Math.abs(p.pos.x - a.pos.x), dz = Math.abs(p.pos.z - a.pos.z);
     const target = p.state !== 'down' && p.state !== 'getUp' && p.state !== 'knockback';
     const inRange = dx <= reach - 0.02 && dx >= 0.3 && dz <= TUNING.melee.depthBand * 0.6;
     // the wind-up only counts once in range, so the player gets a beat to strike first
     ai.ready = inRange ? ai.ready + dt : 0;
+    const aim = project(p.pos.x, p.pos.y + 0.6, p.pos.z);
+    // ENC-12: a heavy (knockdown) punch is wound up where you can see it: he leans back, then throws
+    if (ai.tellT !== undefined) {
+      if (!target || !inRange || a.state !== 'free') { ai.tellT = undefined; a.pose.telegraph = undefined; }
+      else {
+        ai.tellT += dt;
+        a.pose.telegraph = Math.min(1, ai.tellT / E.heavyTell);
+        a.pose.lean = -0.22 * a.pose.telegraph;
+        if (ai.tellT + 1e-6 < E.heavyTell) return { ...IDLE_COMMAND, face };
+        ai.tellT = undefined;
+        a.pose.telegraph = undefined;
+        return { ...IDLE_COMMAND, face, attack: 'heavy', aim };
+      }
+    }
     const last = world.lastEnemySwing.get(p.id) ?? -Infinity;
     if (target && inRange && ai.ready >= AI.windUp && ai.cooldown <= 0 && a.state === 'free' && world.time - last >= AI.swingGap) {
       world.lastEnemySwing.set(p.id, world.time);
@@ -509,9 +558,19 @@ function meleeStep(world: World, a: Actor, p: Actor, face: 1 | -1, dt: number): 
       // armed: swing the weapon (LMB); unarmed: punch, sometimes heavy
       // M11 the vending-machine brute only throws big knockdown punches
       const heavy = a.variant === 'vending' || (!weapon && world.rng() < AI.heavyChance);
-      return { ...IDLE_COMMAND, face, attack: heavy ? 'heavy' : 'light', aim: project(p.pos.x, p.pos.y + 0.6, p.pos.z) };
+      if (heavy && E.heavyTell > 0) {
+        // the swing slot is held for the wind-up, so nobody else's punch lands inside it
+        ai.tellT = 0;
+        a.pose.telegraph = 0;
+        ai.cooldown += E.heavyTell;
+        world.lastEnemySwing.set(p.id, world.time + E.heavyTell);
+        return { ...IDLE_COMMAND, face };
+      }
+      return { ...IDLE_COMMAND, face, attack: heavy ? 'heavy' : 'light', aim };
     }
   } else {
+    // no token (any more): no wind-up under way
+    ai.tellT = ai.stompT = undefined;
     // wait on the ring, on whichever side of the player we are, drifting in depth
     ai.driftT -= dt;
     if (ai.driftT <= 0) {
@@ -531,6 +590,53 @@ function meleeStep(world: World, a: Actor, p: Actor, face: 1 | -1, dt: number): 
   }
   tx = clamp(tx, -inside, inside);
   return { ...steer(a, tx, tz, world.tokens.has(a.id) ? 0.06 : 0.2), face };
+}
+
+/**
+ * M14b CMB-07: an empty-handed grunt holding a token walks up beside a prone player (prone stays
+ * the bullet dodge, not a hiding place from fists), stops, leans back for TUNING.enc.stomp.tell
+ * (the drawn tell: `pose.telegraph` + lean, event `stomp` 'tell'), then stamps down: a low hit
+ * with the finisher's geometry at his feet ahead of him. Gone prone again too late, crawled off or
+ * got up in time: it misses. Returns undefined when it doesn't apply (the punches carry on).
+ */
+function stompStep(world: World, a: Actor, p: Actor, dt: number, armed: boolean): PlayerCommand | undefined {
+  const S = E.stomp, F = TUNING.melee.finisher, ai = a.ai!;
+  const prone = p.body.state === 'prone' && p.state === 'free';
+  const able = S.on && !armed && a.kind === 'grunt' && a.variant !== 'vending' && a.state === 'free' && a.body.state === 'ground';
+  const stop = () => { ai.stompT = undefined; a.pose.telegraph = undefined; };
+  // the stamp lands this far ahead of him, at the finisher's height
+  const hits = (f: 1 | -1) => Math.abs(p.pos.z - a.pos.z) <= S.band && circleHits(p, a.pos.x + f * S.reach, p.pos.y + F.height, F.radius + S.slack) !== null;
+  if (ai.stompT !== undefined) {
+    const f = a.facing;
+    if (!able) { stop(); return undefined; }
+    ai.stompT += dt;
+    a.pose.telegraph = Math.min(1, ai.stompT / S.tell);
+    a.pose.lean = -0.28 * a.pose.telegraph;
+    if (ai.stompT + 1e-6 < S.tell) return { ...IDLE_COMMAND, face: f };
+    stop();
+    a.pose.lean = 0.3;
+    const [i0, i1] = AI.attackInterval;
+    ai.cooldown = i0 + world.rng() * (i1 - i0);
+    const landed = prone && hits(f);
+    world.events.emit('stomp', { actorId: a.id, targetId: p.id, phase: landed ? 'hit' : 'miss', x: a.pos.x + f * S.reach, y: p.pos.y + F.height, z: p.pos.z });
+    if (landed) world.hitActor(a, p, 'finisher', f, 0, { x: a.pos.x + f * S.reach, y: p.pos.y + F.height, z: p.pos.z });
+    return { ...IDLE_COMMAND, face: f };
+  }
+  if (!able || !prone) return undefined;
+  // lying down, the body reaches ahead of the feet: stand beside its middle, on our side
+  const mid = p.pos.x + p.facing * 0.4;
+  const f = (mid >= a.pos.x ? 1 : -1) as 1 | -1;
+  const last = world.lastEnemySwing.get(p.id) ?? -Infinity;
+  if (hits(f) && ai.cooldown <= 0 && world.time - last >= AI.swingGap) {
+    ai.stompT = 0;
+    a.facing = f;
+    a.pose.telegraph = 0;
+    world.lastEnemySwing.set(p.id, world.time + S.tell);
+    world.events.emit('stomp', { actorId: a.id, targetId: p.id, phase: 'tell', ...a.pos });
+    return { ...IDLE_COMMAND, face: f };
+  }
+  const inside = world.room.halfWidth - 0.6;
+  return { ...steer(a, clamp(mid - f * S.reach, -inside, inside), p.pos.z, 0.05), face: f };
 }
 
 /** M14 world-crowd-dancefloor: a short harmless push on the player from a crowd grunt beside him. */

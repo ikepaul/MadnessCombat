@@ -88,7 +88,7 @@ function* desert(s: Seq, _entry: string): Beat {
   zb.body.state = 'air';
   const off = world.events.on('disarm', (e) => { if (e.actorId === zb.id) zb.damageScale = undefined; });
   const offSteal = world.events.on('hit', () => { if (!zb.hands[0] && !zb.hands[1]) zb.damageScale = undefined; });
-  caption(s, 'Bullets barely touch him while he holds the sign. Get close and take it: F.', 6);
+  caption(s, 'Bullets barely touch him while he holds the sign. Get close and take it: {key:grab}.', 6);
   yield* s.until(() => dead(zb));
   off();
   offSteal();
@@ -110,7 +110,8 @@ function* desert(s: Seq, _entry: string): Beat {
   let hitWall = false;
   const offWall = world.events.on('wallHit', (e) => { if (e.actorId === p.id) hitWall = true; });
   world.events.emit('bossFling', { actorId: boss.id, targetId: p.id, dir: 1, ...boss.pos });
-  for (const h of world.activePlayers) world.hitActor(boss, h, 'fling', 1, 0, { x: h.pos.x, y: h.pos.y + 0.6, z: h.pos.z });
+  // ENC-17: through the wall, but no life lost (a cutscene hit)
+  for (const h of world.activePlayers) world.hitActor(boss, h, 'fling', 1, 0, { x: h.pos.x, y: h.pos.y + 0.6, z: h.pos.z }, 'body', { scripted: true });
   yield* s.until(() => hitWall, S3B.blastWait);
   offWall();
   world.events.emit('wallBlast', { x: world.room.halfWidth, y: 1, z: p.pos.z });
@@ -134,7 +135,7 @@ function* vending(s: Seq, _entry: string): Beat {
   empty.ammo = 0;
   empty.spare = 0;
   yield 1.0;
-  caption(s, 'A thrown knife: F just before it hits catches it. Throw one of them into the machine.', 6);
+  caption(s, 'A thrown knife: {key:grab} just before it hits catches it. Throw one of them into the machine.', 6);
   yield* s.waves(vendingGrunts());
   yield* s.until(() => foesLeft(world) === 0);
 

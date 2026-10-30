@@ -6,6 +6,7 @@ import { TUNING } from '../tuning';
 import { project } from '../../render/camera';
 import { type Actor, alive } from '../../sim/actor';
 import { spawnBossCameo } from '../../sim/boss';
+import { gunTelegraph } from '../../sim/ai';
 import { crash, openSlot, roof, startElevator } from '../../sim/elevator';
 import { holdUps, surrender } from '../../sim/interrogate';
 import type { Beat, Seq } from '../../sim/sequencer';
@@ -97,7 +98,7 @@ function* elevator(s: Seq, _entry: string): Beat {
   g.live = true;
   g.fuse = S2B.grenadeFuse;
   world.events.emit('grenadePin', { actorId: 0, x: hx, y: deck.y, z: hz });
-  caption(s, 'Grenade! Grab it (F) and throw it back up.', 3);
+  caption(s, 'Grenade! Grab it ({key:grab}) and throw it back up.', 3);
   yield S2B.grenadeFuse + 0.4;
 
   // three more drop through, one at a time
@@ -120,7 +121,7 @@ function* elevator(s: Seq, _entry: string): Beat {
   const ambush = s.run(function* ambush(q: Seq) { yield* q.waves(elevatorAmbush()); });
   st.cableLocked = false;
   world.flags.add('ambush');
-  caption(s, 'Get out of the line of fire: up through the hatch (E under it). Then shoot the cables.', 6);
+  caption(s, 'Get out of the line of fire: up through the hatch ({key:use} under it). Then shoot the cables.', 6);
   yield () => st.phase === 'falling' || ambush.done && foesLeft(world) === 0;
   if ((st.phase as string) !== 'falling') {
     // they're all dead before the cables went: the cab goes anyway (the way on is up the cable)
@@ -136,7 +137,7 @@ function* elevator(s: Seq, _entry: string): Beat {
   if (!world.coop) { takeExit(world, 'cable'); return; }
   // co-op: each climbs the cable himself, the first waits up there for the other
   openExit(world, 'cable');
-  caption(s, 'Up the cable: E at it. Both of you.', 4);
+  caption(s, 'Up the cable: {key:use} at it. Both of you.', 4);
 }
 
 /** The door ambush (world-elevator-fight step 5): gunmen stepping into the cab. */
@@ -180,7 +181,7 @@ function* swords(s: Seq, _entry: string): Beat {
   world.openDoor(1);
   world.doors[1].hold = Infinity;
   openExit(world, 'lift');
-  caption(s, 'The lift: stand in it and press E.', 4);
+  caption(s, 'The lift: stand in it and press {key:use}.', 4);
 }
 
 // ---------- room 9: the lobby ----------
@@ -201,7 +202,7 @@ export function lobbyWaves(): RoomScript {
 
 function* lobby(s: Seq, _entry: string): Beat {
   const world = s.world;
-  caption(s, 'Both ways at once: hold Shift to aim the second gun at the other side.', 4);
+  caption(s, 'Both ways at once: hold {key:split} to aim the second gun at the other side.', 4);
   s.run(function* hold(q: Seq) {
     yield* holdUps(q);
   });
@@ -210,14 +211,14 @@ function* lobby(s: Seq, _entry: string): Beat {
     const off = world.events.on('holdUp', () => (up = true));
     yield* q.until(() => up, 600);
     off();
-    if (up) yield* q.card('He has nothing. Keep the gun on him, walk up and press E.', 5, 'caption');
+    if (up) yield* q.card('He has nothing. Keep the gun on him, walk up and press {key:use}.', 5, 'caption');
   });
   yield* s.waves(lobbyWaves());
   yield* s.until(() => foesLeft(world) === 0);
   world.openDoor(1);
   world.doors[1].hold = Infinity;
   openExit(world, 'lift');
-  caption(s, 'The lift again (E).', 3);
+  caption(s, 'The lift again ({key:use}).', 3);
 }
 
 // ---------- room 10: the crate room ----------
@@ -237,7 +238,7 @@ function* crates(s: Seq, _entry: string): Beat {
   const dug = [[2.45, 9.25], [2.9, 9.6], [3.2, 9.05]].map(([x, z], i) => s.spawn('grunt', i === 1 ? 'rifle' : 'pistol', x, z, { face: -1 }));
   // ENC-14: they hold their spots (ai.hold) until flanked through the vent or rushed
   for (const g of dug) g.ai!.hold = { x: g.pos.x, z: g.pos.z, face: -1 };
-  caption(s, 'Dug in behind the crate. Back off, or go round: the vent overhead (E under it).', 6);
+  caption(s, 'Dug in behind the crate. Back off, or go round: the vent overhead ({key:use} under it).', 6);
   yield* s.until(() => dug.every(dead), 90);
   caption(s, 'Behind you!', 2);
   for (const p of world.activePlayers) for (const k of [0, 1]) s.drop('pistol', Math.max(-3, Math.min(3, p.pos.x + p.facing * (0.5 + 0.4 * k))), p.pos.z, 2.4);
@@ -308,15 +309,15 @@ function* peekAndShoot(s: Seq, a: Actor, stop: () => boolean): Beat {
     s.steer(a, { aim: at(), face: a.facing });
     a.pose.telegraph = 0;
     world.events.emit('aimStart', { actorId: a.id, targetId: p.id, weapon: 'pistol', ...a.pos });
-    for (let t = 0; t < TUNING.ai.ranged.telegraph; t += world.dt) {
+    for (let t = 0; t < gunTelegraph(world); t += world.dt) {
       if (stop()) { a.pose.telegraph = undefined; return; }
-      a.pose.telegraph = t / TUNING.ai.ranged.telegraph;
+      a.pose.telegraph = t / gunTelegraph(world);
       s.steer(a, { aim: at(), face: a.facing });
       yield;
     }
     a.pose.telegraph = undefined;
     if (a.hands[0]) yield* s.act(a, { press: [true, false], aim: at(), face: a.facing });
-    yield Math.max(0, S2B.popUp - TUNING.ai.ranged.telegraph);
+    yield Math.max(0, S2B.popUp - gunTelegraph(world));
     s.release(a);
   }
 }

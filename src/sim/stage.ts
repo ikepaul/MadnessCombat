@@ -266,7 +266,71 @@ export function openExit(world: World, id: string, open = true): void {
   const x = world.exits.find((e) => e.def.id === id);
   if (!x || x.open === open) return;
   x.open = open;
-  if (open) world.events.emit('exitOpen', { exit: id, kind: x.def.kind });
+  if (open) {
+    world.events.emit('exitOpen', { exit: id, kind: x.def.kind });
+    cueExit(world, x.def, false);
+  }
+}
+
+/**
+ * M14b ENC-21: point the players at an exit (the HUD's edge arrow, audio's sting): when it opens,
+ * and again (`again`) when the room has gone quiet (STB-14). Exits a script takes by itself
+ * (the zone parked off the map at x 99: the camera room's fall, the desert blast) get none.
+ */
+export function cueExit(world: World, e: ExitDef, again: boolean): void {
+  const secs = TUNING.enc.exitCue;
+  if (!(secs > 0) || e.x0 >= 50 || e.x1 <= -50) return;
+  const hw = world.room.halfWidth, at = exitSpot(world, e);
+  const side = e.x1 > hw ? 1 : e.x0 < -hw ? -1 : 0;
+  world.events.emit('exitCue', { exit: e.id, kind: e.kind, side, x: at.x, z: at.z, seconds: secs, again });
+}
+
+/** M14b ENC-21: a stage 3 tracker: the blip points from the first player to the room's way on. */
+export function exitTracker(world: World): [number, number] {
+  const p = world.player, x = world.exits.find((e) => !e.def.warp && e.def.x0 < 50 && e.def.x1 > -50);
+  if (!p || !x) return [0, 0];
+  const at = exitSpot(world, x.def);
+  return [Math.max(-1, Math.min(1, (at.x - p.pos.x) / 3)), Math.max(-1, Math.min(1, (at.z - p.pos.z) / 1.5))];
+}
+
+/** Progress events: any of them means the room is still moving on (STB-14's quiet clock restarts). */
+const PROGRESS = ['card', 'spawn', 'waveStart', 'kill', 'exitOpen', 'exitTaken', 'warp', 'roomEnter', 'zombieRise', 'lightning'] as const;
+
+/** Enemies still in the fight (not the protected or the scripted ones a room hinges on). */
+const fighting = (world: World) => world.actors.some((a) => (a.ai || a.kind === 'zombie' || a.kind === 'boss') && a.playerIndex === undefined && alive(a) && !a.protected && !a.invulnerable);
+
+/**
+ * M14b STB-14: the stuck hint. A room that waits on one trick (talk to the boombox guy, the
+ * elevator's roof and cables, disarming the target, pinning the mini-boss to the tank) re-shows
+ * its last caption once nothing has happened for TUNING.enc.stuckHint s and no enemy is left to
+ * fight; with an exit open it points at the exit again instead. Run it before the room's own
+ * script (so it hears that script's first caption); it stops when the stage is cleared.
+ */
+export function* stuckHint(s: Seq): Beat {
+  const world = s.world, after = TUNING.enc.stuckHint;
+  if (!(after > 0)) return;
+  let last: { text: string; seconds: number } | undefined, quiet = 0, cleared = false;
+  const offs = [
+    world.events.on('card', (e) => { if (e.style === 'caption') last = { text: e.text, seconds: e.seconds }; }),
+    world.events.on('roomCleared', () => (cleared = true)),
+    ...PROGRESS.map((t) => world.events.on(t, () => (quiet = 0))),
+  ];
+  try {
+    for (;;) {
+      yield;
+      if (cleared) return;
+      if (fighting(world) || world.exitTaken || world.transition || world.inputLocked || world.lastStand) { quiet = 0; continue; }
+      quiet += world.dt;
+      if (quiet + 1e-9 < after) continue;
+      quiet = 0;
+      const open = world.exits.find((x) => x.open && !x.def.warp && x.def.x0 < 50);
+      if (open) { cueExit(world, open.def, true); continue; }
+      const hint = last;
+      if (hint) s.run(function* stuckCaption(q: Seq) { yield* q.card(hint.text, hint.seconds, 'caption'); });
+    }
+  } finally {
+    for (const off of offs) off();
+  }
 }
 
 /**
@@ -537,6 +601,8 @@ export function stageRunner(def: StageDef, roomId = def.start.room, entryId = de
       // the wipe uncovers the new room
       if (world.transition) { world.transition = false; world.events.emit('roomTransition', { phase: 'in', kind: 'door' }); }
       const at = entry;
+      // STB-14: first, so it hears the room script's first caption
+      s.run(stuckHint, 'stuckHint');
       if (r.script) s.run((q) => r.script!(q, at), `room:${room}`);
       // vent / breach entries catch the room off guard
       if (r.entries[entry]?.from === 'above' && r.entries[entry]?.surprise) {

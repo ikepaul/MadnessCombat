@@ -56,7 +56,8 @@ describe('stage 1 intro', () => {
       if (!knocked && hero.state === 'knockback') { knocked = true; hpAfterPunch = hero.hp; }
     }
     expect(knocked).toBe(true);
-    expect(hpAfterPunch).toBe(hero.maxHp - 1);
+    // M14b ENC-17: the teaching cross knocks you flat but costs no life
+    expect(hpAfterPunch).toBe(hero.maxHp);
     expect(alive(bb)).toBe(false);
     expect(world.kills).toBe(1);
     for (let i = 0; i < 60; i++) world.step();

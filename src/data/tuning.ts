@@ -741,6 +741,36 @@ export const TUNING = {
     height: 0.6,
     radius: 0.12,
   },
+
+  /**
+   * M14b slice C, encounters & pacing (design/audit/enc.md, stb.md STB-14, cmb.md CMB-07). All
+   * invented. A/B rule: each comment names the value that gives back the behaviour before the audit.
+   */
+  enc: {
+    /** ENC-09: zombies get their own attack-token cap per player (99 = old: uncapped). */
+    zombieMaxAttackers: 4,
+    /** ENC-09: a charging squad skips the token queue only while this many of it (or fewer) are alive (99 = old). */
+    chargeUncapped: 3,
+    /** ENC-17: scripted teaching / cutscene hits (the intro's cross, the boss's flings) cost a life (true = old). */
+    scriptedHitsHurt: false,
+    /** ENC-22: the gun grunts' aim telegraph per difficulty (s); 0.4 on every level = today's game. */
+    gunTelegraph: { noob: 0.4, pro: 0.4, hacker: 0.4, notch: 0.4 },
+    /** ENC-12: a grunt winds a heavy (knockdown) punch up visibly this long before he throws it (s; 0 = old). */
+    heavyTell: 0.3,
+    /**
+     * CMB-07: an unarmed grunt next to a prone hero stomps him: a drawn tell (`tell` s, he leans
+     * back), then a low hit with the finisher's geometry (`reach` ahead of him at the finisher
+     * height, the fist radius + `slack`), within `band` H in depth. `on: false` = old (he punches
+     * at standing height and misses).
+     */
+    stomp: { on: true, tell: 0.35, reach: 0.5, slack: 0.12, band: 0.3 },
+    /** ENC-11: the boss's volleys reach this far either side of the cannon's depth (H); 0.8 = old (wave B's cannoneer keeps TUNING.boss.cannon.aimBand). */
+    bossAimBand: 9,
+    /** STB-14: a room with no enemy and nothing happening re-shows its last caption (or its open exit's arrow) after this long (s; 0 = old: never). */
+    stuckHint: 20,
+    /** ENC-21: the exit arrow shows this long after the exit opens (s; 0 = old: no arrow). */
+    exitCue: 2.5,
+  },
 } as const;
 
 // dev: the F6 tuning panel's saved numbers (src/dev/overrides.ts), before anything is derived from them

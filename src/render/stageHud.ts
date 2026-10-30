@@ -19,6 +19,8 @@ export class StageHud {
   /** Spawn variety: a red chevron at the screen side someone is about to come in from (behind you). */
   private flankG: Phaser.GameObjects.Graphics;
   private flank?: { side: -1 | 1; t0: number };
+  /** M14b ENC-21: pale chevrons toward an exit that just opened (the sim's `exitCue`). */
+  private exitArrow?: { side: -1 | 1; t0: number; seconds: number };
   /** Wipe: phase and the world time it started. */
   private phase?: { kind: 'out' | 'in'; t0: number };
 
@@ -28,6 +30,10 @@ export class StageHud {
     this.stand = scene.add.graphics().setDepth(80);
     this.flankG = scene.add.graphics().setDepth(61);
     world.events.on('flank', (e) => (this.flank = { side: e.side, t0: world.time }));
+    world.events.on('exitCue', (e) => {
+      const side = e.side || (e.x >= (world.player?.pos.x ?? 0) ? 1 : -1);
+      this.exitArrow = { side, t0: world.time, seconds: e.seconds };
+    });
     world.events.on('roomTransition', (e) => (this.phase = { kind: e.phase, t0: world.time }));
     // a new room is there: if the wipe is still covering the screen, uncover it (co-op guests can
     // miss the 'in' event; never leave the screen black)
@@ -45,13 +51,22 @@ export class StageHud {
   private drawFlank(): void {
     const g = this.flankG;
     g.clear();
+    const x = this.exitArrow;
+    if (x) {
+      const t = this.world.time - x.t0;
+      if (t >= x.seconds) this.exitArrow = undefined;
+      else this.chevrons(x.side, Math.min(1, (x.seconds - t) / 0.4) * (0.5 + 0.4 * Math.abs(Math.sin(t * Math.PI * 2))), 0xe8e2d0);
+    }
     const f = this.flank;
     if (!f) return;
     const u = (this.world.time - f.t0) / 1.0;
     if (u >= 1) { this.flank = undefined; return; }
-    const alpha = (1 - u) * (0.55 + 0.45 * Math.abs(Math.sin(u * Math.PI * 4)));
-    const s = f.side, cy = H * 0.5;
-    g.fillStyle(0xd62620, alpha);
+    this.chevrons(f.side, (1 - u) * (0.55 + 0.45 * Math.abs(Math.sin(u * Math.PI * 4))), 0xd62620);
+  }
+
+  private chevrons(s: -1 | 1, alpha: number, color: number): void {
+    const g = this.flankG, cy = H * 0.5;
+    g.fillStyle(color, alpha);
     g.lineStyle(5, INK_HEX, alpha);
     for (const k of [0, 1]) {
       const tip = s < 0 ? 28 + k * 46 : W - 28 - k * 46;
